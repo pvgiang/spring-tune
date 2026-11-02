@@ -27,7 +27,7 @@ public final class HikariConnectionTimeoutRule extends ModuleRule {
         }
         long maxMs = options.getLong("max-ms", DEFAULT_MAX_MS);
         String fix = "Set " + Hikari.CONNECTION_TIMEOUT + " below your upstream request timeout, at most "
-                + maxMs + " ms (e.g. 2000–5000).";
+                + maxMs + " ms (e.g. 2000-5000).";
         PropertyValue<Long> timeout = module.config().getLong(Hikari.CONNECTION_TIMEOUT);
         if (timeout.isUnresolved()) {
             return;

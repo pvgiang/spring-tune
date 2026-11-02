@@ -16,7 +16,7 @@ public final class TomcatThreadsVsPoolRule extends ModuleRule {
 
     public TomcatThreadsVsPoolRule() {
         super("ST-TOMCAT-001", "Tomcat threads far above connection pool size", Severity.WARNING, "tomcat",
-                "server.tomcat.threads.max exceeds maximumPoolSize × ratio (INFO when both are library defaults).");
+                "server.tomcat.threads.max exceeds maximumPoolSize x ratio (INFO when both are library defaults).");
     }
 
     @Override

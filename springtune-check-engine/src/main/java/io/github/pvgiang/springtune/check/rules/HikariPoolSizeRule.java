@@ -26,11 +26,11 @@ public final class HikariPoolSizeRule extends ModuleRule {
         if (size.isSet() && size.value() > max) {
             findings.add(finding(module, Hikari.MAXIMUM_POOL_SIZE,
                     "maximumPoolSize is " + size.value() + " per instance, above the " + max + " threshold.",
-                    "A database executes only about (cores × 2) queries in parallel efficiently. Extra connections "
+                    "A database executes only about (cores x 2) queries in parallel efficiently. Extra connections "
                             + "queue inside the database instead of the pool, which raises latency for everyone, "
                             + "and they multiply by the replica count against max_connections.",
                     "Size the pool from measured concurrency (see the HikariCP 'About Pool Sizing' guide), "
-                            + "typically 10–30, and check ST-HIKARI-004 for the fleet-wide budget.",
+                            + "typically 10-30, and check ST-HIKARI-004 for the fleet-wide budget.",
                     size.location()));
         }
     }

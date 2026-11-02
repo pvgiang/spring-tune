@@ -13,7 +13,7 @@ public final class HikariLeakDetectionRule extends ModuleRule {
             + "permanently. Without leak detection the first symptom is pool exhaustion in production, with no "
             + "stack trace pointing at the code that leaked.";
     private static final String FIX = "Set " + Hikari.LEAK_DETECTION_THRESHOLD + " slightly above your longest "
-            + "legitimate connection hold time, e.g. 30000–60000 ms. HikariCP then logs the borrowing stack trace.";
+            + "legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.";
 
     public HikariLeakDetectionRule() {
         super("ST-HIKARI-002", "Connection leak detection disabled", Severity.WARNING, "hikari",

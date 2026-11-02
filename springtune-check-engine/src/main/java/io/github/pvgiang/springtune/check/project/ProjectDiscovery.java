@@ -50,7 +50,8 @@ public final class ProjectDiscovery {
         return modules;
     }
 
-    static boolean isModule(Path dir) {
+    /** {@code true} if {@code dir} looks like a Spring Boot module (see class docs). */
+    public static boolean isModule(Path dir) {
         Path resources = dir.resolve("src/main/resources");
         return hasConfig(resources) || hasConfig(resources.resolve("config"))
                 || hasBootApplication(dir.resolve("src/main/java"));

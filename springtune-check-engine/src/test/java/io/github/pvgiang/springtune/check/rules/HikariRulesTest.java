@@ -178,7 +178,7 @@ class HikariRulesTest {
                     """);
             assertThat(findings(root, "ST-HIKARI-004")).singleElement().satisfies(f -> {
                 assertThat(f.severity()).isEqualTo(Severity.ERROR);
-                assertThat(f.message()).contains("allows 80", "can open 100", ". 20×5");
+                assertThat(f.message()).contains("allows 80", "can open 100", ". 20x5");
                 assertThat(f.fix()).contains("16");
                 assertThat(f.location().line()).isEqualTo(1);
             });
@@ -203,7 +203,7 @@ class HikariRulesTest {
                               maxReplicas: 6
                             """);
             assertThat(findings(root, "ST-HIKARI-004")).singleElement()
-                    .satisfies(f -> assertThat(f.message()).contains("10×6", "k8s/hpa.yaml", "auto-discovered"));
+                    .satisfies(f -> assertThat(f.message()).contains("10x6", "k8s/hpa.yaml", "auto-discovered"));
         }
 
         @Test
@@ -219,7 +219,7 @@ class HikariRulesTest {
                             """)
                     .file("chart/values.yaml", "replicaCount: 2\nautoscaling:\n  enabled: true\n  maxReplicas: 8\n");
             assertThat(findings(root, "ST-HIKARI-004")).singleElement()
-                    .satisfies(f -> assertThat(f.message()).contains("10×8", "autoscaling.maxReplicas"));
+                    .satisfies(f -> assertThat(f.message()).contains("10x8", "autoscaling.maxReplicas"));
         }
 
         @Test
@@ -242,7 +242,7 @@ class HikariRulesTest {
                                 maxReplicas: 3
                             """);
             assertThat(findings(root, "ST-HIKARI-004")).hasSize(2).allSatisfy(f ->
-                    assertThat(f.message()).contains("allows 100", "can open 110", "orders 20×4", "billing 10×3"));
+                    assertThat(f.message()).contains("allows 100", "can open 110", "orders 20x4", "billing 10x3"));
         }
 
         @Test

@@ -33,7 +33,7 @@
     },
     "message" : "@EnableAsync uses Spring Boot's applicationTaskExecutor with its default unbounded queue: 8 threads run tasks and everything else waits in memory.",
     "why" : "With an unbounded queue the pool never grows past its core size, so under load async work piles up without limit: latency grows unbounded, memory fills, and queued tasks are lost on restart. Nothing applies backpressure.",
-    "fix" : "Set spring.task.execution.pool.queue-capacity (e.g. 100–1000) together with spring.task.execution.pool.max-size, or declare a ThreadPoolTaskExecutor bean with setQueueCapacity(...) and a rejection policy.",
+    "fix" : "Set spring.task.execution.pool.queue-capacity (e.g. 100-1000) together with spring.task.execution.pool.max-size, or declare a ThreadPoolTaskExecutor bean with setQueueCapacity(...) and a rejection policy.",
     "suppressed" : false
   }, {
     "ruleId" : "ST-HTTP-001",
@@ -89,7 +89,7 @@
     },
     "message" : "connectionTimeout is 30000 ms, above the 5000 ms threshold.",
     "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
-    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000–5000).",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
     "suppressed" : false
   }, {
     "ruleId" : "ST-HIKARI-004",
@@ -101,7 +101,7 @@
       "line" : 9,
       "column" : 26
     },
-    "message" : "Database 'shop-db' allows 80 pool connections (max_connections 100 × safety factor 0.8) but its services can open 112: orders 12×6 [replicas from orders/chart/values.yaml autoscaling.maxReplicas], payments 10×4 [replicas from springtune.yml services[path=payments]].",
+    "message" : "Database 'shop-db' allows 80 pool connections (max_connections 100 x safety factor 0.8) but its services can open 112: orders 12x6 [replicas from orders/chart/values.yaml autoscaling.maxReplicas], payments 10x4 [replicas from springtune.yml services[path=payments]].",
     "why" : "At peak scale (or during a rolling update) the pools try to open more connections than the database accepts. New pods fail to start or requests fail with 'too many connections', usually exactly when traffic is highest.",
     "fix" : "Lower maximum-pool-size (proportional share for this service: 8), cap maxReplicas, or raise max_connections / add a connection proxy such as PgBouncer.",
     "suppressed" : false
@@ -172,7 +172,7 @@
       "line" : 2,
       "column" : 42
     },
-    "message" : "Database 'shop-db' allows 80 pool connections (max_connections 100 × safety factor 0.8) but its services can open 112: orders 12×6 [replicas from orders/chart/values.yaml autoscaling.maxReplicas], payments 10×4 [replicas from springtune.yml services[path=payments]].",
+    "message" : "Database 'shop-db' allows 80 pool connections (max_connections 100 x safety factor 0.8) but its services can open 112: orders 12x6 [replicas from orders/chart/values.yaml autoscaling.maxReplicas], payments 10x4 [replicas from springtune.yml services[path=payments]].",
     "why" : "At peak scale (or during a rolling update) the pools try to open more connections than the database accepts. New pods fail to start or requests fail with 'too many connections', usually exactly when traffic is highest.",
     "fix" : "Lower maximum-pool-size (proportional share for this service: 7), cap maxReplicas, or raise max_connections / add a connection proxy such as PgBouncer.",
     "suppressed" : false

@@ -23,8 +23,8 @@ public final class HikariConnectionBudgetRule implements Rule {
 
     private final ModuleRuleSupport support = new ModuleRuleSupport("ST-HIKARI-004",
             "Connection budget exceeded", Severity.ERROR, "hikari",
-            "maximumPoolSize × maxReplicas summed over the services sharing a database exceeds"
-                    + " max_connections × safetyFactor.");
+            "maximumPoolSize x maxReplicas summed over the services sharing a database exceeds"
+                    + " max_connections x safetyFactor.");
 
     @Override
     public RuleDescriptor descriptor() {
@@ -90,12 +90,12 @@ public final class HikariConnectionBudgetRule implements Rule {
                 if (!breakdown.isEmpty()) {
                     breakdown.append(", ");
                 }
-                breakdown.append(member.module().path()).append(' ').append(member.pool()).append('×')
+                breakdown.append(member.module().path()).append(' ').append(member.pool()).append('x')
                         .append(member.replicas().maxReplicas()).append(" [replicas from ")
                         .append(member.replicas().source()).append(']');
             }
             String message = "Database '" + database.name() + "' allows " + budget.usableConnections()
-                    + " pool connections (max_connections " + database.maxConnections() + " × safety factor "
+                    + " pool connections (max_connections " + database.maxConnections() + " x safety factor "
                     + factor + ") but its services can open " + evaluation.demand() + ": " + breakdown + ".";
             String why = "At peak scale (or during a rolling update) the pools try to open more connections than "
                     + "the database accepts. New pods fail to start or requests fail with 'too many connections', "

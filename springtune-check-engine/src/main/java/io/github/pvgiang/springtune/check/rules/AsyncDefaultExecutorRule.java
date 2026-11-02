@@ -44,7 +44,7 @@ public final class AsyncDefaultExecutorRule extends ModuleRule {
                 "With an unbounded queue the pool never grows past its core size, so under load async work piles up "
                         + "without limit: latency grows unbounded, memory fills, and queued tasks are lost on "
                         + "restart. Nothing applies backpressure.",
-                "Set " + QUEUE_CAPACITY + " (e.g. 100–1000) together with spring.task.execution.pool.max-size, "
+                "Set " + QUEUE_CAPACITY + " (e.g. 100-1000) together with spring.task.execution.pool.max-size, "
                         + "or declare a ThreadPoolTaskExecutor bean with setQueueCapacity(...) and a rejection policy.",
                 enableAsync.get().location()));
     }

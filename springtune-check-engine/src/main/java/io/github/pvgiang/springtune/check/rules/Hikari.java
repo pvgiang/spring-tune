@@ -1,6 +1,6 @@
 package io.github.pvgiang.springtune.check.rules;
 
-/** HikariCP property keys and library defaults (HikariCP 4.x–7.x, unchanged across Spring Boot 2.x–4.x). */
+/** HikariCP property keys and library defaults (HikariCP 4.x-7.x, unchanged across Spring Boot 2.x-4.x). */
 final class Hikari {
 
     static final String PREFIX = "spring.datasource.hikari.";

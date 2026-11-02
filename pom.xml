@@ -23,8 +23,8 @@
     <modules>
         <module>springtune-model</module>
         <module>springtune-check-engine</module>
-        <!--<module>springtune-check-cli</module>-->
-        <!--<module>springtune-maven-plugin</module>-->
+        <module>springtune-check-cli</module>
+        <module>springtune-maven-plugin</module>
         <!--<module>springtune-spring-boot-autoconfigure</module>-->
         <!--<module>springtune-spring-boot-starter</module>-->
         <!--<module>springtune-samples/broken-config</module>-->
