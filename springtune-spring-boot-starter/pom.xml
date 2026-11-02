@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.github.pvgiang.springtune</groupId>
+        <artifactId>springtune-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>springtune-spring-boot-starter</artifactId>
+    <name>SpringTune :: Spring Boot Starter</name>
+    <description>Drop-in starter: /actuator/tuning with knobs, signals and explained recommendations. Read-only.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.pvgiang.springtune</groupId>
+            <artifactId>springtune-spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <!-- Actuator provides the endpoint infrastructure and Micrometer (HikariCP hold-time metrics). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+    </dependencies>
+</project>

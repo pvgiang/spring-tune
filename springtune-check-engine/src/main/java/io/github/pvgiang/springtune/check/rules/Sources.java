@@ -43,18 +43,26 @@ final class Sources {
 
     /** "Type#method" label for the enclosing member, used as a stable finding subject. */
     static String owner(Node node) {
-        String type = node.findAncestor(TypeDeclaration.class).map(t -> t.getNameAsString()).orElse("?");
-        Optional<CallableDeclaration> callable = node.findAncestor(CallableDeclaration.class);
-        return type + callable.map(c -> "#" + c.getNameAsString()).orElse("");
+        String type = ancestor(node, TypeDeclaration.class).map(t -> t.getNameAsString()).orElse("?");
+        return type + ancestor(node, CallableDeclaration.class).map(c -> "#" + c.getNameAsString()).orElse("");
     }
 
     /** Body to search for configuration calls: enclosing method/constructor, else the enclosing class. */
     static Node scopeOf(Node node) {
-        Optional<CallableDeclaration> callable = node.findAncestor(CallableDeclaration.class);
-        if (callable.isPresent()) {
-            return callable.get();
+        Optional<Node> callable = ancestor(node, CallableDeclaration.class).map(Node.class::cast);
+        return callable.or(() -> ancestor(node, ClassOrInterfaceDeclaration.class).map(Node.class::cast))
+                .orElse(node);
+    }
+
+    /** Nearest ancestor of the given type (typed walk; JavaParser's varargs variant is not type-safe). */
+    static <T> Optional<T> ancestor(Node node, Class<T> type) {
+        for (Node current = node.getParentNode().orElse(null); current != null;
+                current = current.getParentNode().orElse(null)) {
+            if (type.isInstance(current)) {
+                return Optional.of(type.cast(current));
+            }
         }
-        return node.findAncestor(ClassOrInterfaceDeclaration.class).map(Node.class::cast).orElse(node);
+        return Optional.empty();
     }
 
     static boolean callsAny(Node scope, java.util.Set<String> methodNames) {

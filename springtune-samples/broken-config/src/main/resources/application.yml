@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: broken-config
+  datasource:
+    url: jdbc:h2:mem:orders;DB_CLOSE_DELAY=-1
+    hikari:
+      pool-name: orders-pool
+      maximum-pool-size: 20          # ST-HIKARI-004: 20 x 6 replicas = 120 > 80 usable connections
+      connection-timeout: 30000      # ST-HIKARI-001: threads wait 30 s for a connection
+server:
+  tomcat:
+    threads:
+      max: 400                       # ST-TOMCAT-001: 400 threads vs 20 connections
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,tuning
+
+# Runtime starter: same budget as springtune.yml, so recommendations stay within 100 x 0.8 / 6 = 13.
+springtune:
+  sampling:
+    interval: 2s
+  budget:
+    database-max-connections: 100
+    max-replicas: 6

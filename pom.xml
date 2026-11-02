@@ -25,9 +25,9 @@
         <module>springtune-check-engine</module>
         <module>springtune-check-cli</module>
         <module>springtune-maven-plugin</module>
-        <!--<module>springtune-spring-boot-autoconfigure</module>-->
-        <!--<module>springtune-spring-boot-starter</module>-->
-        <!--<module>springtune-samples/broken-config</module>-->
+        <module>springtune-spring-boot-autoconfigure</module>
+        <module>springtune-spring-boot-starter</module>
+        <module>springtune-samples/broken-config</module>
     </modules>
 
     <properties>
@@ -160,7 +160,7 @@
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.13</version>
+                    <version>0.8.14</version>
                 </plugin>
             </plugins>
         </pluginManagement>

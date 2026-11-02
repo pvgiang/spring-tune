@@ -87,3 +87,42 @@ All of these run with `mvn verify` from the repository root, unless a command is
 | AC-11 | Under real pool contention with short connection holds, the starter recommends **raising** the pool, capped by the connection budget. With long holds, it recommends **not** raising and points at slow queries/transactions | `HikariContentionIntegrationTest` (real HikariCP + H2 + Micrometer) |
 | AC-12 | `/actuator/tuning` returns knobs and recommendations in a real Boot application | `BrokenConfigApplicationTest` (`@SpringBootTest`, random port) |
 | AC-13 | Every rule ID has a docs page | `RuleDocsTest` |
+
+## 6. Results
+
+| ID | Status | Evidence |
+|---|---|---|
+| AC-1 | ✅ local (JDK 21, Boot 4.1.2 and 3.5.16); CI matrix for JDK 17/21/25 | `mvn -B clean verify`: 7 modules, 120 tests + 2 Maven ITs green |
+| AC-2 | ✅ | `ProjectConfigLoaderTest` (16 cases) |
+| AC-3 | ✅ | `HikariRulesTest` (26), `TomcatAndAsyncRulesTest` (9), `HttpAndResilienceRulesTest` (9) |
+| AC-4 | ✅ | placeholder and conversion cases in `ProjectConfigLoaderTest` and `HikariRulesTest` |
+| AC-5 | ✅ | `GoldenReportTest`: the two-service fixture produces the 13 hand-predicted findings, 1 suppression, 1 diagnostic |
+| AC-6 | ✅ | `CheckEngineTest` (suppression, narrowing, missing reason rejected) |
+| AC-7 | ✅ | `SarifReporterTest` |
+| AC-8 | ✅ | `CheckCommandTest` (7 cases) and a manual fat-jar run on the fixture (exit code 1) |
+| AC-9 | ✅ | invoker ITs `fails-on-risky-config` (BUILD FAILURE + SARIF) and `passes-with-failon-none` |
+| AC-10 | ✅ | `SpringTuneAutoConfigurationTest` (9 cases) |
+| AC-11 | ✅ | `HikariContentionIntegrationTest` (3 scenarios, stable over repeated cold runs) |
+| AC-12 | ✅ | `BrokenConfigApplicationTest` (GET content, POST rejected) |
+| AC-13 | ✅ | `RuleDocsTest` |
+
+**Manual end-to-end run** (sample app with real HTTP load: 60 concurrent clients against a 20-connection pool,
+budget cap 13):
+
+- 900 ms connection holds → `ST-REC-HIKARI-002 HOLD HIGH`: "Do not raise the pool… held for 900 ms on average".
+- 300 ms holds → `ST-REC-HIKARI-001 HOLD MEDIUM`: "…already above its connection budget cap of 13 (current
+  20)". This run exposed an imprecise message ("at" vs "above" the cap), which was fixed and is now covered by
+  `AdvisorTest`.
+
+**Defects found by the verification and fixed:** origin unwrapping for line numbers; `Map.of` ordering making
+reports non-deterministic; dependencyManagement counted as usage (false positives); non-ASCII characters
+garbled on non-UTF-8 consoles; a nested `@ConditionalOnBean` that never matched; a pool-start race in the
+contention test; the sample's own config sitting exactly at the ST-TOMCAT-001 threshold.
+
+## 7. Next iteration (proposed, in plan order)
+
+1. Corpus run on 20 public Spring Boot repos and false-positive rate per rule (plan §15 exit criterion).
+2. Gradle plugin and a GitHub Marketplace action wrapping the CLI.
+3. `apply` mode behind guardrails (bounds, step, cooldown, verification window, auto-revert), with Testcontainers PostgreSQL and Gatling load tests.
+4. Adaptive concurrency limiter module.
+5. Release pipeline (JReleaser → Maven Central), CLA, docs site.
