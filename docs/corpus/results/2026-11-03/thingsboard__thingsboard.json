@@ -1,0 +1,244 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.1.0-SNAPSHOT",
+  "summary" : {
+    "error" : 0,
+    "warning" : 3,
+    "info" : 1,
+    "suppressed" : 0,
+    "notEvaluated" : 18
+  },
+  "modules" : [ {
+    "path" : "integration/apache-pulsar",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/aws",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/azure",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/coap",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/executor",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "tomcat", "async" ]
+  }, {
+    "path" : "integration/http",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/kafka",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/mqtt",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/opc-ua",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/pubsub",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/rabbitmq",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/tcp-udp",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "integration/tuya",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "migrator",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "migrator/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "monitoring",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  }, {
+    "path" : "msa/vc-executor",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "tomcat", "async" ]
+  }, {
+    "path" : "transport/http",
+    "springBootVersion" : "3.5.15",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "tomcat", "async" ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "migrator",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "migrator/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "connectionTimeout is not set, so HikariCP waits up to 30000 ms (default) for a connection.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "migrator",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "migrator/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "migrator",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "migrator/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-ASYNC-002",
+    "severity" : "WARNING",
+    "module" : "monitoring",
+    "subject" : "NotificationService:Executors.newSingleThreadExecutor",
+    "location" : {
+      "path" : "monitoring/src/main/java/org/thingsboard/monitoring/notification/NotificationService.java",
+      "line" : 26,
+      "column" : 58
+    },
+    "message" : "Executors.newSingleThreadExecutor(...) creates a pool with an unbounded LinkedBlockingQueue.",
+    "why" : "Without a bound, a slow downstream turns into unlimited queued work (memory growth, unbounded latency, lost tasks on restart) or unlimited threads (CPU and memory exhaustion). Nothing pushes back on the caller.",
+    "fix" : "Build a ThreadPoolExecutor (or ThreadPoolTaskExecutor) with a bounded queue, a maximum thread count and a rejection policy.",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ {
+    "module" : "integration/apache-pulsar",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/aws",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/azure",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/coap",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/executor",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/http",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/kafka",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/mqtt",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/opc-ua",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/pubsub",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/rabbitmq",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/tcp-udp",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "integration/tuya",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "monitoring",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "msa/vc-executor",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "transport/http",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: the code sets spring.config.name or spring.config.location, so the real config files are unknown; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "migrator",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "migrator",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  } ]
+}

@@ -1,0 +1,92 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.1.0-SNAPSHOT",
+  "summary" : {
+    "error" : 0,
+    "warning" : 2,
+    "info" : 1,
+    "suppressed" : 0,
+    "notEvaluated" : 0
+  },
+  "modules" : [ {
+    "path" : "litemall-admin-api",
+    "springBootVersion" : "2.1.5.RELEASE",
+    "activeProfiles" : [ "db", "core", "admin" ],
+    "configFiles" : [ "litemall-admin-api/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "litemall-all",
+    "springBootVersion" : "2.1.5.RELEASE",
+    "activeProfiles" : [ "db", "core", "admin", "wx" ],
+    "configFiles" : [ "litemall-all/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "litemall-all-war",
+    "springBootVersion" : "2.1.5.RELEASE",
+    "activeProfiles" : [ "db", "core", "admin", "wx" ],
+    "configFiles" : [ "litemall-all-war/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "litemall-core",
+    "springBootVersion" : "2.1.5.RELEASE",
+    "activeProfiles" : [ "core", "db" ],
+    "configFiles" : [ "litemall-core/src/main/resources/application.yml", "litemall-core/src/main/resources/application-core.yml" ],
+    "technologies" : [ "tomcat", "async" ]
+  }, {
+    "path" : "litemall-db",
+    "springBootVersion" : "2.1.5.RELEASE",
+    "activeProfiles" : [ "db" ],
+    "configFiles" : [ "litemall-db/src/main/resources/application.yml", "litemall-db/src/main/resources/application-db.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "litemall-wx-api",
+    "springBootVersion" : "2.1.5.RELEASE",
+    "activeProfiles" : [ "db", "core", "wx" ],
+    "configFiles" : [ "litemall-wx-api/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-ASYNC-001",
+    "severity" : "WARNING",
+    "module" : "litemall-core",
+    "subject" : "@EnableAsync",
+    "location" : {
+      "path" : "litemall-core/src/main/java/org/linlinjava/litemall/core/config/AsyncConfig.java",
+      "line" : 7,
+      "column" : 1
+    },
+    "message" : "@EnableAsync uses Spring Boot's applicationTaskExecutor with its default unbounded queue: 8 threads run tasks and everything else waits in memory.",
+    "why" : "With an unbounded queue the pool never grows past its core size, so under load async work piles up without limit: latency grows unbounded, memory fills, and queued tasks are lost on restart. Nothing applies backpressure.",
+    "fix" : "Set spring.task.execution.pool.queue-capacity (e.g. 100-1000) together with spring.task.execution.pool.max-size, or declare a ThreadPoolTaskExecutor bean with setQueueCapacity(...) and a rejection policy.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-ASYNC-002",
+    "severity" : "WARNING",
+    "module" : "litemall-core",
+    "subject" : "TaskService#init:Executors.newSingleThreadExecutor",
+    "location" : {
+      "path" : "litemall-core/src/main/java/org/linlinjava/litemall/core/task/TaskService.java",
+      "line" : 17,
+      "column" : 9
+    },
+    "message" : "Executors.newSingleThreadExecutor(...) creates a pool with an unbounded LinkedBlockingQueue.",
+    "why" : "Without a bound, a slow downstream turns into unlimited queued work (memory growth, unbounded latency, lost tasks on restart) or unlimited threads (CPU and memory exhaustion). Nothing pushes back on the caller.",
+    "fix" : "Build a ThreadPoolExecutor (or ThreadPoolTaskExecutor) with a bounded queue, a maximum thread count and a rejection policy.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "litemall-db",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "litemall-db/src/main/resources/application-db.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ ]
+}

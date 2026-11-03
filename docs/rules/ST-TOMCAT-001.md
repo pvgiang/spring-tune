@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | WARNING when either value is set explicitly; INFO when both are library defaults (200 threads vs 10 connections) |
-| **Applies when** | Module uses HikariCP and embedded Tomcat (web/webmvc starter without Jetty/Undertow, or `server.tomcat.*` set), and virtual threads are **not** enabled. |
+| **Applies when** | Module uses HikariCP through `spring.datasource.hikari.*` (see [technology detection](../check.md#which-rules-apply)) and embedded Tomcat (web/webmvc starter without Jetty/Undertow, or `server.tomcat.*` set), virtual threads are **not** enabled, and the local config is complete. `server.tomcat.max-threads` (Spring Boot 2.2 and earlier) is read when `server.tomcat.threads.max` is absent. |
 | **Options** | `max-ratio` (default `10`). |
 
 ## What it detects

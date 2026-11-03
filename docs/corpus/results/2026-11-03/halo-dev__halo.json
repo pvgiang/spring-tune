@@ -1,0 +1,48 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.1.0-SNAPSHOT",
+  "summary" : {
+    "error" : 0,
+    "warning" : 2,
+    "info" : 0,
+    "suppressed" : 0,
+    "notEvaluated" : 0
+  },
+  "modules" : [ {
+    "path" : "application",
+    "springBootVersion" : null,
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "application/src/main/resources/application.yaml" ],
+    "technologies" : [ "virtual-threads", "async", "resilience4j" ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-ASYNC-002",
+    "severity" : "WARNING",
+    "module" : "application",
+    "subject" : "DefaultLocalThumbnailService#DefaultLocalThumbnailService:Executors.newFixedThreadPool",
+    "location" : {
+      "path" : "application/src/main/java/run/halo/app/core/attachment/thumbnail/DefaultLocalThumbnailService.java",
+      "line" : 62,
+      "column" : 32
+    },
+    "message" : "Executors.newFixedThreadPool(...) creates a pool with an unbounded LinkedBlockingQueue.",
+    "why" : "Without a bound, a slow downstream turns into unlimited queued work (memory growth, unbounded latency, lost tasks on restart) or unlimited threads (CPU and memory exhaustion). Nothing pushes back on the caller.",
+    "fix" : "Build a ThreadPoolExecutor (or ThreadPoolTaskExecutor) with a bounded queue, a maximum thread count and a rejection policy.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HTTP-001",
+    "severity" : "WARNING",
+    "module" : "application",
+    "subject" : "ProxyFilter#ProxyFilter:WebClient.create",
+    "location" : {
+      "path" : "application/src/main/java/run/halo/app/infra/ui/ProxyFilter.java",
+      "line" : 35,
+      "column" : 26
+    },
+    "message" : "WebClient.create(...) uses the default connector: no response timeout (Reactor Netty).",
+    "why" : "A call without a read timeout waits as long as the remote side keeps the socket open. When a dependency hangs, request threads pile up on it until the service stops responding: one slow dependency becomes a full outage.",
+    "fix" : "Use WebClient.builder().clientConnector(new ReactorClientHttpConnector(HttpClient.create().responseTimeout(...).option(ChannelOption.CONNECT_TIMEOUT_MILLIS, ...))), or inject the auto-configured WebClient.Builder.",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ ]
+}

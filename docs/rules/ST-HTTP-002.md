@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | WARNING |
-| **Applies when** | OpenFeign is used (`spring-cloud-starter-openfeign` dependency or `@EnableFeignClients`). |
+| **Applies when** | `@EnableFeignClients` is in the module or an in-repo library it depends on, Ribbon is not in use (Spring Cloud Hoxton and earlier route Feign through Ribbon, whose Spring Cloud default read timeout is 1 s), and the local config is complete. |
 | **Options** | none. |
 
 ## What it detects

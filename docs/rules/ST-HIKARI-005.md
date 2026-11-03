@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | WARNING |
-| **Applies when** | Module uses HikariCP and sets `maximum-pool-size` explicitly. |
+| **Applies when** | Module uses HikariCP through `spring.datasource.hikari.*` (see [technology detection](../check.md#which-rules-apply)) and its local config is complete. |
 | **Options** | `max` (default `50`). |
 
 ## What it detects

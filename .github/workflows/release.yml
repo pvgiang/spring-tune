@@ -1,0 +1,61 @@
+name: Release
+
+# Two ways to release; both build, test and publish a GitHub Release with notes from docs/releases/v<version>.md:
+#   1. push a tag:   git tag -a v0.1.0 -m "SpringTune 0.1.0" && git push origin v0.1.0
+#   2. Actions > Release > Run workflow, enter the version; the tag is created on the selected commit.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (e.g. 0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then VERSION="${INPUT_VERSION#v}"; else VERSION="${GITHUB_REF_NAME#v}"; fi
+          echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || { echo "Invalid version: $VERSION"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+          mvn -B -ntp org.codehaus.mojo:versions-maven-plugin:2.21.0:set \
+            -DnewVersion="$VERSION" -DgenerateBackupPoms=false -DprocessAllModules=true
+
+      - name: Build and test (all modules, plugin ITs)
+        run: mvn -B -ntp verify
+
+      - name: Stage Maven artifacts
+        run: mvn -B -ntp deploy -DskipTests -Dinvoker.skip -DaltDeploymentRepository=staging::file:${{ github.workspace }}/target/staging-repo
+
+      - name: Collect release assets
+        run: |
+          mkdir -p dist
+          cp springtune-check-cli/target/springtune-check-cli-$VERSION-all.jar dist/springtune-cli-$VERSION.jar
+          (cd target/staging-repo && zip -qr ../../dist/springtune-maven-repo-$VERSION.zip .)
+          (cd dist && sha256sum * > SHA256SUMS)
+          java -jar dist/springtune-cli-$VERSION.jar --version | grep -q "SpringTune $VERSION"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="docs/releases/${TAG}.md"
+          test -f "$NOTES"
+          # On workflow_dispatch the tag does not exist yet; --target creates it on the built commit.
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "SpringTune $VERSION" --notes-file "$NOTES"

@@ -51,14 +51,18 @@ jobs:
           java-version: "21"
           cache: maven
       - run: mvn -B -ntp -q package -DskipTests -Dinvoker.skip -pl springtune-check-cli -am
-      - name: Run the CLI (the sample is broken on purpose, so the exit code must be 1)
+      - name: Run the GitHub Action on the sample (broken on purpose, so it must fail with exit code 1)
+        id: springtune
+        continue-on-error: true
+        uses: ./
+        with:
+          path: springtune-samples/broken-config
+          jar: springtune-check-cli/target/springtune-check-cli-0.1.0-SNAPSHOT-all.jar
+          format: text,markdown,sarif
+      - name: Expect exit code 1 and a SARIF report
         run: |
-          set +e
-          java -jar springtune-check-cli/target/springtune-check-cli-*-all.jar check springtune-samples/broken-config \
-            --format text,markdown,sarif --output springtune-reports
-          code=$?
-          echo "exit code: $code"
-          test "$code" -eq 1
+          test "${{ steps.springtune.outputs.exit-code }}" = "1"
+          test -s "${{ steps.springtune.outputs.sarif }}"
       - uses: actions/upload-artifact@v4
         with:
           name: springtune-reports

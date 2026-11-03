@@ -17,7 +17,7 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>io.github.pvgiang.springtune</groupId>
+        <groupId>io.github.winky.springtune</groupId>
         <artifactId>springtune-maven-plugin</artifactId>
         <version>@project.version@</version>
         <executions>
