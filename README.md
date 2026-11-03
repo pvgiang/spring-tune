@@ -8,7 +8,7 @@ SpringTune has two parts that share one model and one set of rule IDs:
 
 | Part | When it runs | What it does |
 |---|---|---|
-| **`springtune check`** (CLI, Maven plugin, GitHub Action) | CI, before deploy | Static analysis of `application*.yml/properties` (resolved exactly like Spring Boot does), Java sources and Helm/Kubernetes manifests. 13 rules for pool exhaustion, hung threads and retry storms. Text/Markdown/JSON/SARIF output; fails the build at a threshold. |
+| **`springtune check`** (CLI, Maven plugin, Gradle plugin, GitHub Action) | CI, before deploy | Static analysis of `application*.yml/properties` (resolved exactly like Spring Boot does), Java sources and Helm/Kubernetes manifests. 13 rules for pool exhaustion, hung threads and retry storms. Text/Markdown/JSON/SARIF output; fails the build at a threshold. |
 | **`springtune-spring-boot-starter`** | Runtime | `/actuator/tuning` with live knobs (HikariCP, `ThreadPoolTaskExecutor`), signals and **explained, budget-capped recommendations**. Read-only: it never changes anything. |
 
 ## Quick start
@@ -73,6 +73,19 @@ springtune.budget:            # optional, caps pool recommendations: floor(100 x
   max-replicas: 6
 ```
 
+**Gradle plugin** (from 0.2.0; Gradle 8.5+, configuration cache compatible). The resolved runtime classpath
+decides which rules apply, so dependencies declared through version catalogs and convention plugins count:
+
+```kotlin
+plugins {
+    id("io.github.winky.springtune") version "0.2.0"   // ./gradlew check now runs springtuneCheck
+}
+springtune { profiles.set(listOf("prod")) }            // optional; see docs/check.md#gradle-plugin
+```
+
+Until it is on the Gradle Plugin Portal, add the release's Maven repository to `pluginManagement.repositories`
+and `repositories` ([setup](docs/check.md#gradle-plugin)).
+
 ## Case study: what we found in 20 popular Spring Boot projects
 
 We ran `springtune check` over 20 well-known open-source Spring Boot projects (Spring PetClinic, JHipster,
@@ -133,8 +146,10 @@ mvn -B verify                                              # all modules, unit +
 mvn -B verify -Dspring-boot.version=3.5.16 -Dinvoker.skip  # Spring Boot 3.5 compatibility
 ```
 
-Requires JDK 17+ and Maven 3.9+. CI (`.github/workflows/ci.yml`) runs JDK 17/21/25 and Boot 4.1 and 3.5,
-and runs the GitHub Action against the sample. Releases: push a `vX.Y.Z` tag, or run *Actions → Release →
+Requires JDK 17+ and Maven 3.9+. The Gradle plugin's functional tests run real Gradle builds: they use
+`-Dspringtune.it.gradle=<gradle or GRADLE_HOME>`, else `gradle` on `PATH`, and are skipped without one. CI
+(`.github/workflows/ci.yml`) runs JDK 17/21/25, Boot 4.1 and 3.5, Gradle 8.14 and 9.8, and runs the GitHub
+Action against the sample. Releases: push a `vX.Y.Z` tag, or run *Actions → Release →
 Run workflow* with the version. `.github/workflows/release.yml` builds, tests and publishes the GitHub Release
 with notes from `docs/releases/`.
 
@@ -146,6 +161,7 @@ with notes from `docs/releases/`.
 | `springtune-check-engine` | Config resolution, scanners, rule API, 13 rules, reporters |
 | `springtune-check-cli` | `springtune check` / `springtune rules` (runnable `-all.jar`) |
 | `springtune-maven-plugin` | `mvn springtune:check`, bound to `verify` |
+| `springtune-gradle-plugin` (+ `-marker`, `-tests`) | Plugin `io.github.winky.springtune`: `./gradlew springtuneCheck`, wired into `check`; functional tests on real Gradle builds |
 | `springtune-spring-boot-autoconfigure` / `-starter` | Runtime registry, sampler, recommendations, `/actuator/tuning` |
 | `springtune-samples/broken-config` | Runnable demo and end-to-end fixture |
 | `action.yml` | GitHub Action wrapping the CLI |
@@ -154,7 +170,8 @@ with notes from `docs/releases/`.
 
 - [Delivery brief: scope, decisions, acceptance criteria](docs/delivery/iteration-1-brief.md)
 - [Architecture](docs/architecture.md)
-- [The check: CLI, Maven plugin, how config is resolved, limitations](docs/check.md)
+- [Delivery brief, iteration 2: Gradle plugin](docs/delivery/iteration-2-brief.md)
+- [The check: CLI, Maven plugin, Gradle plugin, how config is resolved, limitations](docs/check.md)
 - [`springtune.yml` reference](docs/configuration.md)
 - [Rules](docs/rules/README.md)
 - [Case study: what we found in 20 popular Spring Boot projects](docs/case-study/what-we-found-in-20-spring-boot-projects.md)

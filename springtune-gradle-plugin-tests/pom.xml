@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.github.winky.springtune</groupId>
+        <artifactId>springtune-parent</artifactId>
+        <version>0.2.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>springtune-gradle-plugin-tests</artifactId>
+    <name>SpringTune :: Gradle Plugin Tests</name>
+    <description>
+        Functional tests: real Gradle builds apply the plugin by id from a staged Maven repository, exactly as users
+        will. Needs a Gradle installation (-Dspringtune.it.gradle=..., GRADLE_HOME or gradle on PATH); without one
+        the tests are skipped, unless -Dspringtune.it.requireGradle=true (CI).
+    </description>
+
+    <properties>
+        <maven.install.skip>true</maven.install.skip>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <springtune.it.gradle/>
+        <springtune.it.requireGradle>false</springtune.it.requireGradle>
+    </properties>
+
+    <dependencies>
+        <!-- Staged into target/it-repo by invoker:install (runtime scope only), with everything they depend on. -->
+        <dependency>
+            <groupId>io.github.winky.springtune</groupId>
+            <artifactId>io.github.winky.springtune.gradle.plugin</artifactId>
+            <version>${project.version}</version>
+            <type>pom</type>
+        </dependency>
+        <dependency>
+            <groupId>io.github.winky.springtune</groupId>
+            <artifactId>springtune-check-engine</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <skipIfEmpty>true</skipIfEmpty>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-invoker-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>stage-repository</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>install</goal>
+                        </goals>
+                        <configuration>
+                            <localRepositoryPath>${project.build.directory}/it-repo</localRepositoryPath>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                    <systemPropertyVariables>
+                        <springtune.it.repo>${project.build.directory}/it-repo</springtune.it.repo>
+                        <springtune.it.version>${project.version}</springtune.it.version>
+                        <springtune.it.fixtures>${project.basedir}/src/test/fixtures</springtune.it.fixtures>
+                        <springtune.it.gradle>${springtune.it.gradle}</springtune.it.gradle>
+                        <springtune.it.requireGradle>${springtune.it.requireGradle}</springtune.it.requireGradle>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

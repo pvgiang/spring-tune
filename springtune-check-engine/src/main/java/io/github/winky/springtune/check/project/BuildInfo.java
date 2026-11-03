@@ -1,5 +1,7 @@
 package io.github.winky.springtune.check.project;
 
+import io.github.winky.springtune.check.ResolvedBuild;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -14,6 +16,17 @@ public record BuildInfo(String buildFile, String artifactId, String springBootVe
 
     public BuildInfo {
         artifactIds = Set.copyOf(artifactIds);
+    }
+
+    /**
+     * These facts with {@code resolved} merged in: artifact ids are the union (declared and resolved), and the
+     * resolved Spring Boot version wins because it is what actually runs.
+     */
+    public BuildInfo merge(ResolvedBuild resolved) {
+        Set<String> union = new LinkedHashSet<>(artifactIds);
+        union.addAll(resolved.artifactIds());
+        String version = resolved.springBootVersion() != null ? resolved.springBootVersion() : springBootVersion;
+        return new BuildInfo(buildFile, artifactId, version, union);
     }
 
     public boolean known() {

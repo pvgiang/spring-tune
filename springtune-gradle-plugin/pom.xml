@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.github.winky.springtune</groupId>
+        <artifactId>springtune-parent</artifactId>
+        <version>0.2.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>springtune-gradle-plugin</artifactId>
+    <name>SpringTune :: Gradle Plugin</name>
+    <description>Gradle plugin io.github.winky.springtune: ./gradlew springtuneCheck fails the build on risky Spring Boot configuration.</description>
+
+    <!--
+      The plugin jar has NO runtime dependencies on purpose. The check engine (Spring Boot, Jackson, JavaParser)
+      runs in a Gradle worker with an isolated class loader, resolved from the 'springtune' configuration, so it
+      can never clash with the Spring Boot Gradle plugin or anything else on a build's buildscript classpath.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>dev.gradleplugins</groupId>
+            <artifactId>gradle-api</artifactId>
+            <version>${gradle-api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.winky.springtune</groupId>
+            <artifactId>springtune-check-engine</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

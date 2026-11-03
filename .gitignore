@@ -5,3 +5,4 @@ target/
 .vscode/
 .DS_Store
 springtune-reports/
+.flattened-pom.xml

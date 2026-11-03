@@ -1,0 +1,3 @@
+suppress:
+  - rule: ST-HIKARI-002
+    reason: "Leak detection is enabled per environment by the platform team"

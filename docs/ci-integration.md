@@ -42,3 +42,23 @@ mvn verify -Dspringtune.failOn=WARNING -Dspringtune.profiles=prod
 ```
 
 Reports are written to `target/springtune/springtune-report.{md,sarif}`.
+
+## Gradle
+
+```bash
+./gradlew check                                       # runs springtuneCheck; fails on ERROR by default
+./gradlew springtuneCheck -Pspringtune.failOn=WARNING -Pspringtune.profiles=prod
+```
+
+Reports are written to `build/springtune/springtune-report.{md,sarif}` in each project, with paths relative
+to the root project. To upload them to code scanning, point `upload-sarif` at the directory:
+
+```yaml
+      - run: ./gradlew springtuneCheck
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: app/build/springtune/springtune-report.sarif
+```
+
+Setup: [Gradle plugin](check.md#gradle-plugin).
