@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 30000
+      leak-detection-threshold: 60000

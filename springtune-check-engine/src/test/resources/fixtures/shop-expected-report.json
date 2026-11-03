@@ -1,0 +1,213 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.1.0-SNAPSHOT",
+  "summary" : {
+    "error" : 4,
+    "warning" : 7,
+    "info" : 1,
+    "suppressed" : 1,
+    "notEvaluated" : 1
+  },
+  "modules" : [ {
+    "path" : "orders",
+    "springBootVersion" : "3.5.16",
+    "activeProfiles" : [ "prod" ],
+    "configFiles" : [ "orders/src/main/resources/application.yml", "orders/src/main/resources/application-prod.yml" ],
+    "technologies" : [ "hikari", "tomcat", "async" ]
+  }, {
+    "path" : "payments",
+    "springBootVersion" : "4.1.2",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "payments/src/main/resources/application.properties" ],
+    "technologies" : [ "hikari", "resilience4j" ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-ASYNC-001",
+    "severity" : "WARNING",
+    "module" : "orders",
+    "subject" : "@EnableAsync",
+    "location" : {
+      "path" : "orders/src/main/java/shop/orders/OrdersApplication.java",
+      "line" : 8,
+      "column" : 1
+    },
+    "message" : "@EnableAsync uses Spring Boot's applicationTaskExecutor with its default unbounded queue: 8 threads run tasks and everything else waits in memory.",
+    "why" : "With an unbounded queue the pool never grows past its core size, so under load async work piles up without limit: latency grows unbounded, memory fills, and queued tasks are lost on restart. Nothing applies backpressure.",
+    "fix" : "Set spring.task.execution.pool.queue-capacity (e.g. 100-1000) together with spring.task.execution.pool.max-size, or declare a ThreadPoolTaskExecutor bean with setQueueCapacity(...) and a rejection policy.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HTTP-001",
+    "severity" : "WARNING",
+    "module" : "orders",
+    "subject" : "OrdersApplication:new RestTemplate()",
+    "location" : {
+      "path" : "orders/src/main/java/shop/orders/OrdersApplication.java",
+      "line" : 12,
+      "column" : 44
+    },
+    "message" : "new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite).",
+    "why" : "A call without a read timeout waits as long as the remote side keeps the socket open. When a dependency hangs, request threads pile up on it until the service stops responding: one slow dependency becomes a full outage.",
+    "fix" : "Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-003",
+    "severity" : "ERROR",
+    "module" : "orders",
+    "subject" : "spring.datasource.hikari.max-lifetime",
+    "location" : {
+      "path" : "orders/src/main/resources/application-prod.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "maxLifetime is 1800000 ms (default), not at least 30000 ms shorter than database 'shop-db' idle timeout of 600000 ms.",
+    "why" : "The database (or a proxy/firewall) silently closes connections idle longer than 600000 ms. HikariCP then hands out dead connections, and requests fail with 'connection reset' or 'communications link failure' errors.",
+    "fix" : "Set spring.datasource.hikari.max-lifetime to at most 570000 ms (database idle timeout 600000 ms minus a 30000 ms margin).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "orders",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "orders/src/main/resources/application-prod.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "orders",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "orders/src/main/resources/application-prod.yml",
+      "line" : 4,
+      "column" : 27
+    },
+    "message" : "connectionTimeout is 30000 ms, above the 5000 ms threshold.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-004",
+    "severity" : "ERROR",
+    "module" : "orders",
+    "subject" : "spring.datasource.hikari.maximum-pool-size",
+    "location" : {
+      "path" : "orders/src/main/resources/application.yml",
+      "line" : 9,
+      "column" : 26
+    },
+    "message" : "Database 'shop-db' allows 80 pool connections (max_connections 100 x safety factor 0.8) but its services can open 112: orders 12x6 [replicas from orders/chart/values.yaml autoscaling.maxReplicas], payments 10x4 [replicas from springtune.yml services[path=payments]].",
+    "why" : "At peak scale (or during a rolling update) the pools try to open more connections than the database accepts. New pods fail to start or requests fail with 'too many connections', usually exactly when traffic is highest.",
+    "fix" : "Lower maximum-pool-size (proportional share for this service: 8), cap maxReplicas, or raise max_connections / add a connection proxy such as PgBouncer.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TOMCAT-001",
+    "severity" : "WARNING",
+    "module" : "orders",
+    "subject" : "server.tomcat.threads.max",
+    "location" : {
+      "path" : "orders/src/main/resources/application.yml",
+      "line" : 13,
+      "column" : 12
+    },
+    "message" : "Tomcat may run 400 request threads against 12 pooled connections, a ratio of 33:1 (threshold 10:1).",
+    "why" : "When requests that need the database outnumber connections, the extra threads block in the pool for connectionTimeout. Under a slowdown all Tomcat threads end up waiting there, and even health checks and endpoints that never touch the database stop answering.",
+    "fix" : "Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HTTP-001",
+    "severity" : "WARNING",
+    "module" : "payments",
+    "subject" : "GatewayClient:WebClient.create",
+    "location" : {
+      "path" : "payments/src/main/java/shop/payments/GatewayClient.java",
+      "line" : 9,
+      "column" : 38
+    },
+    "message" : "WebClient.create(...) uses the default connector: no response timeout (Reactor Netty).",
+    "why" : "A call without a read timeout waits as long as the remote side keeps the socket open. When a dependency hangs, request threads pile up on it until the service stops responding: one slow dependency becomes a full outage.",
+    "fix" : "Use WebClient.builder().clientConnector(new ReactorClientHttpConnector(HttpClient.create().responseTimeout(...).option(ChannelOption.CONNECT_TIMEOUT_MILLIS, ...))), or inject the auto-configured WebClient.Builder.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-003",
+    "severity" : "ERROR",
+    "module" : "payments",
+    "subject" : "spring.datasource.hikari.max-lifetime",
+    "location" : {
+      "path" : "payments/src/main/resources/application.properties",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "maxLifetime is 1800000 ms (default), not at least 30000 ms shorter than database 'shop-db' idle timeout of 600000 ms.",
+    "why" : "The database (or a proxy/firewall) silently closes connections idle longer than 600000 ms. HikariCP then hands out dead connections, and requests fail with 'connection reset' or 'communications link failure' errors.",
+    "fix" : "Set spring.datasource.hikari.max-lifetime to at most 570000 ms (database idle timeout 600000 ms minus a 30000 ms margin).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "payments",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "payments/src/main/resources/application.properties",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : true,
+    "suppressionReason" : "Payments uses provider-side idempotency keys; long transactions are monitored by the DBA dashboard"
+  }, {
+    "ruleId" : "ST-HIKARI-004",
+    "severity" : "ERROR",
+    "module" : "payments",
+    "subject" : "spring.datasource.hikari.maximum-pool-size",
+    "location" : {
+      "path" : "payments/src/main/resources/application.properties",
+      "line" : 2,
+      "column" : 42
+    },
+    "message" : "Database 'shop-db' allows 80 pool connections (max_connections 100 x safety factor 0.8) but its services can open 112: orders 12x6 [replicas from orders/chart/values.yaml autoscaling.maxReplicas], payments 10x4 [replicas from springtune.yml services[path=payments]].",
+    "why" : "At peak scale (or during a rolling update) the pools try to open more connections than the database accepts. New pods fail to start or requests fail with 'too many connections', usually exactly when traffic is highest.",
+    "fix" : "Lower maximum-pool-size (proportional share for this service: 7), cap maxReplicas, or raise max_connections / add a connection proxy such as PgBouncer.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-R4J-001",
+    "severity" : "WARNING",
+    "module" : "payments",
+    "subject" : "resilience4j.retry.instances.gateway",
+    "location" : {
+      "path" : "payments/src/main/resources/application.properties",
+      "line" : 5,
+      "column" : 51
+    },
+    "message" : "Retry 'gateway' makes up to 4 attempts at a fixed interval (no exponential backoff, no randomized wait).",
+    "why" : "When the dependency degrades, every client retries in lock-step at the same interval. Each failure becomes 4 requests, which multiplies load at the worst moment and delays recovery (retry storm).",
+    "fix" : "Set enable-exponential-backoff: true (with exponential-backoff-multiplier) and/or enable-randomized-wait: true for 'gateway', and retry only idempotent calls.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-R4J-002",
+    "severity" : "WARNING",
+    "module" : "payments",
+    "subject" : "resilience4j.circuitbreaker.instances.gateway",
+    "location" : {
+      "path" : "payments/src/main/resources/application.properties",
+      "line" : 7,
+      "column" : 70
+    },
+    "message" : "Circuit breaker 'gateway' has no time limiter, and slow-call detection is off (default slow-call-duration-threshold 60 s at 100% rate).",
+    "why" : "Calls that hang are neither failures nor 'slow' by these settings, so the breaker stays closed while every caller thread waits on the dependency. It only protects against fast failures, the case that needs protection least.",
+    "fix" : "Set slow-call-duration-threshold (e.g. 2s) and slow-call-rate-threshold (e.g. 50) for 'gateway', and/or add resilience4j.timelimiter.instances.gateway.timeout-duration (TimeLimiter applies to async/reactive calls; sync calls still need client timeouts).",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ {
+    "module" : "payments",
+    "code" : "UNRESOLVED_VALUE",
+    "message" : "spring.datasource.hikari.leak-detection-threshold = '${LEAK_DETECTION_MS}' (payments/src/main/resources/application.properties:4:49) has no default and is only known at runtime; rules that depend on it were not evaluated"
+  } ]
+}

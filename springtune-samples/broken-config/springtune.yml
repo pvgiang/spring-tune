@@ -1,0 +1,8 @@
+# Inputs for the CI check (springtune check / mvn springtune:check).
+databases:
+  - name: orders-db
+    maxConnections: 100
+    idleTimeout: 10m
+services:
+  - path: .
+    maxReplicas: 6

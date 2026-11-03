@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: orders
+  profiles:
+    active: prod
+  datasource:
+    url: jdbc:postgresql://shop-db:5432/shop
+    hikari:
+      maximum-pool-size: 12
+server:
+  tomcat:
+    threads:
+      max: 400

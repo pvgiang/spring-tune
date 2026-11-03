@@ -1,0 +1,16 @@
+# Two services share one PostgreSQL (max_connections = 100, idle timeout 10 min via pgbouncer).
+databases:
+  - name: shop-db
+    maxConnections: 100
+    idleTimeout: 10m
+services:
+  - path: orders
+    database: shop-db
+    deployment: [orders/chart/values.yaml]
+  - path: payments
+    database: shop-db
+    maxReplicas: 4
+suppress:
+  - rule: ST-TX-001
+    module: payments
+    reason: "Payments uses provider-side idempotency keys; long transactions are monitored by the DBA dashboard"
