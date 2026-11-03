@@ -73,43 +73,47 @@ springtune.budget:            # optional, caps pool recommendations: floor(100 x
   max-replicas: 6
 ```
 
-## Case study: scanning 20 public Spring Boot projects
+## Case study: what we found in 20 popular Spring Boot projects
 
-We ran `springtune check` with default settings over 20 well-known open-source Spring Boot repositories:
-reference apps (Spring PetClinic, RealWorld, JHipster sample), microservice suites (petclinic-microservices,
-PiggyMetrics, FTGO), admin platforms (mall, RuoYi, JeecgBoot, eladmin, litemall) and large products (Apache
-ShenYu, Apache DolphinScheduler, ThingsBoard, Halo). In total: **282 Spring Boot modules, Spring Boot 1.3 to
-4.1, Maven and Gradle**.
+We ran `springtune check` over 20 well-known open-source Spring Boot projects (Spring PetClinic, JHipster,
+Apache DolphinScheduler, Apache ShenYu, ThingsBoard, JeecgBoot, RuoYi, mall and more: 282 modules) and
+reviewed every finding by hand.
 
-| | |
-|---|---|
-| Findings | **199** across 18 of 20 repositories |
-| False positives (hand-reviewed) | **1 (0.5%)**; the plan's target was under 10% |
-| Not evaluated (config not in the repo, e.g. Config Server or Nacos) | reported with the reason, never guessed |
-| Runtime for all 20 repositories | about 70 seconds |
+- **45 of 45** HikariCP services we could evaluate wait **up to 30 s** for a connection when the pool runs
+  dry, and **none** detects connection leaks. On Spring Boot's defaults (200 threads, 10 connections), a
+  database that slows from 30 ms to 3 s per query blocks all 200 request threads in about **4 seconds**,
+  health checks included.
+- The Spring PetClinic microservices gateway calls other services with **no HTTP timeout at all**:
 
-**What it found**, a few examples:
+  ```java
+  @Bean @LoadBalanced
+  RestTemplate loadBalancedRestTemplate() {
+      return new RestTemplate();   // connect and read timeout: infinite
+  }
+  ```
+  ```
+  WARNING ST-HTTP-001  spring-petclinic-api-gateway/.../ApiGatewayApplication.java:55:16
+          new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite).
+          Fix: Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.
+  ```
+- AI features in JeecgBoot run on a 10-thread pool with an **unbounded queue**, so slow LLM calls pile up in
+  memory instead of being rejected.
+- **1 false positive in 199 findings (0.5%).** When the config isn't in the repo (Config Server, Nacos), or
+  another pool owns the DataSource, it says *not evaluated, and why*. It never guesses.
 
-- **HTTP calls that can hang forever.** Spring PetClinic Microservices' API gateway calls other services
-  with `@LoadBalanced new RestTemplate()`, and its GenAI service uses `RestClient.builder().build()`. Neither
-  has a connect or read timeout, so one stuck downstream service can stall every request thread. Halo's UI
-  proxy uses `WebClient.create(...)` with no response timeout (ST-HTTP-001).
-- **Unbounded work queues behind user-facing features.** JeecgBoot streams AI chat (SSE) and vectorizes
-  documents on `Executors.newFixedThreadPool(10)`, whose queue grows without limit under load (ST-ASYNC-002).
-- **Pool waits of 30 seconds and leaks nobody would notice.** Apache DolphinScheduler's HikariCP-backed
-  services, like those in 12 of the 20 repositories, keep `connectionTimeout` at the 30 s default and leak detection off
-  (ST-HIKARI-001/002). When the pool runs dry, each request blocks for 30 s before failing.
-- **Unbounded `@Async`.** litemall sends notifications through `@Async` on Spring Boot's default executor,
-  which has an unbounded queue (ST-ASYNC-001).
+**[Read the full write-up](docs/case-study/what-we-found-in-20-spring-boot-projects.md)**: the code, why each
+pattern causes outages, the fixes, and what it deliberately doesn't flag. Method, per-rule precision and raw
+results: [corpus report](docs/corpus/2026-11-corpus-report.md).
 
-**What the corpus taught the tool.** The first run produced 307 findings, of which at least 61 (20%) were
-wrong: Druid-pooled apps flagged for HikariCP settings, Spring Boot 1.x apps (whose default pool is
-tomcat-jdbc), `@EnableAsync` with no `@Async` methods, Feign clients whose timeouts come from Ribbon or a
-config server. Each class became a regression test, and the check now also follows in-repo library modules
-through the Maven/Gradle dependency graph.
+**Try it on your own repo now.** It's static only, so nothing is built and nothing leaves your machine:
 
-Full method, per-rule precision, commit SHAs and raw reports:
-[corpus report](docs/corpus/2026-11-corpus-report.md). Rerun it with `scripts/corpus/run-corpus.sh`.
+```bash
+curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.1.0/springtune-cli-0.1.0.jar
+java -jar springtune-cli-0.1.0.jar check . --profile prod
+```
+
+Found something, or a false positive? [Open an issue](https://github.com/pvgiang/spring-tune/issues): every
+false positive becomes a regression test.
 
 ## Try it on the sample
 
@@ -153,7 +157,8 @@ with notes from `docs/releases/`.
 - [The check: CLI, Maven plugin, how config is resolved, limitations](docs/check.md)
 - [`springtune.yml` reference](docs/configuration.md)
 - [Rules](docs/rules/README.md)
-- [Corpus run: 20 public repositories, false-positive rate](docs/corpus/2026-11-corpus-report.md)
+- [Case study: what we found in 20 popular Spring Boot projects](docs/case-study/what-we-found-in-20-spring-boot-projects.md)
+- [Corpus run: method, per-rule precision, raw results](docs/corpus/2026-11-corpus-report.md)
 - [Runtime starter](docs/starter.md)
 - [CI integration (GitHub code scanning)](docs/ci-integration.md)
 - [Release notes](docs/releases/)

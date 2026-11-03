@@ -1,7 +1,7 @@
 # Corpus run: 20 public Spring Boot repositories (2026-11-03)
 
 Plan §15 exit criterion: *"runs on 20 public Spring Boot repos with meaningful findings and false-positive
-rate under ~10%"*. **Result: met. 199 findings, 1 false positive (0.5%), after fixing 9 false-positive
+rate under ~10%"*. **Result: met. 199 findings, 1 false positive (0.5%), after fixing 6 false-positive
 classes that the first run exposed (first run: at least 61 of 307 findings were wrong, 20%).**
 
 ## Method
@@ -69,7 +69,7 @@ which a cold run does not have. They appear under *Not evaluated*, as designed.
 | ST-TX-001 | 70 | 16 | 1 | `xkcoding/demo-codegen` opens ad-hoc JDBC connections; no Spring-managed datasource |
 | ST-ASYNC-001 | 1 | 1 | 0 | litemall: `@Async` notifications on the unbounded default executor |
 | ST-ASYNC-002 | 7 | 5 | 0 | One low-value: litemall's single-thread executor runs one `while(true)` task |
-| ST-HTTP-001 | 6 | 5 | 0 | E.g. petclinic gateway `new RestTemplate()`, halo `WebClient.create(...)` proxy, ftgo gateway |
+| ST-HTTP-001 | 6 | 5 | 0 | E.g. petclinic gateway `new RestTemplate()`, ftgo gateway. One low-value: halo's `WebClient.create(...)` UI proxy is enabled only in `application-dev.yaml` |
 | ST-HTTP-002 | 0 | 0 | 0 | All earlier hits were Ribbon-era, Config-Server-configured or non-OpenFeign (see below) |
 | **Total** | **199** | | **1 (0.5%)** | |
 
@@ -77,7 +77,6 @@ which a cold run does not have. They appear under *Not evaluated*, as designed.
 
 - `spring-petclinic-microservices`: `@LoadBalanced new RestTemplate()` (api-gateway) and
   `RestClient.builder().build()` (genai-service) for inter-service calls, both without timeouts.
-- `halo-dev/halo`: `WebClient.create(endpoint)` in the UI proxy filter, with no response timeout.
 - `jeecgboot/JeecgBoot`: `Executors.newFixedThreadPool(10)` for SSE chat streams and document vectorization,
   with unbounded queues behind a user-facing feature.
 - `apache/dolphinscheduler`: all HikariCP-backed services run on default `connectionTimeout` (30 s) with
