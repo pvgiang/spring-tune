@@ -25,7 +25,7 @@ java -jar springtune-check-cli/target/springtune-check-cli-0.1.0-SNAPSHOT-all.ja
 
 ```xml
 <plugin>
-  <groupId>io.github.pvgiang.springtune</groupId>
+  <groupId>io.github.winky.springtune</groupId>
   <artifactId>springtune-maven-plugin</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <executions><execution><goals><goal>check</goal></goals></execution></executions>
@@ -36,7 +36,7 @@ java -jar springtune-check-cli/target/springtune-check-cli-0.1.0-SNAPSHOT-all.ja
 
 ```xml
 <dependency>
-  <groupId>io.github.pvgiang.springtune</groupId>
+  <groupId>io.github.winky.springtune</groupId>
   <artifactId>springtune-spring-boot-starter</artifactId>
   <version>0.1.0-SNAPSHOT</version>
 </dependency>
