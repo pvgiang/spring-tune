@@ -1,41 +1,41 @@
 name: SpringTune check
-description: Catch risky Spring Boot configuration (pool exhaustion, hung threads, retry storms) and report it as SARIF.
+description: "Catch risky Spring Boot configuration (pool exhaustion, hung threads, retry storms) and report it as SARIF."
 branding:
   icon: shield
   color: green
 
 inputs:
   path:
-    description: Project root to analyze (report paths are relative to it; keep the repository root for SARIF).
+    description: "Project root to analyze (report paths are relative to it; keep the repository root for SARIF)."
     default: "."
   version:
-    description: SpringTune release to download, e.g. 0.1.0.
+    description: "SpringTune release to download, e.g. 0.1.0."
     default: "0.1.0"
   profile:
-    description: Spring profile(s) to activate, comma-separated. Default: springtune.yml, else spring.profiles.active.
+    description: "Spring profile(s) to activate, comma-separated. Default: springtune.yml, else spring.profiles.active."
     default: ""
   fail-on:
-    description: ERROR, WARNING, INFO or NONE. Default: springtune.yml failOn, else ERROR.
+    description: "ERROR, WARNING, INFO or NONE. Default: springtune.yml failOn, else ERROR."
     default: ""
   format:
-    description: Report formats to write (text, markdown, json, sarif).
+    description: "Report formats to write (text, markdown, json, sarif)."
     default: "text,markdown,sarif"
   output:
-    description: Directory for report files.
+    description: "Directory for report files."
     default: "springtune-reports"
   config:
-    description: Path to springtune.yml (default <path>/springtune.yml if present).
+    description: "Path to springtune.yml (default <path>/springtune.yml if present)."
     default: ""
   jar:
-    description: Use this CLI jar instead of downloading one (for testing unreleased builds).
+    description: "Use this CLI jar instead of downloading one (for testing unreleased builds)."
     default: ""
 
 outputs:
   sarif:
-    description: Path to the SARIF report.
+    description: "Path to the SARIF report."
     value: ${{ steps.run.outputs.sarif }}
   exit-code:
-    description: 0 = clean, 1 = findings at or above fail-on, 2 = usage or configuration error.
+    description: "0 = clean, 1 = findings at or above fail-on, 2 = usage or configuration error."
     value: ${{ steps.run.outputs.exit-code }}
 
 runs:
