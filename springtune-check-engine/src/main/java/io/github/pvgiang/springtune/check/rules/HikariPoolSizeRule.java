@@ -18,7 +18,7 @@ public final class HikariPoolSizeRule extends ModuleRule {
 
     @Override
     protected void evaluate(ModuleModel module, RuleOptions options, List<Finding> findings) {
-        if (!module.usesHikari()) {
+        if (!module.usesBootManagedHikari()) {
             return;
         }
         long max = options.getLong("max", DEFAULT_MAX);

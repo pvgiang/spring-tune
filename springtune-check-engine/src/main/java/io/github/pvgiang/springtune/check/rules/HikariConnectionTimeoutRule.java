@@ -22,7 +22,7 @@ public final class HikariConnectionTimeoutRule extends ModuleRule {
 
     @Override
     protected void evaluate(ModuleModel module, RuleOptions options, List<Finding> findings) {
-        if (!module.usesHikari()) {
+        if (!module.usesBootManagedHikari()) {
             return;
         }
         long maxMs = options.getLong("max-ms", DEFAULT_MAX_MS);

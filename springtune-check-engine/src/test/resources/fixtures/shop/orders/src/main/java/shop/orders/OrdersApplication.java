@@ -14,4 +14,9 @@ public class OrdersApplication {
     public static void main(String[] args) {
         SpringApplication.run(OrdersApplication.class, args);
     }
+
+    @org.springframework.scheduling.annotation.Async
+    public void publishOrderPlaced(String orderId) {
+        // fire-and-forget notification
+    }
 }

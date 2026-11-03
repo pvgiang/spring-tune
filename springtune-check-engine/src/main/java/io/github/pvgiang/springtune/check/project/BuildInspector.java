@@ -28,6 +28,7 @@ public final class BuildInspector {
             "id\\s*\\(?\\s*[\"']org\\.springframework\\.boot[\"']\\s*\\)?\\s*version\\s*\\(?\\s*[\"']([^\"']+)[\"']");
     private static final Pattern GRADLE_BOOT_COORDINATE =
             Pattern.compile("org\\.springframework\\.boot:spring-boot-(?:gradle-plugin|dependencies):([0-9][^\"'\\s)]*)");
+    private static final Pattern GRADLE_PROJECT = Pattern.compile("project\\(\\s*(?:path\\s*[:=]\\s*)?[\"']([^\"']+)[\"']");
     private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}]+)}");
 
     public BuildInfo inspect(Path root, Path moduleDir) {
@@ -46,7 +47,13 @@ public final class BuildInspector {
                 }
             }
         }
-        return new BuildInfo(buildFile != null ? PathUtils.relative(root, buildFile) : null, bootVersion, artifacts);
+        String artifactId = null;
+        if (buildFile != null) {
+            artifactId = buildFile.getFileName().toString().equals("pom.xml") ? pomArtifactId(buildFile)
+                    : moduleDir.toAbsolutePath().normalize().getFileName().toString();
+        }
+        return new BuildInfo(buildFile != null ? PathUtils.relative(root, buildFile) : null, artifactId, bootVersion,
+                artifacts);
     }
 
     static Path buildFile(Path dir) {
@@ -107,6 +114,16 @@ public final class BuildInspector {
         }
     }
 
+    private static String pomArtifactId(Path pom) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            return text(factory.newDocumentBuilder().parse(pom.toFile()).getDocumentElement(), "artifactId");
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private static Facts readGradle(Path file) {
         try {
             String content = Files.readString(file);
@@ -114,6 +131,11 @@ public final class BuildInspector {
             Matcher coordinates = GRADLE_COORDINATE.matcher(content);
             while (coordinates.find()) {
                 artifacts.add(coordinates.group(2));
+            }
+            Matcher projects = GRADLE_PROJECT.matcher(content);
+            while (projects.find()) {
+                String path = projects.group(1);
+                artifacts.add(path.substring(path.lastIndexOf(':') + 1));
             }
             String bootVersion = null;
             Matcher plugin = GRADLE_BOOT_PLUGIN.matcher(content);

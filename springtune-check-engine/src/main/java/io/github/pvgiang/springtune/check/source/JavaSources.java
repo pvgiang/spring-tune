@@ -37,7 +37,7 @@ public final class JavaSources {
             return empty();
         }
         JavaParser parser = new JavaParser(new ParserConfiguration()
-                .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21)
+                .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_25)
                 .setAttributeComments(false));
         List<ParsedSource> parsed = new ArrayList<>();
         List<Path> files;

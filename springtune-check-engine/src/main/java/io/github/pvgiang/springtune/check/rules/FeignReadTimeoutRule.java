@@ -19,7 +19,7 @@ public final class FeignReadTimeoutRule extends ModuleRule {
 
     @Override
     protected void evaluate(ModuleModel module, RuleOptions options, List<Finding> findings) {
-        if (!module.usesFeign() || hasReadTimeout(module.config())) {
+        if (!module.usesFeign() || module.usesRibbon() || !module.configFilesKnown() || hasReadTimeout(module.config())) {
             return;
         }
         findings.add(finding(module, "spring.cloud.openfeign.client.config.default.read-timeout",

@@ -22,7 +22,7 @@ public final class HikariLeakDetectionRule extends ModuleRule {
 
     @Override
     protected void evaluate(ModuleModel module, RuleOptions options, List<Finding> findings) {
-        if (!module.usesHikari()) {
+        if (!module.usesBootManagedHikari()) {
             return;
         }
         PropertyValue<Long> threshold = module.config().getLong(Hikari.LEAK_DETECTION_THRESHOLD);

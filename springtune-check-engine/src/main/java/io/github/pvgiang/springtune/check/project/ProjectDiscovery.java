@@ -50,6 +50,30 @@ public final class ProjectDiscovery {
         return modules;
     }
 
+    /** Every directory below {@code root} with a {@code src/main/java} root (modules and libraries). */
+    public List<Path> sourceDirs(Path root) {
+        List<Path> dirs = new ArrayList<>();
+        try {
+            Files.walkFileTree(root, Set.of(), MAX_DEPTH, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
+                    if (!dir.equals(root) && (name.startsWith(".") || SKIPPED.contains(name))) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    if (Files.isDirectory(dir.resolve("src/main/java"))) {
+                        dirs.add(dir);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException ex) {
+            throw new CheckException("Cannot scan " + root + ": " + ex.getMessage(), ex);
+        }
+        dirs.sort(null);
+        return dirs;
+    }
+
     /** {@code true} if {@code dir} looks like a Spring Boot module (see class docs). */
     public static boolean isModule(Path dir) {
         Path resources = dir.resolve("src/main/resources");

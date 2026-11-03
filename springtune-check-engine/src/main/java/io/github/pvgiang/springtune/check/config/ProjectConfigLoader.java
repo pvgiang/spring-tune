@@ -76,7 +76,19 @@ public final class ProjectConfigLoader {
             }
         }
         List<Document> unconditionalBase = baseDocuments.stream().filter(Document::unconditional).toList();
-        List<String> profiles = activeProfiles(requestedProfiles, unconditionalBase);
+        List<String> profiles = new ArrayList<>();
+        for (String profile : activeProfiles(requestedProfiles, unconditionalBase)) {
+            if (profile.contains("${")) {
+                diagnostics.add(module, Diagnostic.Code.UNRESOLVED_VALUE, "Active profile '" + profile + "' is only"
+                        + " known at build or run time (e.g. Maven resource filtering); it was ignored. Pass the"
+                        + " profile explicitly with --profile / springtune.profiles");
+            } else {
+                profiles.add(profile);
+            }
+        }
+        if (profiles.isEmpty()) {
+            profiles.add("default");
+        }
 
         List<Document> ordered = new ArrayList<>();
         Set<Path> loaded = new LinkedHashSet<>();
@@ -141,6 +153,39 @@ public final class ProjectConfigLoader {
         return all;
     }
 
+    private static final Pattern BOOTSTRAP_NAME = Pattern.compile("bootstrap(?:-[^.]+)?\\.(yml|yaml|properties)");
+
+    /**
+     * Property names declared in {@code bootstrap*.(yml|yaml|properties)} (Spring Cloud's legacy bootstrap
+     * context). The check does not resolve them; they only reveal where the real configuration comes from.
+     */
+    public static java.util.Set<String> bootstrapKeys(Path moduleDir) {
+        java.util.Set<String> keys = new java.util.TreeSet<>();
+        Path resources = moduleDir.resolve("src/main/resources");
+        for (Path location : List.of(resources, resources.resolve("config"))) {
+            if (!Files.isDirectory(location)) {
+                continue;
+            }
+            try (Stream<Path> listing = Files.list(location)) {
+                for (Path file : listing.filter(p -> BOOTSTRAP_NAME.matcher(p.getFileName().toString()).matches())
+                        .toList()) {
+                    PropertySourceLoader loader = file.toString().endsWith(".properties")
+                            ? new PropertiesPropertySourceLoader() : new YamlPropertySourceLoader();
+                    FileSystemResource resource = MavenFilteredResource.hasTokens(file)
+                            ? new MavenFilteredResource(file) : new FileSystemResource(file);
+                    for (PropertySource<?> source : loader.load(file.getFileName().toString(), resource)) {
+                        if (source instanceof org.springframework.core.env.EnumerablePropertySource<?> e) {
+                            keys.addAll(List.of(e.getPropertyNames()));
+                        }
+                    }
+                }
+            } catch (IOException | RuntimeException ex) {
+                // Unreadable bootstrap files are ignored: they only refine the "config unknown" signal.
+            }
+        }
+        return keys;
+    }
+
     private static int extensionRank(Path path) {
         return path.getFileName().toString().endsWith(".properties") ? 1 : 0;
     }
@@ -149,7 +194,9 @@ public final class ProjectConfigLoader {
         PropertySourceLoader loader = file.relative().endsWith(".properties") ? propertiesLoader : yamlLoader;
         List<PropertySource<?>> sources;
         try {
-            sources = loader.load(file.relative(), new FileSystemResource(file.path()));
+            boolean filtered = MavenFilteredResource.hasTokens(file.path());
+            sources = loader.load(file.relative(),
+                    filtered ? new MavenFilteredResource(file.path()) : new FileSystemResource(file.path()));
         } catch (IOException | RuntimeException ex) {
             diagnostics.add(module, Diagnostic.Code.PARSE_ERROR,
                     file.relative() + " cannot be parsed: " + ex.getMessage() + "; it was ignored");

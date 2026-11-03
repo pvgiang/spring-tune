@@ -29,7 +29,7 @@ public final class HikariMaxLifetimeRule implements Rule {
         List<Finding> findings = new ArrayList<>();
         long margin = context.options(support.descriptor().id()).getLong("margin-ms", DEFAULT_MARGIN_MS);
         for (ModuleModel module : context.modules()) {
-            if (!module.usesHikari()) {
+            if (!module.usesBootManagedHikari()) {
                 continue;
             }
             Optional<SpringTuneSettings.Database> database = context.database(module);

@@ -24,7 +24,7 @@ public final class TransactionTimeoutRule extends ModuleRule {
 
     @Override
     protected void evaluate(ModuleModel module, RuleOptions options, List<Finding> findings) {
-        if (!module.usesHikari()) {
+        if (!module.usesJdbc() || !module.configFilesKnown()) {
             return;
         }
         for (String key : TIMEOUT_KEYS) {

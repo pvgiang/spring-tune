@@ -11,6 +11,8 @@ import java.util.List;
 public final class TomcatThreadsVsPoolRule extends ModuleRule {
 
     static final String THREADS_MAX = "server.tomcat.threads.max";
+    /** Spring Boot 2.2 and earlier. */
+    static final String LEGACY_THREADS_MAX = "server.tomcat.max-threads";
     static final int DEFAULT_THREADS_MAX = 200;
     static final long DEFAULT_MAX_RATIO = 10;
 
@@ -21,10 +23,13 @@ public final class TomcatThreadsVsPoolRule extends ModuleRule {
 
     @Override
     protected void evaluate(ModuleModel module, RuleOptions options, List<Finding> findings) {
-        if (!module.usesHikari() || !module.usesTomcat() || module.usesVirtualThreads()) {
+        if (!module.usesBootManagedHikari() || !module.usesTomcat() || module.usesVirtualThreads()) {
             return;
         }
         PropertyValue<Integer> threads = module.config().getInt(THREADS_MAX);
+        if (threads.isAbsent()) {
+            threads = module.config().getInt(LEGACY_THREADS_MAX);
+        }
         PropertyValue<Integer> pool = module.config().getInt(Hikari.MAXIMUM_POOL_SIZE);
         if (threads.isUnresolved() || pool.isUnresolved()) {
             return;

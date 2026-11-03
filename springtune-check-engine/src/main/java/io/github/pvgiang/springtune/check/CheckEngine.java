@@ -9,6 +9,7 @@ import io.github.pvgiang.springtune.check.project.BuildInfo;
 import io.github.pvgiang.springtune.check.project.BuildInspector;
 import io.github.pvgiang.springtune.check.project.ModuleModel;
 import io.github.pvgiang.springtune.check.project.ProjectDiscovery;
+import io.github.pvgiang.springtune.check.project.SourceGraph;
 import io.github.pvgiang.springtune.check.rules.ProjectContext;
 import io.github.pvgiang.springtune.check.rules.Rule;
 import io.github.pvgiang.springtune.check.settings.SettingsLoader;
@@ -111,13 +112,25 @@ public final class CheckEngine {
 
         ProjectConfigLoader configLoader = new ProjectConfigLoader();
         BuildInspector buildInspector = new BuildInspector();
+        SourceGraph sourceGraph = new SourceGraph(root, new ProjectDiscovery().sourceDirs(root), buildInspector,
+                diagnostics);
         List<ModuleModel> modules = new ArrayList<>();
         for (Path dir : moduleDirs) {
             String path = PathUtils.relative(root, dir);
             ResolvedConfig config = configLoader.load(root, dir, profiles, diagnostics);
             BuildInfo build = buildInspector.inspect(root, dir);
             JavaSources sources = JavaSources.parse(root, dir, path, diagnostics);
-            modules.add(new ModuleModel(path, dir, build, config, sources));
+            ModuleModel module = new ModuleModel(path, dir, build, config, sources,
+                    sourceGraph.librariesOf(dir, build));
+            if (!module.configFilesKnown()) {
+                diagnostics.add(path, Diagnostic.Code.UNSUPPORTED, "Local config is incomplete: "
+                        + module.configUnknownReason().orElseThrow()
+                        + "; rules that report missing properties were not evaluated for this module");
+            } else if (module.usesHikari() && module.definesDataSourceInCode()) {
+                diagnostics.add(path, Diagnostic.Code.RULE_SKIPPED, "HikariCP rules not evaluated: the module builds"
+                        + " its own DataSource in code, so spring.datasource.hikari.* may not apply to it");
+            }
+            modules.add(module);
         }
 
         DeploymentScanner deploymentScanner = new DeploymentScanner();

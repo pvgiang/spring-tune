@@ -62,7 +62,7 @@ class TomcatAndAsyncRulesTest {
 
                         @org.springframework.scheduling.annotation.EnableAsync
                         @SpringBootApplication
-                        class App {}
+                        class App { @Async void notifyLater() {} }
                         """);
         assertThat(findings(root, "ST-ASYNC-001")).singleElement().satisfies(f -> {
             assertThat(f.location().path()).isEqualTo("src/main/java/demo/App.java");
@@ -73,14 +73,14 @@ class TomcatAndAsyncRulesTest {
     @Test
     void enableAsyncWithQueueCapacityPasses() {
         TestProject.in(root).resource(".", "application.yml", "spring.task.execution.pool.queue-capacity: 500\n")
-                .java(".", "App", "package demo;\n@EnableAsync class App {}\n");
+                .java(".", "App", "package demo;\n@EnableAsync class App { @Async void run() {} }\n");
         assertThat(findings(root, "ST-ASYNC-001")).isEmpty();
     }
 
     @Test
     void enableAsyncWithAsyncConfigurerPasses() {
         TestProject.in(root).resource(".", "application.yml", "a: 1\n")
-                .java(".", "App", "package demo;\n@EnableAsync class App implements AsyncConfigurer {}\n");
+                .java(".", "App", "package demo;\n@EnableAsync class App implements AsyncConfigurer { @Async void run() {} }\n");
         assertThat(findings(root, "ST-ASYNC-001")).isEmpty();
     }
 

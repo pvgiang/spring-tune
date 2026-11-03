@@ -14,7 +14,11 @@ import java.util.Set;
 
 /**
  * ST-ASYNC-001: {@code @EnableAsync} relies on Spring Boot's auto-configured {@code applicationTaskExecutor},
- * whose queue is unbounded by default (8 core threads; {@code max-size} never takes effect).
+ * whose queue is unbounded by default (8 core threads; {@code max-size} never takes effect). Before Spring Boot
+ * 2.1 there is no auto-configured executor and {@code @Async} starts a new thread per task.
+ *
+ * <p>The module's own code and its in-repo library dependencies are searched for {@code @Async} methods (no
+ * methods, no risk) and for executor beans or an {@code AsyncConfigurer} (then the default is not used).
  */
 public final class AsyncDefaultExecutorRule extends ModuleRule {
 
@@ -25,17 +29,34 @@ public final class AsyncDefaultExecutorRule extends ModuleRule {
 
     public AsyncDefaultExecutorRule() {
         super("ST-ASYNC-001", "@Async on the default unbounded executor", Severity.WARNING, "async",
-                "@EnableAsync with no executor bean and no spring.task.execution.pool.queue-capacity.");
+                "@EnableAsync with @Async methods, no executor bean or AsyncConfigurer, and no"
+                        + " spring.task.execution.pool.queue-capacity.");
     }
 
     @Override
     protected void evaluate(ModuleModel module, RuleOptions options, List<Finding> findings) {
         Optional<JavaSources.Found<AnnotationExpr>> enableAsync = module.sources().findAnnotation("EnableAsync");
-        if (enableAsync.isEmpty() || module.usesVirtualThreads() || declaresExecutor(module.sources())) {
+        if (enableAsync.isEmpty() || module.usesVirtualThreads() || !module.configFilesKnown()) {
+            return;
+        }
+        List<JavaSources.ParsedSource> reachable = module.reachableSources();
+        if (!hasAsyncMethods(reachable) || declaresExecutor(reachable)) {
             return;
         }
         PropertyValue<Integer> capacity = module.config().getInt(QUEUE_CAPACITY);
         if (!capacity.isAbsent()) {
+            return;
+        }
+        if (beforeBoot21(module.build().springBootVersion())) {
+            findings.add(finding(module, "@EnableAsync",
+                    "@EnableAsync on Spring Boot " + module.build().springBootVersion() + " (before 2.1, which"
+                            + " auto-configures no task executor) runs @Async methods on SimpleAsyncTaskExecutor:"
+                            + " a new thread for every task, with no limit.",
+                    "Under load every async call starts another thread. Thread count, memory and context switching"
+                            + " grow with traffic until the JVM runs out of memory or native threads.",
+                    "Declare a ThreadPoolTaskExecutor bean named 'taskExecutor' (or implement AsyncConfigurer) with"
+                            + " bounded core/max sizes, setQueueCapacity(...) and a rejection policy.",
+                    enableAsync.get().location()));
             return;
         }
         findings.add(finding(module, "@EnableAsync",
@@ -49,10 +70,22 @@ public final class AsyncDefaultExecutorRule extends ModuleRule {
                 enableAsync.get().location()));
     }
 
-    private static boolean declaresExecutor(JavaSources sources) {
-        for (JavaSources.ParsedSource source : sources.all()) {
+    /** {@code true} for literal versions 1.x and 2.0.x; unknown versions are treated as current. */
+    static boolean beforeBoot21(String version) {
+        return version != null && (version.startsWith("1.") || version.startsWith("2.0."));
+    }
+
+    private static boolean hasAsyncMethods(List<JavaSources.ParsedSource> sources) {
+        return sources.stream().anyMatch(s -> s.unit().findFirst(AnnotationExpr.class,
+                a -> a.getName().getIdentifier().equals("Async")).isPresent());
+    }
+
+    private static boolean declaresExecutor(List<JavaSources.ParsedSource> sources) {
+        for (JavaSources.ParsedSource source : sources) {
             boolean configurer = source.unit().findFirst(ClassOrInterfaceDeclaration.class,
-                    c -> c.getImplementedTypes().stream().anyMatch(t -> t.getNameAsString().equals("AsyncConfigurer")))
+                    c -> c.getImplementedTypes().stream().anyMatch(t -> t.getNameAsString().equals("AsyncConfigurer"))
+                            || c.getExtendedTypes().stream()
+                                    .anyMatch(t -> t.getNameAsString().equals("AsyncConfigurerSupport")))
                     .isPresent();
             boolean bean = source.unit().findFirst(MethodDeclaration.class,
                     m -> Sources.isBeanMethod(m) && EXECUTOR_TYPES.contains(simpleName(m.getType().asString())))

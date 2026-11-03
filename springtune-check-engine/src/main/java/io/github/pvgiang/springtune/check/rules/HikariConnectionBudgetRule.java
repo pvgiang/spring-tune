@@ -40,7 +40,7 @@ public final class HikariConnectionBudgetRule implements Rule {
         Map<String, List<Member>> byDatabase = new LinkedHashMap<>();
         java.util.Set<String> unevaluable = new java.util.HashSet<>();
         for (ModuleModel module : context.modules()) {
-            if (!module.usesHikari()) {
+            if (!module.usesBootManagedHikari()) {
                 continue;
             }
             Optional<SpringTuneSettings.Database> database = context.database(module);
