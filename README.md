@@ -130,8 +130,9 @@ mvn -B verify -Dspring-boot.version=3.5.16 -Dinvoker.skip  # Spring Boot 3.5 com
 ```
 
 Requires JDK 17+ and Maven 3.9+. CI (`.github/workflows/ci.yml`) runs JDK 17/21/25 and Boot 4.1 and 3.5,
-and runs the GitHub Action against the sample. Releases: push a `vX.Y.Z` tag; `.github/workflows/release.yml`
-builds, tests and publishes the GitHub Release with notes from `docs/releases/`.
+and runs the GitHub Action against the sample. Releases: push a `vX.Y.Z` tag, or run *Actions → Release →
+Run workflow* with the version. `.github/workflows/release.yml` builds, tests and publishes the GitHub Release
+with notes from `docs/releases/`.
 
 ## Modules
 

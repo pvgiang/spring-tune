@@ -1,10 +1,16 @@
 name: Release
 
-# Push a tag like v0.1.0 to build, test and publish a GitHub Release.
-# Release notes are read from docs/releases/<tag>.md.
+# Two ways to release; both build, test and publish a GitHub Release with notes from docs/releases/v<version>.md:
+#   1. push a tag:   git tag -a v0.1.0 -m "SpringTune 0.1.0" && git push origin v0.1.0
+#   2. Actions > Release > Run workflow, enter the version; the tag is created on the selected commit.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (e.g. 0.1.0)"
+        required: true
 
 permissions:
   contents: write
@@ -20,10 +26,14 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Set version from tag
+      - name: Set version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then VERSION="${INPUT_VERSION#v}"; else VERSION="${GITHUB_REF_NAME#v}"; fi
+          echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || { echo "Invalid version: $VERSION"; exit 1; }
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
           mvn -B -ntp org.codehaus.mojo:versions-maven-plugin:2.21.0:set \
             -DnewVersion="$VERSION" -DgenerateBackupPoms=false -DprocessAllModules=true
 
@@ -45,6 +55,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES="docs/releases/${GITHUB_REF_NAME}.md"
+          NOTES="docs/releases/${TAG}.md"
           test -f "$NOTES"
-          gh release create "$GITHUB_REF_NAME" dist/* --title "SpringTune $VERSION" --notes-file "$NOTES"
+          # On workflow_dispatch the tag does not exist yet; --target creates it on the built commit.
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "SpringTune $VERSION" --notes-file "$NOTES"
