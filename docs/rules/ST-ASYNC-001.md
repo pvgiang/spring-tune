@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | WARNING |
-| **Applies when** | `@EnableAsync` appears in `src/main/java`, virtual threads are off, no `@Bean` returns an executor type, and no class implements `AsyncConfigurer`. |
+| **Applies when** | `@EnableAsync` appears in the module, `@Async` methods exist in the module or an in-repo library it depends on, virtual threads are off, no `@Bean` returns an executor type and no `AsyncConfigurer` exists in that code, and the local config is complete (see [check.md](../check.md)). Before Spring Boot 2.1 the message describes `SimpleAsyncTaskExecutor` (a new thread per task). |
 | **Options** | none. |
 
 ## What it detects

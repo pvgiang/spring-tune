@@ -121,7 +121,7 @@ contention test; the sample's own config sitting exactly at the ST-TOMCAT-001 th
 
 ## 7. Next iteration (proposed, in plan order)
 
-1. Corpus run on 20 public Spring Boot repos and false-positive rate per rule (plan §15 exit criterion).
+1. ~~Corpus run on 20 public Spring Boot repos and false-positive rate per rule (plan §15 exit criterion).~~ Done: [corpus report](../corpus/2026-11-corpus-report.md), 0.5% false positives after fixes.
 2. Gradle plugin and a GitHub Marketplace action wrapping the CLI.
 3. `apply` mode behind guardrails (bounds, step, cooldown, verification window, auto-revert), with Testcontainers PostgreSQL and Gatling load tests.
 4. Adaptive concurrency limiter module.

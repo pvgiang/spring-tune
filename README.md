@@ -58,6 +58,9 @@ java -jar springtune-samples/broken-config/target/springtune-sample-broken-confi
 curl localhost:8080/actuator/tuning
 ```
 
+Measured on 20 public Spring Boot repositories (282 modules): 199 findings, **0.5% false positives**
+([corpus report](docs/corpus/2026-11-corpus-report.md); rerun with `scripts/corpus/run-corpus.sh`).
+
 ## Build and verify
 
 ```bash
@@ -85,6 +88,7 @@ Requires JDK 17+ and Maven 3.9+. CI (`.github/workflows/ci.yml`) runs JDK 17/21/
 - [The check: CLI, Maven plugin, how config is resolved, limitations](docs/check.md)
 - [`springtune.yml` reference](docs/configuration.md)
 - [Rules](docs/rules/README.md)
+- [Corpus run: 20 public repositories, false-positive rate](docs/corpus/2026-11-corpus-report.md)
 - [Runtime starter](docs/starter.md)
 - [CI integration (GitHub code scanning)](docs/ci-integration.md)
 - [Business & implementation plan](docs/business-and-implementation-plan.md)

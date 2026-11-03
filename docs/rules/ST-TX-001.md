@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | INFO |
-| **Applies when** | Module uses HikariCP. |
+| **Applies when** | Module uses JDBC with any pool, and the local config is complete. |
 | **Options** | none. |
 
 ## What it detects

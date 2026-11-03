@@ -1,0 +1,118 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.1.0-SNAPSHOT",
+  "summary" : {
+    "error" : 0,
+    "warning" : 2,
+    "info" : 0,
+    "suppressed" : 0,
+    "notEvaluated" : 7
+  },
+  "modules" : [ {
+    "path" : "spring-petclinic-admin-server",
+    "springBootVersion" : "4.0.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "spring-petclinic-admin-server/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "spring-petclinic-api-gateway",
+    "springBootVersion" : "4.0.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "spring-petclinic-api-gateway/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "spring-petclinic-config-server",
+    "springBootVersion" : "4.0.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "spring-petclinic-config-server/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "spring-petclinic-customers-service",
+    "springBootVersion" : "4.0.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "spring-petclinic-customers-service/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "spring-petclinic-discovery-server",
+    "springBootVersion" : "4.0.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "spring-petclinic-discovery-server/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "spring-petclinic-genai-service",
+    "springBootVersion" : "4.0.1",
+    "activeProfiles" : [ "production" ],
+    "configFiles" : [ "spring-petclinic-genai-service/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "spring-petclinic-vets-service",
+    "springBootVersion" : "4.0.1",
+    "activeProfiles" : [ "production" ],
+    "configFiles" : [ "spring-petclinic-vets-service/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "spring-petclinic-visits-service",
+    "springBootVersion" : "4.0.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "spring-petclinic-visits-service/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-HTTP-001",
+    "severity" : "WARNING",
+    "module" : "spring-petclinic-api-gateway",
+    "subject" : "ApiGatewayApplication#loadBalancedRestTemplate:new RestTemplate()",
+    "location" : {
+      "path" : "spring-petclinic-api-gateway/src/main/java/org/springframework/samples/petclinic/api/ApiGatewayApplication.java",
+      "line" : 55,
+      "column" : 16
+    },
+    "message" : "new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite).",
+    "why" : "A call without a read timeout waits as long as the remote side keeps the socket open. When a dependency hangs, request threads pile up on it until the service stops responding: one slow dependency becomes a full outage.",
+    "fix" : "Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HTTP-001",
+    "severity" : "WARNING",
+    "module" : "spring-petclinic-genai-service",
+    "subject" : "AIDataProvider#AIDataProvider:RestClient.builder",
+    "location" : {
+      "path" : "spring-petclinic-genai-service/src/main/java/org/springframework/samples/petclinic/genai/AIDataProvider.java",
+      "line" : 37,
+      "column" : 27
+    },
+    "message" : "RestClient.builder()...build() sets no request factory, so no explicit timeouts apply (Spring Boot properties only configure the injected builder).",
+    "why" : "A call without a read timeout waits as long as the remote side keeps the socket open. When a dependency hangs, request threads pile up on it until the service stops responding: one slow dependency becomes a full outage.",
+    "fix" : "Add .requestFactory(factory) with connect and read timeouts, or inject the auto-configured RestClient.Builder.",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ {
+    "module" : "spring-petclinic-admin-server",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: spring.config.import loads remote configuration (optional:configserver:http://localhost:8888/); rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "spring-petclinic-api-gateway",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: spring.config.import loads remote configuration (optional:configserver:http://localhost:8888/); rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "spring-petclinic-customers-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: spring.config.import loads remote configuration (optional:configserver:http://localhost:8888/); rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "spring-petclinic-discovery-server",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: spring.config.import loads remote configuration (optional:configserver:http://localhost:8888/); rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "spring-petclinic-genai-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: spring.config.import loads remote configuration (optional:configserver:http://localhost:8888/); rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "spring-petclinic-vets-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: spring.config.import loads remote configuration (optional:configserver:http://localhost:8888/); rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "spring-petclinic-visits-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: spring.config.import loads remote configuration (optional:configserver:http://localhost:8888/); rules that report missing properties were not evaluated for this module"
+  } ]
+}

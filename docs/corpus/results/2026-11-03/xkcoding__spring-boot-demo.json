@@ -1,0 +1,1142 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.1.0-SNAPSHOT",
+  "summary" : {
+    "error" : 0,
+    "warning" : 23,
+    "info" : 22,
+    "suppressed" : 0,
+    "notEvaluated" : 27
+  },
+  "modules" : [ {
+    "path" : "demo-activiti",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-activiti/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "demo-actuator",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-actuator/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-admin/admin-client",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-admin/admin-client/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-admin/admin-server",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-admin/admin-server/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-async",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-async/src/main/resources/application.yml" ],
+    "technologies" : [ "async" ]
+  }, {
+    "path" : "demo-cache-ehcache",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-cache-ehcache/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-cache-redis",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-cache-redis/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-codegen",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-codegen/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "demo-docker",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-docker/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-dubbo/dubbo-consumer",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-dubbo/dubbo-consumer/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-dubbo/dubbo-provider",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-dubbo/dubbo-provider/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-dynamic-datasource",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-dynamic-datasource/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "demo-elasticsearch",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-elasticsearch/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-elasticsearch-rest-high-level-client",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-elasticsearch-rest-high-level-client/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-email",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-email/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-exception-handler",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-exception-handler/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-flyway",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-flyway/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "demo-graylog",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-graylog/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-helloworld",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-helloworld/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-https",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-https/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-ldap",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-ldap/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-log-aop",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-log-aop/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-logback",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-logback/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-mongodb",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-mongodb/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-mq-kafka",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-mq-kafka/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-mq-rabbitmq",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-mq-rabbitmq/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-mq-rocketmq",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-multi-datasource-jpa",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-multi-datasource-jpa/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "demo-multi-datasource-mybatis",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-multi-datasource-mybatis/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-neo4j",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-neo4j/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-oauth/oauth-authorization-server",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-oauth/oauth-authorization-server/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "demo-oauth/oauth-resource-server",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-oauth/oauth-resource-server/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-orm-beetlsql",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-orm-beetlsql/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "demo-orm-jdbctemplate",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-orm-jdbctemplate/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "demo-orm-jpa",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-orm-jpa/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "demo-orm-mybatis",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-orm-mybatis/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "demo-orm-mybatis-mapper-page",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-orm-mybatis-mapper-page/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "demo-orm-mybatis-plus",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-orm-mybatis-plus/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "demo-pay",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-pay/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-properties",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "prod" ],
+    "configFiles" : [ "demo-properties/src/main/resources/application.yml", "demo-properties/src/main/resources/application-prod.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-ratelimit-guava",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-ratelimit-guava/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-ratelimit-redis",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-ratelimit-redis/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-rbac-security",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-rbac-security/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "demo-rbac-shiro",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-rbac-shiro/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "demo-session",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-session/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-sharding-jdbc",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-sharding-jdbc/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-social",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-social/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-swagger",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-swagger/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-swagger-beauty",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-swagger-beauty/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-task",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-task/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-task-quartz",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-task-quartz/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "demo-task-xxl-job",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-task-xxl-job/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-template-beetl",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-template-beetl/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-template-enjoy",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-template-enjoy/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-template-freemarker",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-template-freemarker/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-template-thymeleaf",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-template-thymeleaf/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-tio",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-uflo",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-upload",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-upload/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-ureport2",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-ureport2/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "demo-urule",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  }, {
+    "path" : "demo-war",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-war/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-websocket",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-websocket/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-websocket-socketio",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-websocket-socketio/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "demo-zookeeper",
+    "springBootVersion" : "2.1.0.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "demo-zookeeper/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-activiti",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-activiti/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "connectionTimeout is not set, so HikariCP waits up to 30000 ms (default) for a connection.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-activiti",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-activiti/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TOMCAT-001",
+    "severity" : "INFO",
+    "module" : "demo-activiti",
+    "subject" : "server.tomcat.threads.max",
+    "location" : {
+      "path" : "demo-activiti/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "Tomcat may run 200 request threads (default) against 10 pooled connections (default), a ratio of 20:1 (threshold 10:1).",
+    "why" : "When requests that need the database outnumber connections, the extra threads block in the pool for connectionTimeout. Under a slowdown all Tomcat threads end up waiting there, and even health checks and endpoints that never touch the database stop answering.",
+    "fix" : "Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-activiti",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-activiti/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-codegen",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-codegen/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-dynamic-datasource",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-dynamic-datasource/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-flyway",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-flyway/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "connectionTimeout is not set, so HikariCP waits up to 30000 ms (default) for a connection.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-flyway",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-flyway/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TOMCAT-001",
+    "severity" : "INFO",
+    "module" : "demo-flyway",
+    "subject" : "server.tomcat.threads.max",
+    "location" : {
+      "path" : "demo-flyway/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "Tomcat may run 200 request threads (default) against 10 pooled connections (default), a ratio of 20:1 (threshold 10:1).",
+    "why" : "When requests that need the database outnumber connections, the extra threads block in the pool for connectionTimeout. Under a slowdown all Tomcat threads end up waiting there, and even health checks and endpoints that never touch the database stop answering.",
+    "fix" : "Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-flyway",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-flyway/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-multi-datasource-jpa",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-multi-datasource-jpa/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-multi-datasource-mybatis",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-multi-datasource-mybatis/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-oauth/oauth-authorization-server",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-oauth/oauth-authorization-server/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "connectionTimeout is not set, so HikariCP waits up to 30000 ms (default) for a connection.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-oauth/oauth-authorization-server",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-oauth/oauth-authorization-server/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TOMCAT-001",
+    "severity" : "INFO",
+    "module" : "demo-oauth/oauth-authorization-server",
+    "subject" : "server.tomcat.threads.max",
+    "location" : {
+      "path" : "demo-oauth/oauth-authorization-server/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "Tomcat may run 200 request threads (default) against 10 pooled connections (default), a ratio of 20:1 (threshold 10:1).",
+    "why" : "When requests that need the database outnumber connections, the extra threads block in the pool for connectionTimeout. Under a slowdown all Tomcat threads end up waiting there, and even health checks and endpoints that never touch the database stop answering.",
+    "fix" : "Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-oauth/oauth-authorization-server",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-oauth/oauth-authorization-server/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HTTP-001",
+    "severity" : "WARNING",
+    "module" : "demo-oauth/oauth-resource-server",
+    "subject" : "OauthResourceTokenConfig#getKeyFromAuthorizationServer:new RestTemplate()",
+    "location" : {
+      "path" : "demo-oauth/oauth-resource-server/src/main/java/com/xkcoding/oauth/config/OauthResourceTokenConfig.java",
+      "line" : 79,
+      "column" : 25
+    },
+    "message" : "new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite).",
+    "why" : "A call without a read timeout waits as long as the remote side keeps the socket open. When a dependency hangs, request threads pile up on it until the service stops responding: one slow dependency becomes a full outage.",
+    "fix" : "Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-orm-beetlsql",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-orm-beetlsql/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-orm-jdbctemplate",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-orm-jdbctemplate/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-orm-jdbctemplate",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-orm-jdbctemplate/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-orm-jdbctemplate",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-orm-jdbctemplate/src/main/resources/application.yml",
+      "line" : 26,
+      "column" : 27
+    },
+    "message" : "connectionTimeout is 30000 ms, above the 5000 ms threshold.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-orm-jpa",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-orm-jpa/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-orm-mybatis",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-orm-mybatis/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-orm-mybatis",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-orm-mybatis/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-orm-mybatis",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-orm-mybatis/src/main/resources/application.yml",
+      "line" : 22,
+      "column" : 27
+    },
+    "message" : "connectionTimeout is 30000 ms, above the 5000 ms threshold.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-orm-mybatis-mapper-page",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-orm-mybatis-mapper-page/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-orm-mybatis-mapper-page",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-orm-mybatis-mapper-page/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-orm-mybatis-mapper-page",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-orm-mybatis-mapper-page/src/main/resources/application.yml",
+      "line" : 22,
+      "column" : 27
+    },
+    "message" : "connectionTimeout is 30000 ms, above the 5000 ms threshold.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-orm-mybatis-plus",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-orm-mybatis-plus/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-orm-mybatis-plus",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-orm-mybatis-plus/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-orm-mybatis-plus",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-orm-mybatis-plus/src/main/resources/application.yml",
+      "line" : 22,
+      "column" : 27
+    },
+    "message" : "connectionTimeout is 30000 ms, above the 5000 ms threshold.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-rbac-security",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-rbac-security/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "connectionTimeout is not set, so HikariCP waits up to 30000 ms (default) for a connection.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-rbac-security",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-rbac-security/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TOMCAT-001",
+    "severity" : "INFO",
+    "module" : "demo-rbac-security",
+    "subject" : "server.tomcat.threads.max",
+    "location" : {
+      "path" : "demo-rbac-security/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "Tomcat may run 200 request threads (default) against 10 pooled connections (default), a ratio of 20:1 (threshold 10:1).",
+    "why" : "When requests that need the database outnumber connections, the extra threads block in the pool for connectionTimeout. Under a slowdown all Tomcat threads end up waiting there, and even health checks and endpoints that never touch the database stop answering.",
+    "fix" : "Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-rbac-security",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-rbac-security/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-rbac-shiro",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-rbac-shiro/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "connectionTimeout is not set, so HikariCP waits up to 30000 ms (default) for a connection.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-rbac-shiro",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-rbac-shiro/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-rbac-shiro",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-rbac-shiro/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-task-quartz",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-task-quartz/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-task-quartz",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-task-quartz/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-task-quartz",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-task-quartz/src/main/resources/application.yml",
+      "line" : 20,
+      "column" : 27
+    },
+    "message" : "connectionTimeout is 30000 ms, above the 5000 ms threshold.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "demo-ureport2",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "demo-ureport2/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "connectionTimeout is not set, so HikariCP waits up to 30000 ms (default) for a connection.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "demo-ureport2",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "demo-ureport2/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TOMCAT-001",
+    "severity" : "INFO",
+    "module" : "demo-ureport2",
+    "subject" : "server.tomcat.threads.max",
+    "location" : {
+      "path" : "demo-ureport2/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "Tomcat may run 200 request threads (default) against 10 pooled connections (default), a ratio of 20:1 (threshold 10:1).",
+    "why" : "When requests that need the database outnumber connections, the extra threads block in the pool for connectionTimeout. Under a slowdown all Tomcat threads end up waiting there, and even health checks and endpoints that never touch the database stop answering.",
+    "fix" : "Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "demo-ureport2",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "demo-ureport2/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ {
+    "module" : "demo-codegen",
+    "code" : "RULE_SKIPPED",
+    "message" : "HikariCP rules not evaluated: the module builds its own DataSource in code, so spring.datasource.hikari.* may not apply to it"
+  }, {
+    "module" : "demo-dynamic-datasource",
+    "code" : "RULE_SKIPPED",
+    "message" : "HikariCP rules not evaluated: the module builds its own DataSource in code, so spring.datasource.hikari.* may not apply to it"
+  }, {
+    "module" : "demo-multi-datasource-jpa",
+    "code" : "RULE_SKIPPED",
+    "message" : "HikariCP rules not evaluated: the module builds its own DataSource in code, so spring.datasource.hikari.* may not apply to it"
+  }, {
+    "module" : "demo-orm-beetlsql",
+    "code" : "RULE_SKIPPED",
+    "message" : "HikariCP rules not evaluated: the module builds its own DataSource in code, so spring.datasource.hikari.* may not apply to it"
+  }, {
+    "module" : "demo-orm-jpa",
+    "code" : "RULE_SKIPPED",
+    "message" : "HikariCP rules not evaluated: the module builds its own DataSource in code, so spring.datasource.hikari.* may not apply to it"
+  }, {
+    "module" : "demo-activiti",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-flyway",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-oauth/oauth-authorization-server",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-orm-jdbctemplate",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-orm-mybatis",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-orm-mybatis-mapper-page",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-orm-mybatis-plus",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-rbac-security",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-rbac-shiro",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-task-quartz",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-ureport2",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "demo-activiti",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-flyway",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-oauth/oauth-authorization-server",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-orm-jdbctemplate",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-orm-mybatis",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-orm-mybatis-mapper-page",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-orm-mybatis-plus",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-rbac-security",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-rbac-shiro",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-task-quartz",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  }, {
+    "module" : "demo-ureport2",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  } ]
+}

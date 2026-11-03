@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | WARNING |
-| **Applies when** | Module uses HikariCP. |
+| **Applies when** | Module uses HikariCP through `spring.datasource.hikari.*` (see [technology detection](../check.md#which-rules-apply)) and its local config is complete. |
 | **Options** | none. |
 
 ## What it detects

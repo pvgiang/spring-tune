@@ -1,0 +1,24 @@
+# Public Spring Boot repositories for the corpus run (owner/repo).
+# Chosen for diversity: reference apps, microservice suites, admin platforms, large products,
+# (zhoutaoo/SpringCloud was dropped: it is only git submodules, no service code in the repo.)
+# Maven and Gradle, Boot 2.x-4.x, JPA/MyBatis, MVC/WebFlux, Feign/Resilience4j/Hystrix.
+spring-projects/spring-petclinic
+spring-petclinic/spring-petclinic-microservices
+spring-petclinic/spring-petclinic-rest
+gothinkster/spring-boot-realworld-example-app
+sqshq/piggymetrics
+jhipster/jhipster-sample-app
+microservices-patterns/ftgo-application
+macrozheng/mall
+elunez/eladmin
+linlinjava/litemall
+yangzongzhuan/RuoYi
+YunaiV/ruoyi-vue-pro
+xkcoding/spring-boot-demo
+ityouknow/spring-boot-examples
+jeecgboot/JeecgBoot
+paascloud/paascloud-master
+halo-dev/halo
+apache/shenyu
+apache/dolphinscheduler
+thingsboard/thingsboard

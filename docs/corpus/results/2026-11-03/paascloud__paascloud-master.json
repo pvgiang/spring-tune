@@ -1,0 +1,106 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.1.0-SNAPSHOT",
+  "summary" : {
+    "error" : 0,
+    "warning" : 0,
+    "info" : 0,
+    "suppressed" : 0,
+    "notEvaluated" : 8
+  },
+  "modules" : [ {
+    "path" : "paascloud-discovery",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-discovery/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "paascloud-eureka",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-eureka/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "paascloud-gateway",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-gateway/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "paascloud-monitor",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-monitor/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "paascloud-provider/paascloud-provider-mdc",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-provider/paascloud-provider-mdc/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat", "openfeign" ]
+  }, {
+    "path" : "paascloud-provider/paascloud-provider-omc",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-provider/paascloud-provider-omc/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat", "openfeign" ]
+  }, {
+    "path" : "paascloud-provider/paascloud-provider-opc",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-provider/paascloud-provider-opc/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat", "openfeign" ]
+  }, {
+    "path" : "paascloud-provider/paascloud-provider-tpc",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-provider/paascloud-provider-tpc/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat", "openfeign" ]
+  }, {
+    "path" : "paascloud-provider/paascloud-provider-uac",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "paascloud-provider/paascloud-provider-uac/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat", "openfeign" ]
+  }, {
+    "path" : "paascloud-zipkin",
+    "springBootVersion" : "1.5.13.RELEASE",
+    "activeProfiles" : [ "dev" ],
+    "configFiles" : [ "paascloud-zipkin/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  } ],
+  "findings" : [ ],
+  "notEvaluated" : [ {
+    "module" : "paascloud-gateway",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "paascloud-monitor",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "paascloud-provider/paascloud-provider-mdc",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "paascloud-provider/paascloud-provider-omc",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "paascloud-provider/paascloud-provider-opc",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "paascloud-provider/paascloud-provider-tpc",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "paascloud-provider/paascloud-provider-uac",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "paascloud-zipkin",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  } ]
+}

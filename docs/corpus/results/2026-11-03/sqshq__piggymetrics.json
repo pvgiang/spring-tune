@@ -1,0 +1,100 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.1.0-SNAPSHOT",
+  "summary" : {
+    "error" : 0,
+    "warning" : 0,
+    "info" : 0,
+    "suppressed" : 0,
+    "notEvaluated" : 8
+  },
+  "modules" : [ {
+    "path" : "account-service",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "tomcat", "openfeign" ]
+  }, {
+    "path" : "auth-service",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "config",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "native" ],
+    "configFiles" : [ "config/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "gateway",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  }, {
+    "path" : "monitoring",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  }, {
+    "path" : "notification-service",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "tomcat", "openfeign" ]
+  }, {
+    "path" : "registry",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  }, {
+    "path" : "statistics-service",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "tomcat", "openfeign" ]
+  }, {
+    "path" : "turbine-stream-service",
+    "springBootVersion" : "2.0.3.RELEASE",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ ]
+  } ],
+  "findings" : [ ],
+  "notEvaluated" : [ {
+    "module" : "account-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "auth-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "gateway",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "monitoring",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "notification-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "registry",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "statistics-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "turbine-stream-service",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Spring Cloud Config Server (bootstrap config), which the check cannot see; rules that report missing properties were not evaluated for this module"
+  } ]
+}

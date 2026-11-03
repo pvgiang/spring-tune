@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | WARNING (ERROR when 0 = infinite) |
-| **Applies when** | Module uses JDBC with HikariCP (JDBC/JPA/jOOQ starter or `spring.datasource.*`, and `spring.datasource.type` unset or Hikari). |
+| **Applies when** | Module uses HikariCP through `spring.datasource.hikari.*` (see [technology detection](../check.md#which-rules-apply)) and its local config is complete. |
 | **Options** | `max-ms` (default `5000`). |
 
 ## What it detects

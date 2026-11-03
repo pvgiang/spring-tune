@@ -64,11 +64,23 @@ not understand:
 
 | Technology | Detected by |
 |---|---|
-| HikariCP | `spring-boot-starter-jdbc/data-jpa/data-jdbc/jooq`, `spring-boot-jdbc` or `HikariCP` in the build, or any `spring.datasource.*`, unless `spring.datasource.type` names another pool |
+| JDBC (any pool) | JDBC/JPA/jOOQ starters, `spring-boot-jdbc`, `HikariCP`, Druid or dynamic-datasource starters, or any `spring.datasource.*` (used by ST-TX-001) |
+| HikariCP via `spring.datasource.hikari.*` | JDBC, and none of: a non-Hikari `spring.datasource.type`; Druid starter or `spring.datasource.druid.*`; dynamic-datasource or `spring.datasource.dynamic.*`; Spring Boot 1.x without an explicit HikariCP dependency (1.x defaults to tomcat-jdbc); a DataSource built in the module's code or a `@Bean DataSource` in a library it depends on; `DataSourceAutoConfiguration` excluded |
 | Tomcat | `spring-boot-starter-web/webmvc/tomcat` without Jetty/Undertow, or any `server.tomcat.*` |
 | Virtual threads | `spring.threads.virtual.enabled=true` (disables ST-TOMCAT-001 and ST-ASYNC-001) |
-| OpenFeign | `spring-cloud-starter-openfeign` or `@EnableFeignClients` |
+| OpenFeign | `@EnableFeignClients` in the module or an in-repo library it depends on |
 | Resilience4j | `resilience4j.*` properties |
+
+**Incomplete local config.** When the module's code sets `spring.config.name`/`spring.config.location`, when
+`spring.config.import` loads a remote source (`configserver:`, `nacos:`, `consul:`, `zookeeper:`, `vault:`,
+`aws-…`, `kubernetes:`, `apollo:`), or when application/bootstrap config points at Spring Cloud Config,
+Nacos, Consul, ZooKeeper, Vault or Apollo, a property missing from the files proves nothing. Rules that report
+*missing* properties are then skipped for that module, and the report says why.
+
+**Library code.** Every `src/main/java` root in the repository is a unit, keyed by Maven `artifactId` (Gradle:
+directory name, `project(':name')`). A module also sees the code of the in-repo libraries it depends on,
+transitively. That is how an `AsyncConfigurer`, `@Async` methods or a `@Bean DataSource` in a shared module
+are taken into account. Artifact ids that occur twice are not followed.
 
 Build files: Maven `<dependencies>` (not `dependencyManagement`) of the module and its ancestor directories
 up to the root; Gradle coordinates in `build.gradle(.kts)`. The Spring Boot version is read from the parent
