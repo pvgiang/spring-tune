@@ -1,0 +1,50 @@
+name: Release
+
+# Push a tag like v0.1.0 to build, test and publish a GitHub Release.
+# Release notes are read from docs/releases/<tag>.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          mvn -B -ntp org.codehaus.mojo:versions-maven-plugin:2.21.0:set \
+            -DnewVersion="$VERSION" -DgenerateBackupPoms=false -DprocessAllModules=true
+
+      - name: Build and test (all modules, plugin ITs)
+        run: mvn -B -ntp verify
+
+      - name: Stage Maven artifacts
+        run: mvn -B -ntp deploy -DskipTests -Dinvoker.skip -DaltDeploymentRepository=staging::file:${{ github.workspace }}/target/staging-repo
+
+      - name: Collect release assets
+        run: |
+          mkdir -p dist
+          cp springtune-check-cli/target/springtune-check-cli-$VERSION-all.jar dist/springtune-cli-$VERSION.jar
+          (cd target/staging-repo && zip -qr ../../dist/springtune-maven-repo-$VERSION.zip .)
+          (cd dist && sha256sum * > SHA256SUMS)
+          java -jar dist/springtune-cli-$VERSION.jar --version | grep -q "SpringTune $VERSION"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="docs/releases/${GITHUB_REF_NAME}.md"
+          test -f "$NOTES"
+          gh release create "$GITHUB_REF_NAME" dist/* --title "SpringTune $VERSION" --notes-file "$NOTES"

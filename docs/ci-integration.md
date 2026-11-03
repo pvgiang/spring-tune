@@ -15,18 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: "21" }
-      - name: SpringTune
-        run: |
-          java -jar springtune-check-cli-all.jar check . --profile prod \
-            --format text,sarif --output springtune-reports
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()            # upload even when the check fails the job
+      - uses: pvgiang/spring-tune@v0.1.0      # downloads the released CLI, needs no build
+        id: springtune
         with:
-          sarif_file: springtune-reports/springtune-report.sarif
+          profile: prod                        # optional
+          fail-on: ERROR                       # optional (default: springtune.yml failOn, else ERROR)
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()                           # upload even when the check fails the job
+        with:
+          sarif_file: ${{ steps.springtune.outputs.sarif }}
           category: springtune
 ```
+
+Action inputs: `path`, `version`, `profile`, `fail-on`, `format`, `output`, `config`. Outputs: `sarif`,
+`exit-code`. The Markdown report is added to the job summary.
 
 Findings then appear as code scanning alerts on the exact `file:line`. Suppressed findings are uploaded with
 `suppressions[].justification`, so the reason stays visible. `partialFingerprints` keep alerts stable when

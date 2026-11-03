@@ -1,0 +1,77 @@
+name: SpringTune check
+description: Catch risky Spring Boot configuration (pool exhaustion, hung threads, retry storms) and report it as SARIF.
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  path:
+    description: Project root to analyze (report paths are relative to it; keep the repository root for SARIF).
+    default: "."
+  version:
+    description: SpringTune release to download, e.g. 0.1.0.
+    default: "0.1.0"
+  profile:
+    description: Spring profile(s) to activate, comma-separated. Default: springtune.yml, else spring.profiles.active.
+    default: ""
+  fail-on:
+    description: ERROR, WARNING, INFO or NONE. Default: springtune.yml failOn, else ERROR.
+    default: ""
+  format:
+    description: Report formats to write (text, markdown, json, sarif).
+    default: "text,markdown,sarif"
+  output:
+    description: Directory for report files.
+    default: "springtune-reports"
+  config:
+    description: Path to springtune.yml (default <path>/springtune.yml if present).
+    default: ""
+  jar:
+    description: Use this CLI jar instead of downloading one (for testing unreleased builds).
+    default: ""
+
+outputs:
+  sarif:
+    description: Path to the SARIF report.
+    value: ${{ steps.run.outputs.sarif }}
+  exit-code:
+    description: 0 = clean, 1 = findings at or above fail-on, 2 = usage or configuration error.
+    value: ${{ steps.run.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "21"
+    - id: run
+      shell: bash
+      env:
+        ST_PATH: ${{ inputs.path }}
+        ST_VERSION: ${{ inputs.version }}
+        ST_PROFILE: ${{ inputs.profile }}
+        ST_FAIL_ON: ${{ inputs.fail-on }}
+        ST_FORMAT: ${{ inputs.format }}
+        ST_OUTPUT: ${{ inputs.output }}
+        ST_CONFIG: ${{ inputs.config }}
+        ST_JAR: ${{ inputs.jar }}
+      run: |
+        set -euo pipefail
+        jar="$ST_JAR"
+        if [ -z "$jar" ]; then
+          jar="$RUNNER_TEMP/springtune-cli-$ST_VERSION.jar"
+          curl -fsSL -o "$jar" "https://github.com/pvgiang/spring-tune/releases/download/v$ST_VERSION/springtune-cli-$ST_VERSION.jar"
+        fi
+        args=(check "$ST_PATH" --format "$ST_FORMAT" --output "$ST_OUTPUT")
+        [ -n "$ST_PROFILE" ] && args+=(--profile "$ST_PROFILE")
+        [ -n "$ST_FAIL_ON" ] && args+=(--fail-on "$ST_FAIL_ON")
+        [ -n "$ST_CONFIG" ] && args+=(--config "$ST_CONFIG")
+        set +e
+        java -jar "$jar" "${args[@]}"
+        code=$?
+        set -e
+        echo "sarif=$ST_OUTPUT/springtune-report.sarif" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        if [ -f "$ST_OUTPUT/springtune-report.md" ]; then cat "$ST_OUTPUT/springtune-report.md" >> "$GITHUB_STEP_SUMMARY"; fi
+        exit "$code"
