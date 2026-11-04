@@ -255,7 +255,7 @@ final class ChangeController {
         ChangeAuditEntry entry = record(new ChangeAuditEntry(nextId(), now, request.normalizedAction(),
                 caller.name() == null ? "anonymous" : caller.name(), request.reason(), request.ruleId(),
                 request.knobId(), Map.of(), Map.of(), Outcome.REFUSED, null, refusal.code().name(),
-                List.of(refusal.message()), Map.of(), now));
+                List.of(refusal.message()), Map.of(), now), caller.name() != null);
         return new ChangeResponse(refusal.status(), refusal.code().name(), refusal.message(), entry);
     }
 
@@ -425,6 +425,23 @@ final class ChangeController {
 
     /** Adds or replaces (same id) an audit entry, logs it and publishes it. An evicted entry is added again. */
     private ChangeAuditEntry record(ChangeAuditEntry entry) {
+        return record(entry, true);
+    }
+
+    /**
+     * @param keep whether the entry goes into the bounded in-memory audit. Unauthenticated refusals are only
+     *             logged and counted, so anonymous requests cannot push genuine entries out of the audit.
+     */
+    private ChangeAuditEntry record(ChangeAuditEntry entry, boolean keep) {
+        if (!keep) {
+            AUDIT.info(auditLine(entry));
+            try {
+                listener.accept(entry);
+            } catch (RuntimeException ex) {
+                LOG.warn("SpringTune change listener failed", ex);
+            }
+            return entry;
+        }
         boolean replaced = false;
         List<ChangeAuditEntry> entries = new ArrayList<>(audit);
         for (int i = 0; i < entries.size(); i++) {

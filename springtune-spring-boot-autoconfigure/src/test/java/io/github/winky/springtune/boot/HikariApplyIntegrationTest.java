@@ -134,6 +134,16 @@ class HikariApplyIntegrationTest {
                     maxTotalAfterWarmup = Math.max(maxTotalAfterWarmup, total);
                 }
             }
+            // Hikari adds connections asynchronously; on a loaded machine the fill can trail the ticks. Give it up
+            // to 5 s more real time (load still running) before judging whether the new capacity was used.
+            long fillDeadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+            int target = dataSource.getHikariConfigMXBean().getMaximumPoolSize();
+            while (maxTotalAfterWarmup < target && System.nanoTime() < fillDeadline) {
+                Thread.sleep(20);
+                int total = dataSource.getHikariPoolMXBean().getTotalConnections();
+                maxTotal = Math.max(maxTotal, total);
+                maxTotalAfterWarmup = Math.max(maxTotalAfterWarmup, total);
+            }
             return new Run(rec, applied, controller.audit().get(0), dataSource, maxTotal, maxTotalAfterWarmup,
                     planSnapshot, registry);
         } finally {

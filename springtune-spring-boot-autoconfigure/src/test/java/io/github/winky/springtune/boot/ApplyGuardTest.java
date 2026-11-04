@@ -110,6 +110,17 @@ class ApplyGuardTest {
     }
 
     @Test
+    void optionalExpectedTargetPinsTheReviewedValue() {
+        List<Recommendation> recs = List.of(rec(Action.INCREASE, 10, 13));
+        Decision moved = check(new ChangeRequest("apply", RULE, KNOB, 10L, "r",
+                12L), ok, knob(10, 10), recs, Optional.of(13));
+        assertThat(moved.refusal().code()).isEqualTo(Code.STALE_EXPECTED_TARGET);
+        assertThat(moved.refusal().status()).isEqualTo(409);
+        assertThat(check(new ChangeRequest("apply", RULE, KNOB, 10L, "r", 13L),
+                ok, knob(10, 10), recs, Optional.of(13)).approved()).isTrue();
+    }
+
+    @Test
     void raisingAHikariPoolNeedsABudgetAndStaysUnderTheCap() {
         assertThat(refusal(apply(10), ok, knob(10, 10), List.of(rec(Action.INCREASE, 10, 13)), Optional.empty()))
                 .isEqualTo(Code.NO_BUDGET);

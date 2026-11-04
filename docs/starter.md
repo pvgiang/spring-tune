@@ -99,18 +99,18 @@ SecurityFilterChain tuning(HttpSecurity http) throws Exception {
 
 | `action` | Fields | Effect |
 |---|---|---|
-| `apply` | `ruleId`, `knobId`, `expectedCurrent`, `reason` (all required) | Applies the `recommendedValue` of the matching **current** recommendation (re-evaluated at request time). No other value can be applied, and HOLD has nothing to apply. |
+| `apply` | `ruleId`, `knobId`, `expectedCurrent`, `reason` (all required); `expectedTarget` (optional, recommended) | Applies the `recommendedValue` of the matching **current** recommendation (re-evaluated at request time). No other value can be applied, and HOLD has nothing to apply. With `expectedTarget`, the apply is refused if the fresh recommendation now proposes a different value than the one you reviewed. |
 | `revert` | `knobId`, optional `reason` | Writes back the change in flight, or the last confirmed change of that knob, if the live value is still the applied one. |
 | `freeze` | optional `reason` | Reverts the change in flight and refuses every further apply **until restart** (runtime kill switch). |
 
 ```bash
 curl -u ops:… -H 'Content-Type: application/json' -X POST https://host/actuator/tuning \
-  -d '{"action":"apply","ruleId":"ST-REC-HIKARI-001","knobId":"hikari.orders-pool.maximumPoolSize","expectedCurrent":10,"reason":"INC-123 pool saturated"}'
+  -d '{"action":"apply","ruleId":"ST-REC-HIKARI-001","knobId":"hikari.orders-pool.maximumPoolSize","expectedCurrent":10,"expectedTarget":13,"reason":"INC-123 pool saturated"}'
 ```
 
 The response is `{status, code, message, change}` with HTTP status **200** (done), **400** (invalid request or
 outside the guardrails), **401** (no principal), **403** (missing `required-role`) or **409** (conflicts with the
-current state). Every request, including refusals, is audited with the caller's principal name.
+current state). Every request, including refusals, is audited with the caller's principal name. Unauthenticated refusals (401) are logged on `springtune.audit` and published as events, but not kept in the in-memory audit, so anonymous traffic cannot push genuine entries out of it.
 
 ### Guardrails
 
@@ -125,6 +125,7 @@ current state). Every request, including refusals, is audited with the caller's 
 | Knob cooling down: `cooldown` (15 m) after a confirmed/superseded change, `cooldown-after-revert` (60 m) after a revert | `COOLDOWN` (409) |
 | A current, matching (`ruleId` + `knobId`) recommendation that is not HOLD | `NO_CURRENT_RECOMMENDATION`, `RECOMMENDATION_IS_HOLD` (409) |
 | Compare-and-set: `expectedCurrent` and the recommendation's `currentValue` must equal the live value | `STALE_EXPECTED_CURRENT` (409) |
+| Optional `expectedTarget` must equal the fresh recommendation's value | `STALE_EXPECTED_TARGET` (409) |
 | Raising a Hikari pool needs `springtune.budget.*` and stays ≤ the per-instance cap | `NO_BUDGET`, `ABOVE_BUDGET_CAP` (400) |
 | Step: `abs(new − current) ≤ max(1, ceil(current × max-step))` | `STEP_LIMIT` (400) |
 | Growth: `new` within `[startup / max-growth-factor, startup × max-growth-factor]` | `GROWTH_LIMIT` (400) |

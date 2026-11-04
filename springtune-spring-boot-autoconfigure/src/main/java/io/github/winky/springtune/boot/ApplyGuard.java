@@ -35,6 +35,7 @@ final class ApplyGuard {
         NO_CURRENT_RECOMMENDATION(409),
         RECOMMENDATION_IS_HOLD(409),
         STALE_EXPECTED_CURRENT(409),
+        STALE_EXPECTED_TARGET(409),
         NO_BUDGET(400),
         ABOVE_BUDGET_CAP(400),
         STEP_LIMIT(400),
@@ -56,7 +57,16 @@ final class ApplyGuard {
     }
 
     /** What {@code POST /actuator/tuning} carries. All fields are optional at the HTTP level and checked here. */
-    record ChangeRequest(String action, String ruleId, String knobId, Long expectedCurrent, String reason) {
+    /**
+     * @param expectedTarget optional: the value the operator reviewed. When set, apply is refused (409) if the
+     *                       fresh recommendation now proposes a different value.
+     */
+    record ChangeRequest(String action, String ruleId, String knobId, Long expectedCurrent, String reason,
+            Long expectedTarget) {
+
+        ChangeRequest(String action, String ruleId, String knobId, Long expectedCurrent, String reason) {
+            this(action, ruleId, knobId, expectedCurrent, reason, null);
+        }
 
         String normalizedAction() {
             return action == null ? "" : action.trim().toLowerCase(Locale.ROOT);
@@ -195,6 +205,10 @@ final class ApplyGuard {
                     + rec.currentValue() + " but the live value is " + current + "; wait for the next evaluation.");
         }
         long target = rec.recommendedValue();
+        if (request.expectedTarget() != null && request.expectedTarget() != target) {
+            return Decision.refuse(Code.STALE_EXPECTED_TARGET, "expectedTarget " + request.expectedTarget()
+                    + " does not match the current recommendation (" + target + "); review it again.");
+        }
         if (knob.kind() == WritableKnob.Kind.HIKARI && target > current) {
             if (budgetCap.isEmpty()) {
                 return Decision.refuse(Code.NO_BUDGET, "Raising maximumPoolSize needs a connection budget:"

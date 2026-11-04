@@ -299,6 +299,9 @@ class ChangeControllerTest {
         assertThat(anonymous.change().who()).isEqualTo("anonymous");
         assertThat(writer.writes).isEmpty();
         assertThat(events).hasSize(2).allMatch(e -> e.outcome() == Outcome.REFUSED);
+        // Both are logged and published, but only the authenticated refusal is kept in the bounded audit, so
+        // anonymous requests cannot push genuine entries out of it.
+        assertThat(controller.audit()).singleElement().satisfies(e -> assertThat(e.who()).isEqualTo("alice"));
     }
 
     @Test

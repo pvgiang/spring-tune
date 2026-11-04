@@ -14,7 +14,7 @@ import org.springframework.boot.actuate.endpoint.web.annotation.EndpointWebExten
  * apply mode refuses to start without Spring Security on the classpath. Unauthenticated (also anonymous) calls
  * and calls without {@code springtune.apply.required-role} are refused (and audited); there is no anonymous switch.
  *
- * <p>Body: {@code {"action": "apply" | "revert" | "freeze", "ruleId", "knobId", "expectedCurrent", "reason"}}.
+ * <p>Body: {@code {"action": "apply" | "revert" | "freeze", "ruleId", "knobId", "expectedCurrent", "expectedTarget"?, "reason"}}.
  * {@code apply} applies the {@code recommendedValue} of the matching current recommendation, compare-and-set
  * on {@code expectedCurrent}; {@code revert} writes back the change in flight (or the last confirmed one);
  * {@code freeze} reverts the change in flight and refuses further applies until restart.
@@ -37,13 +37,13 @@ public class TuningApplyWebExtension {
     public WebEndpointResponse<ChangeResponse> change(@org.springframework.lang.Nullable String action,
             @org.springframework.lang.Nullable String ruleId, @org.springframework.lang.Nullable String knobId,
             @org.springframework.lang.Nullable Long expectedCurrent, @org.springframework.lang.Nullable String reason,
-            SecurityContext securityContext) {
+            @org.springframework.lang.Nullable Long expectedTarget, SecurityContext securityContext) {
         Principal principal = securityContext.getPrincipal();
         if (isAnonymous(principal)) {
             principal = null;
         }
         boolean hasRole = requiredRole == null || requiredRole.isBlank() || securityContext.isUserInRole(requiredRole);
-        ChangeResponse response = controller.handle(new ChangeRequest(action, ruleId, knobId, expectedCurrent, reason),
+        ChangeResponse response = controller.handle(new ChangeRequest(action, ruleId, knobId, expectedCurrent, reason, expectedTarget),
                 new Caller(principal == null ? null : principal.getName(), hasRole));
         return new WebEndpointResponse<>(response, response.status());
     }

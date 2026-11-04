@@ -47,7 +47,7 @@ class TuningApplyWebExtensionTest {
     void anonymousAuthenticationIsNotAnAuthenticatedCaller() {
         Principal anonymous = new AnonymousAuthenticationToken("key", "anonymousUser",
                 AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
-        WebEndpointResponse<ChangeResponse> response = extension().change("freeze", null, null, null, "x",
+        WebEndpointResponse<ChangeResponse> response = extension().change("freeze", null, null, null, "x", null,
                 context(anonymous));
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(response.getBody().code()).isEqualTo("NOT_AUTHENTICATED");
@@ -56,7 +56,7 @@ class TuningApplyWebExtensionTest {
 
     @Test
     void namedPrincipalIsTheCaller() {
-        WebEndpointResponse<ChangeResponse> response = extension().change("freeze", null, null, null, "x",
+        WebEndpointResponse<ChangeResponse> response = extension().change("freeze", null, null, null, "x", null,
                 context(() -> "ops"));
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getBody().change().who()).isEqualTo("ops");
