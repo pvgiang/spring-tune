@@ -6,23 +6,86 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-/** Reads a {@link ThreadPoolTaskExecutor} bean (including Boot's {@code applicationTaskExecutor}). */
+/**
+ * Reads a {@link ThreadPoolTaskExecutor} bean (including Boot's {@code applicationTaskExecutor}). Never calls a
+ * size setter: in apply mode the only write path is the {@link ExecutorPoolWriter} of its
+ * {@link #writableKnob() writable knob}.
+ */
 final class ExecutorComponent implements TunedComponent {
 
     private final String beanName;
     private final ThreadPoolTaskExecutor executor;
     private final SpringTuneProperties properties;
+    private final TimerReader timers;
     private final SampleWindow<ExecutorSample> samples;
+    private volatile WritableKnob writableKnob;
+    private volatile RejectionCounter rejections;
 
     ExecutorComponent(String beanName, ThreadPoolTaskExecutor executor, SpringTuneProperties properties) {
+        this(beanName, executor, properties, TimerReader.NONE);
+    }
+
+    ExecutorComponent(String beanName, ThreadPoolTaskExecutor executor, SpringTuneProperties properties,
+            TimerReader timers) {
         this.beanName = beanName;
         this.executor = executor;
         this.properties = properties;
+        this.timers = timers;
         this.samples = new SampleWindow<>(properties.getExecutor().getWindow().plus(properties.getSampling().getInterval()));
+    }
+
+    /**
+     * The knob apply mode may change, or {@code null} until the executor is initialized: {@code corePoolSize}
+     * with an unbounded queue (the pool never grows past it), otherwise {@code maxPoolSize}. The first call
+     * installs a {@link RejectionCounter} (apply mode only), keeping the original rejection policy.
+     */
+    synchronized WritableKnob writableKnob() {
+        if (writableKnob == null) {
+            ThreadPoolExecutor pool = poolOrNull();
+            if (pool == null) {
+                return null;
+            }
+            rejections = RejectionCounter.install(pool);
+            boolean unbounded = queueCapacity() >= Integer.MAX_VALUE;
+            String setting = unbounded ? ExecutorPoolWriter.CORE : ExecutorPoolWriter.MAX;
+            long configured = unbounded ? executor.getCorePoolSize() : executor.getMaxPoolSize();
+            writableKnob = new WritableKnob(knobPrefix() + "." + setting, id(), WritableKnob.Kind.EXECUTOR, configured,
+                    new ExecutorPoolWriter(executor, setting), this::counters);
+        }
+        return writableKnob;
+    }
+
+    /** Cumulative counters of this executor (verification signal R6) plus HTTP totals as evidence. */
+    Map<String, Double> counters() {
+        ThreadPoolExecutor pool = poolOrNull();
+        RejectionCounter counter = rejections;
+        Map<String, Double> counters = new LinkedHashMap<>();
+        if (pool == null || counter == null) {
+            return counters;
+        }
+        counters.put(Verification.COMPLETED, (double) pool.getCompletedTaskCount());
+        counters.put(Verification.REJECTED, (double) counter.rejected());
+        timers.http().ifPresent(http -> {
+            counters.put(Verification.HTTP_REQUESTS, (double) http.requests());
+            counters.put(Verification.HTTP_MS, http.totalMs());
+            counters.put(Verification.HTTP_5XX, (double) http.serverErrors());
+        });
+        return counters;
+    }
+
+    @Override
+    public Optional<ApplyPlan> applyPlan(Recommendation recommendation) {
+        String prefix = knobPrefix() + ".";
+        if (!recommendation.knobId().startsWith(prefix)) {
+            return Optional.empty();
+        }
+        return ApplyPlans.executor(recommendation, beanName, recommendation.knobId().substring(prefix.length()),
+                executor.getCorePoolSize(), executor.getMaxPoolSize(), queueCapacity() >= Integer.MAX_VALUE);
     }
 
     @Override

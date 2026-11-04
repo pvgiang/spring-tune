@@ -9,7 +9,7 @@ SpringTune has two parts that share one model and one set of rule IDs, plus an o
 | Part | When it runs | What it does |
 |---|---|---|
 | **`springtune check`** (CLI, Maven plugin, Gradle plugin, GitHub Action) | CI, before deploy | Static analysis of `application*.yml/properties` (resolved exactly like Spring Boot does), Java sources and Helm/Kubernetes manifests. 13 rules for pool exhaustion, hung threads and retry storms. Text/Markdown/JSON/SARIF output; fails the build at a threshold. |
-| **`springtune-spring-boot-starter`** | Runtime | `/actuator/tuning` with live knobs (HikariCP, `ThreadPoolTaskExecutor`), signals and **explained, budget-capped recommendations**. Read-only: it never changes anything. |
+| **`springtune-spring-boot-starter`** | Runtime | `/actuator/tuning` with live knobs (HikariCP, `ThreadPoolTaskExecutor`), signals and **explained, budget-capped recommendations**. Read-only by default; experimental guarded `apply` mode (one reviewed change, verified and auto-reverted) is opt-in. |
 | **`springtune-limiter`** (opt-in) | Runtime | Adaptive concurrency limiter (servlet and WebFlux): fast `503` + `Retry-After` instead of a queue when a downstream saturates. Off by default; shadow mode (count, never reject) until you enforce. [Docs](docs/limiter.md) |
 
 ## Quick start

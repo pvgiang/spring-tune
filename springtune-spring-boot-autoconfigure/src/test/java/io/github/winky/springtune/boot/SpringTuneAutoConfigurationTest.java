@@ -87,12 +87,94 @@ class SpringTuneAutoConfigurationTest {
     }
 
     @Test
-    void applyModeIsRejectedAtStartup() {
-        runner.withPropertyValues("springtune.mode=apply").run(context -> {
+    void applyModeFailsAtStartupWithoutSpringSecurity() {
+        runner.withUserConfiguration(Infrastructure.class)
+                .withClassLoader(new FilteredClassLoader("org.springframework.security"))
+                .withPropertyValues("springtune.mode=apply").run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).rootCause()
+                            .hasMessageContaining("springtune.mode=apply requires Spring Security on the classpath");
+                });
+    }
+
+    @Test
+    void applyModeRegistersControllerAndWebOnlyWriteOperation() {
+        runner.withUserConfiguration(Infrastructure.class)
+                .withPropertyValues("springtune.mode=apply", "management.endpoints.web.exposure.include=tuning")
+                .run(context -> {
+                    assertThat(context).hasNotFailed().hasSingleBean(ChangeController.class)
+                            .hasSingleBean(TuningApplyWebExtension.class)
+                            .hasSingleBean(MicrometerSupport.ChangeMetrics.class);
+                    TuningSnapshot snapshot = context.getBean(TuningService.class).snapshot();
+                    assertThat(snapshot.mode()).isEqualTo("APPLY");
+                    assertThat(snapshot.applySupported()).isTrue();
+                    assertThat(snapshot.apply().enabled()).isTrue();
+                    assertThat(snapshot.apply().guardrails()).containsEntry("maxStep", "0.5")
+                            .containsEntry("verificationWindow", "5m");
+                    // The executor is initialized, so its knob is writable; the Hikari pool has not started yet.
+                    assertThat(snapshot.apply().knobs()).extracting(TuningSnapshot.WritableKnobView::knobId)
+                            .containsExactly("executor.applicationTaskExecutor.maxPoolSize");
+                });
+    }
+
+    @Test
+    void adviseAndObserveModesHaveNoWriteOperation() {
+        for (String mode : new String[] { "advise", "observe" }) {
+            runner.withUserConfiguration(Infrastructure.class)
+                    .withPropertyValues("springtune.mode=" + mode, "management.endpoints.web.exposure.include=tuning")
+                    .run(context -> {
+                        assertThat(context).hasSingleBean(TuningEndpoint.class)
+                                .doesNotHaveBean(TuningApplyWebExtension.class)
+                                .doesNotHaveBean(ChangeController.class);
+                        assertThat(context.getBean(TuningService.class).snapshot().apply()).isNull();
+                    });
+        }
+    }
+
+    @Test
+    void invalidModeIsRejectedAtStartup() {
+        runner.withPropertyValues("springtune.mode=autonomous").run(context -> {
             assertThat(context).hasFailed();
-            assertThat(context.getStartupFailure()).rootCause().hasMessageContaining("Mode.apply");
             assertThat(context.getStartupFailure()).hasStackTraceContaining("springtune.mode");
         });
+    }
+
+    @Test
+    void stepRegistriesAreNotReadAsCumulative() {
+        io.micrometer.core.instrument.simple.SimpleMeterRegistry cumulative =
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        io.micrometer.core.instrument.composite.CompositeMeterRegistry composite =
+                new io.micrometer.core.instrument.composite.CompositeMeterRegistry();
+        io.micrometer.core.instrument.step.StepMeterRegistry step = new io.micrometer.core.instrument.step
+                .StepMeterRegistry(new io.micrometer.core.instrument.step.StepRegistryConfig() {
+                    @Override
+                    public String prefix() {
+                        return "test";
+                    }
+
+                    @Override
+                    public String get(String key) {
+                        return null;
+                    }
+                }, io.micrometer.core.instrument.Clock.SYSTEM) {
+            @Override
+            protected void publish() {
+            }
+
+            @Override
+            protected java.util.concurrent.TimeUnit getBaseTimeUnit() {
+                return java.util.concurrent.TimeUnit.MILLISECONDS;
+            }
+        };
+        try {
+            composite.add(step);
+            assertThat(MicrometerSupport.cumulative(composite)).isNull();
+            composite.add(cumulative);
+            assertThat(MicrometerSupport.cumulative(composite)).isSameAs(cumulative);
+            assertThat(MicrometerSupport.cumulative(step)).isNull();
+        } finally {
+            step.close();
+        }
     }
 
     @Test
