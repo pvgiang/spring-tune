@@ -12,6 +12,8 @@
     <artifactId>springtune-spring-boot-starter</artifactId>
     <name>SpringTune :: Spring Boot Starter</name>
     <description>Drop-in starter: /actuator/tuning with knobs, signals and explained recommendations. Read-only.</description>
+    <!-- Explicit, not inherited: Maven Central's POM check wants <url> in every published POM. -->
+    <url>https://github.com/pvgiang/spring-tune</url>
 
     <dependencies>
         <dependency>
@@ -24,4 +26,43 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
     </dependencies>
+
+    <profiles>
+        <!-- No sources here, so maven-source/javadoc-plugin create nothing; Maven Central still requires both jars. -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>placeholder-sources</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <configuration>
+                                    <classifier>sources</classifier>
+                                    <classesDirectory>${project.basedir}/src/release</classesDirectory>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>placeholder-javadoc</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <configuration>
+                                    <classifier>javadoc</classifier>
+                                    <classesDirectory>${project.basedir}/src/release</classesDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

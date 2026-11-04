@@ -13,6 +13,8 @@
     <packaging>maven-plugin</packaging>
     <name>SpringTune :: Maven Plugin</name>
     <description>mvn springtune:check - fail the build on risky Spring Boot configuration.</description>
+    <!-- Explicit, not inherited: Maven Central's POM check wants <url> in every published POM. -->
+    <url>https://github.com/pvgiang/spring-tune</url>
 
     <prerequisites>
         <maven>3.9.0</maven>

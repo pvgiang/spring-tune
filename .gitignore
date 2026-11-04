@@ -6,3 +6,6 @@ target/
 .DS_Store
 springtune-reports/
 .flattened-pom.xml
+springtune-gradle-plugin/portal/.gradle/
+springtune-gradle-plugin/portal/build/
+springtune-gradle-plugin/portal/.kotlin/

@@ -12,6 +12,8 @@
     <artifactId>springtune-check-cli</artifactId>
     <name>SpringTune :: Check CLI</name>
     <description>Command line interface: springtune check.</description>
+    <!-- Explicit, not inherited: Maven Central's POM check wants <url> in every published POM. -->
+    <url>https://github.com/pvgiang/spring-tune</url>
 
     <dependencies>
         <dependency>
