@@ -85,6 +85,19 @@ class ServletTestApplication {
             return new DeferredResult<>(1000L); // never completed: times out (Spring answers 503)
         }
 
+        @GetMapping("/boom")
+        String boom() {
+            throw new IllegalStateException("boom"); // propagates through the filter, then ERROR dispatch
+        }
+
+        @GetMapping("/async/error")
+        DeferredResult<String> asyncError() {
+            DeferredResult<String> result = new DeferredResult<>(30_000L);
+            scheduler.schedule(() -> result.setErrorResult(new IllegalStateException("async boom")), 100,
+                    TimeUnit.MILLISECONDS);
+            return result;
+        }
+
         @GetMapping("/async/callable")
         Callable<String> callable() {
             return () -> {

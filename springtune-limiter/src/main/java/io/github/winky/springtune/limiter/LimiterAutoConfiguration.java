@@ -53,7 +53,9 @@ public class LimiterAutoConfiguration {
         @ConditionalOnMissingBean
         ConcurrencyLimitFilter springTuneConcurrencyLimitFilter(AdaptiveLimiter limiter,
                 LimiterProperties properties, Environment environment) {
-            return new ConcurrencyLimitFilter(limiter, new RequestPolicy(properties, environment), properties);
+            RequestPolicy policy = new RequestPolicy(properties, environment,
+                    environment.getProperty("spring.mvc.servlet.path", ""));
+            return new ConcurrencyLimitFilter(limiter, policy, properties);
         }
     }
 
