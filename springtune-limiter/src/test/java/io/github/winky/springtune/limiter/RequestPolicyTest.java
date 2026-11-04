@@ -1,0 +1,62 @@
+package io.github.winky.springtune.limiter;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
+
+class RequestPolicyTest {
+
+    @Test
+    void defaultsLimitEverythingButActuatorSseAndWebSocket() {
+        RequestPolicy policy = new RequestPolicy(new LimiterProperties(), new MockEnvironment());
+        assertThat(policy.isBypassed("/orders/1", 8080, "application/json", null)).isFalse();
+        assertThat(policy.isBypassed("", 8080, null, null)).isFalse();
+        assertThat(policy.isBypassed("/actuator/health", 8080, null, null)).isTrue();
+        assertThat(policy.isBypassed("/actuator", 8080, null, null)).isTrue();
+        assertThat(policy.isBypassed("/events", 8080, "text/event-stream", null)).isTrue();
+        assertThat(policy.isBypassed("/events", 8080, "application/json, TEXT/EVENT-STREAM;q=0.9", null)).isTrue();
+        assertThat(policy.isBypassed("/ws", 8080, null, "websocket")).isTrue();
+        assertThat(policy.isBypassed("/ws", 8080, null, "WebSocket")).isTrue();
+    }
+
+    @Test
+    void customActuatorBasePathIsAlwaysExcluded() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("management.endpoints.web.base-path", "/manage");
+        RequestPolicy policy = new RequestPolicy(new LimiterProperties(), environment);
+        assertThat(policy.isBypassed("/manage/health", 8080, null, null)).isTrue();
+        assertThat(policy.isBypassed("/actuator/health", 8080, null, null)).isTrue(); // still in exclude-paths
+        assertThat(policy.isBypassed("/api", 8080, null, null)).isFalse();
+    }
+
+    @Test
+    void includeAndExcludePaths() {
+        LimiterProperties properties = new LimiterProperties();
+        properties.setIncludePaths(List.of("/api/**"));
+        properties.setExcludePaths(List.of("/api/admin/**"));
+        RequestPolicy policy = new RequestPolicy(properties, new MockEnvironment());
+        assertThat(policy.isBypassed("/api/orders", 8080, null, null)).isFalse();
+        assertThat(policy.isBypassed("/api/admin/reindex", 8080, null, null)).isTrue();
+        assertThat(policy.isBypassed("/static/app.js", 8080, null, null)).isTrue();
+        assertThat(policy.isBypassed("/actuator/health", 8080, null, null)).isTrue(); // base path, implicit
+    }
+
+    @Test
+    void separateManagementPortIsBypassed() {
+        MockEnvironment environment = new MockEnvironment().withProperty("local.server.port", "8080")
+                .withProperty("local.management.port", "9090");
+        RequestPolicy policy = new RequestPolicy(new LimiterProperties(), environment);
+        assertThat(policy.isBypassed("/anything", 9090, null, null)).isTrue();
+        assertThat(policy.isBypassed("/anything", 8080, null, null)).isFalse();
+    }
+
+    @Test
+    void sameManagementPortIsNotSpecial() {
+        MockEnvironment environment = new MockEnvironment().withProperty("local.server.port", "8080")
+                .withProperty("local.management.port", "8080");
+        RequestPolicy policy = new RequestPolicy(new LimiterProperties(), environment);
+        assertThat(policy.isBypassed("/anything", 8080, null, null)).isFalse();
+    }
+}

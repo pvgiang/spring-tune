@@ -4,12 +4,13 @@ Spring Boot config safety and self-tuning.
 
 Catch the Spring Boot configuration that will take you down before production does. Then let it tune itself when you're ready.
 
-SpringTune has two parts that share one model and one set of rule IDs:
+SpringTune has two parts that share one model and one set of rule IDs, plus an opt-in limiter:
 
 | Part | When it runs | What it does |
 |---|---|---|
 | **`springtune check`** (CLI, Maven plugin, Gradle plugin, GitHub Action) | CI, before deploy | Static analysis of `application*.yml/properties` (resolved exactly like Spring Boot does), Java sources and Helm/Kubernetes manifests. 13 rules for pool exhaustion, hung threads and retry storms. Text/Markdown/JSON/SARIF output; fails the build at a threshold. |
 | **`springtune-spring-boot-starter`** | Runtime | `/actuator/tuning` with live knobs (HikariCP, `ThreadPoolTaskExecutor`), signals and **explained, budget-capped recommendations**. Read-only: it never changes anything. |
+| **`springtune-limiter`** (opt-in) | Runtime | Adaptive concurrency limiter (servlet and WebFlux): fast `503` + `Retry-After` instead of a queue when a downstream saturates. Off by default; shadow mode (count, never reject) until you enforce. [Docs](docs/limiter.md) |
 
 ## Quick start
 
@@ -71,6 +72,16 @@ management.endpoints.web.exposure.include: health,tuning
 springtune.budget:            # optional, caps pool recommendations: floor(100 x 0.8 / 6) = 13
   database-max-connections: 100
   max-replicas: 6
+```
+
+**Adaptive limiter** (from 0.2.0, opt-in, separate artifact `springtune-limiter`). Starts in shadow mode:
+it only counts the requests it would reject. Actuator, SSE and WebSocket requests are never limited. In the
+module's load test (160 callers, downstream capacity 10) it cut server-side p99 of accepted requests from
+351–435 ms to 70–108 ms; read [docs/limiter.md](docs/limiter.md) (when it hurts, retry budgets, rollout) before
+enforcing.
+
+```yaml
+springtune.limiter.enabled: true     # shadow; add springtune.limiter.enforce: true after the rollout steps
 ```
 
 **Gradle plugin** (from 0.2.0; Gradle 8.5+, configuration cache compatible). The resolved runtime classpath
@@ -164,6 +175,7 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 | `springtune-maven-plugin` | `mvn springtune:check`, bound to `verify` |
 | `springtune-gradle-plugin` (+ `-marker`, `-tests`) | Plugin `io.github.winky.springtune`: `./gradlew springtuneCheck`, wired into `check`; functional tests on real Gradle builds |
 | `springtune-spring-boot-autoconfigure` / `-starter` | Runtime registry, sampler, recommendations, `/actuator/tuning` |
+| `springtune-limiter` | Opt-in adaptive concurrency limiter (`Filter`/`WebFilter` over Netflix concurrency-limits), Micrometer metrics |
 | `springtune-samples/broken-config` | Runnable demo and end-to-end fixture |
 | `action.yml` | GitHub Action wrapping the CLI |
 
@@ -178,6 +190,7 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 - [Case study: what we found in 20 popular Spring Boot projects](docs/case-study/what-we-found-in-20-spring-boot-projects.md)
 - [Corpus run: method, per-rule precision, raw results](docs/corpus/2026-11-corpus-report.md)
 - [Runtime starter](docs/starter.md)
+- [Adaptive limiter: when it helps, when it hurts, rollout, measurements](docs/limiter.md)
 - [CI integration (GitHub code scanning)](docs/ci-integration.md)
 - [Grafana dashboard for the starter, apply and limiter metrics](docs/grafana/README.md)
 - [Adoption gates: what we measure and how (no telemetry)](docs/adoption/gates.md)

@@ -54,6 +54,7 @@
         <module>springtune-gradle-plugin-tests</module>
         <module>springtune-spring-boot-autoconfigure</module>
         <module>springtune-spring-boot-starter</module>
+        <module>springtune-limiter</module>
         <module>springtune-samples/broken-config</module>
     </modules>
 
@@ -78,6 +79,9 @@
         <springtune.staging.dir>${maven.multiModuleProjectDirectory}/target/staging-repo</springtune.staging.dir>
         <!-- UPLOAD: validate and stop, a human presses Publish on central.sonatype.com. FULL: publish automatically. -->
         <springtune.central.stage>UPLOAD</springtune.central.stage>
+
+        <!-- Adaptive limit algorithms for springtune-limiter (Apache 2.0, one runtime dependency: slf4j-api). -->
+        <concurrency-limits.version>0.5.4</concurrency-limits.version>
     </properties>
 
     <dependencyManagement>
@@ -115,6 +119,16 @@
                 <groupId>io.github.winky.springtune</groupId>
                 <artifactId>springtune-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.winky.springtune</groupId>
+                <artifactId>springtune-limiter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.netflix.concurrency-limits</groupId>
+                <artifactId>concurrency-limits-core</artifactId>
+                <version>${concurrency-limits.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.github.javaparser</groupId>
