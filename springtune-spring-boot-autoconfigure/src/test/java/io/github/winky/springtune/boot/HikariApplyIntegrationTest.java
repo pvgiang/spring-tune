@@ -172,7 +172,8 @@ class HikariApplyIntegrationTest {
             assertThat(run.dataSource().getHikariConfigMXBean().getMaximumPoolSize()).isEqualTo(3);
             assertThat(run.dataSource().getHikariConfigMXBean().getMinimumIdle()).isEqualTo(3);
             assertThat(run.maxTotalConnections()).isLessThanOrEqualTo(3);
-            assertThat(run.maxTotalAfterWarmup()).as("the pool used its new capacity").isEqualTo(3);
+            assertThat(run.maxTotalAfterWarmup()).as("the pool used its new capacity; final %s %s",
+                    run.finalEntry().outcome(), run.finalEntry().reasons()).isEqualTo(3);
 
             ChangeAuditEntry entry = run.finalEntry();
             assertThat(entry.outcome()).as(entry.reasons().toString()).isEqualTo(Outcome.CONFIRMED);

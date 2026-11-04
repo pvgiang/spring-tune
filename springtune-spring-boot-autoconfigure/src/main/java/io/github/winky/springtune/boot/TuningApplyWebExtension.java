@@ -11,8 +11,8 @@ import org.springframework.boot.actuate.endpoint.web.annotation.EndpointWebExten
 /**
  * {@code POST /actuator/tuning} in {@code springtune.mode=apply} (experimental). Web only: being an
  * {@link EndpointWebExtension}, JMX never gets a write operation. The bean exists only in apply mode, and
- * apply mode refuses to start without Spring Security on the classpath. Unauthenticated calls and calls
- * without {@code springtune.apply.required-role} are refused (and audited); there is no anonymous switch.
+ * apply mode refuses to start without Spring Security on the classpath. Unauthenticated (also anonymous) calls
+ * and calls without {@code springtune.apply.required-role} are refused (and audited); there is no anonymous switch.
  *
  * <p>Body: {@code {"action": "apply" | "revert" | "freeze", "ruleId", "knobId", "expectedCurrent", "reason"}}.
  * {@code apply} applies the {@code recommendedValue} of the matching current recommendation, compare-and-set
@@ -39,9 +39,27 @@ public class TuningApplyWebExtension {
             @org.springframework.lang.Nullable Long expectedCurrent, @org.springframework.lang.Nullable String reason,
             SecurityContext securityContext) {
         Principal principal = securityContext.getPrincipal();
+        if (isAnonymous(principal)) {
+            principal = null;
+        }
         boolean hasRole = requiredRole == null || requiredRole.isBlank() || securityContext.isUserInRole(requiredRole);
         ChangeResponse response = controller.handle(new ChangeRequest(action, ruleId, knobId, expectedCurrent, reason),
                 new Caller(principal == null ? null : principal.getName(), hasRole));
         return new WebEndpointResponse<>(response, response.status());
+    }
+
+    /**
+     * Spring Security's anonymous authentication ({@code anonymousUser}) is a non-null principal on WebFlux
+     * (when {@code anonymous()} is enabled) and with custom security contexts; it is not an authenticated caller.
+     * Matched by class name, so this class does not need spring-security-core to load.
+     */
+    static boolean isAnonymous(Principal principal) {
+        Class<?> type = principal == null ? null : principal.getClass();
+        for (; type != null; type = type.getSuperclass()) {
+            if (type.getName().equals("org.springframework.security.authentication.AnonymousAuthenticationToken")) {
+                return true;
+            }
+        }
+        return false;
     }
 }
