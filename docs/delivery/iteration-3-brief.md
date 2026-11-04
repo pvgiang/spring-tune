@@ -90,7 +90,15 @@ The design was produced by the Eng architect and attacked by the PO/SRE skeptic.
 
 ## 6. Results
 
-(Filled in after the final builds.)
+| Build (local, JDK 21) | Result |
+|---|---|
+| `mvn -B verify -DskipITs`, Boot 4.1.2, all 12 modules | ✅ BUILD SUCCESS |
+| `mvn -B verify -Dspring-boot.version=3.5.16 -Dinvoker.skip -DskipITs` (CI `boot3` job), all modules | ✅ BUILD SUCCESS, 247 tests |
+| Starter modules after the review fixes (autoconfigure, starter, sample), Boot 4.1.2 | ✅ |
+| Maven plugin invoker ITs | ✅ 2/2 |
+| Gradle plugin functional tests (Gradle 8.14.3) | 3/4. The version-catalog fixture failed because Gradle in this container could not resolve `spring-boot-starter-data-jpa:3.5.16` from Maven Central; the plugin reported it as designed (iteration 2, challenge 4). No file in the Gradle plugin, engine, model or their tests changed in this iteration; CI's `gradle` job is the authority. |
+
+Not verified here: the JDK 17/25 CI matrix, Docker-based suites, a real Grafana import, a real Central upload.
 
 ## 7. Next (in plan order)
 
