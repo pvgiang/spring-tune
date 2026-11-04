@@ -1,0 +1,57 @@
+name: Bug report
+description: SpringTune crashed, printed something wrong (other than a false positive), or behaved differently from the docs.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A wrong finding? Use the **False positive** form instead, so it counts toward the rule's false-positive rate.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - CLI
+        - Maven plugin
+        - Gradle plugin
+        - GitHub Action
+        - Runtime starter (/actuator/tuning)
+        - Guarded apply
+        - Adaptive limiter
+        - Grafana dashboard
+        - Release artifacts / installation
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: A minimal project or config is the fastest way to a fix.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output, stack trace or logs
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: SpringTune version
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Java, Spring Boot and build tool versions
+      placeholder: "Java 21, Spring Boot 3.5.6, Gradle 8.14"
+    validations:
+      required: true

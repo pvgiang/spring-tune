@@ -1,0 +1,9 @@
+# Every issue goes through a form so the plan §9 gates can be counted by label (docs/adoption/gates.md).
+blank_issues_enabled: false
+contact_links:
+  - name: Rule reference
+    url: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/README.md
+    about: What each ST-* rule checks, why, and how to fix or suppress it.
+  - name: Runtime starter and recommendations
+    url: https://github.com/pvgiang/spring-tune/blob/main/docs/starter.md
+    about: How /actuator/tuning computes each ST-REC-* recommendation.

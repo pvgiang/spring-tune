@@ -1,0 +1,78 @@
+name: False positive
+description: A finding that is wrong for your code or config. Every confirmed one becomes a regression test.
+title: "[false positive] ST-XXX-000: "
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. Please keep the rule ID in the title (`[false positive] ST-HIKARI-001: ...`): the per-rule
+        false-positive rate is counted from it. Remove anything secret from the snippet; this issue is public.
+  - type: dropdown
+    id: rule
+    attributes:
+      label: Rule ID
+      options:
+        - ST-ASYNC-001
+        - ST-ASYNC-002
+        - ST-HIKARI-001
+        - ST-HIKARI-002
+        - ST-HIKARI-003
+        - ST-HIKARI-004
+        - ST-HIKARI-005
+        - ST-HTTP-001
+        - ST-HTTP-002
+        - ST-R4J-001
+        - ST-R4J-002
+        - ST-TOMCAT-001
+        - ST-TX-001
+        - Other (name it below)
+    validations:
+      required: true
+  - type: textarea
+    id: finding
+    attributes:
+      label: The finding
+      description: The line SpringTune printed (text, Markdown or the SARIF message).
+      render: text
+      placeholder: "WARNING ST-HTTP-001  my-service/src/main/java/.../Client.java:42:16  new RestTemplate() uses ..."
+    validations:
+      required: true
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Minimal snippet
+      description: The config and/or code the finding points at, plus whatever makes it safe (a customizer bean, a profile, a property set elsewhere).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why-safe
+    attributes:
+      label: Why it is safe
+      description: What SpringTune missed. For example "the timeout is set by a RestTemplateCustomizer in a shared library", "this profile never runs in production".
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SpringTune version
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: runner
+    attributes:
+      label: How you ran it
+      options:
+        - CLI
+        - Maven plugin
+        - Gradle plugin
+        - GitHub Action
+    validations:
+      required: true
+  - type: input
+    id: boot
+    attributes:
+      label: Spring Boot version of the analyzed project
+      placeholder: "3.5.x"

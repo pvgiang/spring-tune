@@ -125,8 +125,9 @@ curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.1.0/spri
 java -jar springtune-cli-0.1.0.jar check . --profile prod
 ```
 
-Found something, or a false positive? [Open an issue](https://github.com/pvgiang/spring-tune/issues): every
-false positive becomes a regression test.
+Found something, or a false positive? [Open an issue](https://github.com/pvgiang/spring-tune/issues/new/choose)
+(forms for false positives, rule requests, recommendation feedback, fleet/approval needs and bugs): every false
+positive becomes a regression test.
 
 ## Try it on the sample
 
@@ -151,7 +152,7 @@ Requires JDK 17+ and Maven 3.9+. The Gradle plugin's functional tests run real G
 (`.github/workflows/ci.yml`) runs JDK 17/21/25, Boot 4.1 and 3.5, Gradle 8.14 and 9.8, and runs the GitHub
 Action against the sample. Releases: push a `vX.Y.Z` tag, or run *Actions → Release →
 Run workflow* with the version. `.github/workflows/release.yml` builds, tests and publishes the GitHub Release
-with notes from `docs/releases/`.
+with notes from `docs/releases/`, and deploys to Maven Central once the secrets exist ([releasing](docs/releasing.md)).
 
 ## Modules
 
@@ -178,5 +179,8 @@ with notes from `docs/releases/`.
 - [Corpus run: method, per-rule precision, raw results](docs/corpus/2026-11-corpus-report.md)
 - [Runtime starter](docs/starter.md)
 - [CI integration (GitHub code scanning)](docs/ci-integration.md)
+- [Grafana dashboard for the starter, apply and limiter metrics](docs/grafana/README.md)
+- [Adoption gates: what we measure and how (no telemetry)](docs/adoption/gates.md)
+- [Releasing: Maven Central, Gradle Plugin Portal, one-time setup](docs/releasing.md)
 - [Release notes](docs/releases/)
 - [Business & implementation plan](docs/business-and-implementation-plan.md)

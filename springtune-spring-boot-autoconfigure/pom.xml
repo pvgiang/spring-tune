@@ -12,6 +12,8 @@
     <artifactId>springtune-spring-boot-autoconfigure</artifactId>
     <name>SpringTune :: Spring Boot Auto-configuration</name>
     <description>Runtime knob registry, signals and explainable recommendations (observe/advise, read-only).</description>
+    <!-- Explicit, not inherited: Maven Central's POM check wants <url> in every published POM. -->
+    <url>https://github.com/pvgiang/spring-tune</url>
 
     <dependencies>
         <dependency>
