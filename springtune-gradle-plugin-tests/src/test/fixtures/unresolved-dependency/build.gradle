@@ -1,0 +1,14 @@
+plugins {
+    id 'java'
+    id 'io.github.winky.springtune' version '@VERSION@'
+}
+
+repositories {
+    maven { url = '@REPO_URL@'; content { includeGroup('io.github.winky.springtune') } }
+    mavenCentral()
+}
+
+dependencies {
+    // Cannot resolve (no such version), as when offline or rate-limited. The requested name is still a fact.
+    implementation 'com.zaxxer:HikariCP:0.0.0-does-not-exist'
+}

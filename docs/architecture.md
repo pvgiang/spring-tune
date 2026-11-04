@@ -12,6 +12,7 @@
      ▲            ▲                            ▲
      │            │                            │
  check-cli   maven-plugin             spring-boot-starter (+ actuator starter)
+              gradle-plugin ┄┄► engine at run time only, in an isolated worker class loader
                                                ▲
                                                │
                                   samples/broken-config (also uses the engine in tests)
@@ -69,6 +70,10 @@ check (`MicrometerSupport`, `TimerReader`), so the starter loads in applications
 | Decision | Alternatives | Why |
 |---|---|---|
 | Maven multi-module | Gradle | Available in the toolchain; the first plugin targets Maven; one build tool keeps CI simple |
+| Gradle plugin built by Maven against `dev.gradleplugins:gradle-api` | A separate Gradle build | One reactor, one version, one release; the plugin is tested on real Gradle 8.5 / 8.14 / 9.8 builds that resolve it by plugin id from a staged repository, as users do |
+| Engine runs in a `classLoaderIsolation` worker, resolved from a `springtune` configuration | Engine on the buildscript classpath, or shaded | Spring Boot, Jackson and JavaParser on the buildscript classpath would clash with the Spring Boot Gradle plugin; shading Spring breaks its resource lookups. Same pattern as Checkstyle and SpotBugs |
+| Gradle passes the resolved runtime classpath (`ResolvedBuild`) | Parse version catalogs | Resolution is what Boot's auto-configuration sees; it covers catalogs, convention plugins and BOMs at once |
+| Flattened consumer POMs for model, engine, Gradle plugin and marker | Publish POMs with parent and BOM imports | Gradle otherwise fetches `springtune-parent` and every BOM it imports just to resolve the plugin |
 | Engine bundles Spring Boot 4.1 core | Hand-written YAML merge | Correct precedence and relaxed binding; origins give `file:line` for SARIF. Boot 2.4+ config semantics are stable. |
 | JavaParser without symbol solving | Spoon, full classpath resolution | Needs no compiled classpath in CI; rules are written to be conservative |
 | Rules first, no ML | Statistical models | Explainability is the trust driver (plan §2); rules are testable with synthetic signals |

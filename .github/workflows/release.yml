@@ -37,8 +37,8 @@ jobs:
           mvn -B -ntp org.codehaus.mojo:versions-maven-plugin:2.21.0:set \
             -DnewVersion="$VERSION" -DgenerateBackupPoms=false -DprocessAllModules=true
 
-      - name: Build and test (all modules, plugin ITs)
-        run: mvn -B -ntp verify
+      - name: Build and test (all modules, Maven plugin ITs; Gradle plugin functional tests are gated by CI)
+        run: mvn -B -ntp verify -DskipITs
 
       - name: Stage Maven artifacts
         run: mvn -B -ntp deploy -DskipTests -Dinvoker.skip -DaltDeploymentRepository=staging::file:${{ github.workspace }}/target/staging-repo

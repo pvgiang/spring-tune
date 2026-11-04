@@ -36,7 +36,7 @@ import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 
 /**
- * Runs all enabled rules over a project. Entry point shared by the CLI and the Maven plugin.
+ * Runs all enabled rules over a project. Entry point shared by the CLI, the Maven plugin and the Gradle plugin.
  *
  * <pre>{@code
  * CheckReport report = new CheckEngine().run(CheckRequest.of(Path.of(".")));
@@ -118,7 +118,8 @@ public final class CheckEngine {
         for (Path dir : moduleDirs) {
             String path = PathUtils.relative(root, dir);
             ResolvedConfig config = configLoader.load(root, dir, profiles, diagnostics);
-            BuildInfo build = buildInspector.inspect(root, dir);
+            BuildInfo declared = buildInspector.inspect(root, dir);
+            BuildInfo build = request.resolvedBuild(dir).map(declared::merge).orElse(declared);
             JavaSources sources = JavaSources.parse(root, dir, path, diagnostics);
             ModuleModel module = new ModuleModel(path, dir, build, config, sources,
                     sourceGraph.librariesOf(dir, build));

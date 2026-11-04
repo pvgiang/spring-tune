@@ -1,0 +1,8 @@
+pluginManagement {
+    repositories {
+        maven { url = '@REPO_URL@'; content { includeGroup('io.github.winky.springtune') } }
+        gradlePluginPortal()
+    }
+}
+rootProject.name = 'multi-project'
+include 'app', 'lib'

@@ -1,4 +1,4 @@
-# The check (`springtune check`, `mvn springtune:check`)
+# The check (`springtune check`, `mvn springtune:check`, `./gradlew springtuneCheck`)
 
 ## CLI
 
@@ -28,6 +28,65 @@ ID, suppression without reason, missing files, and so on).
 `target/springtune`), `springtune.configFile`, `springtune.rootDirectory` (default: the multi-module root,
 where `springtune.yml` is looked up), and `springtune.skip`. A module with no Spring Boot configuration and no
 `@SpringBootApplication` is skipped.
+
+## Gradle plugin
+
+Plugin id `io.github.winky.springtune`, Gradle 8.5+ (tested with 8.5, 8.14 and 9.8; configuration cache
+compatible). It registers `springtuneCheck` in every project it is applied to. With the `java` plugin, `check`
+depends on it.
+
+```kotlin
+// settings.gradle.kts: until the plugin is on the Gradle Plugin Portal, use the release's Maven repository
+pluginManagement {
+    repositories {
+        maven("file:///path/to/springtune-maven-repo-0.2.0")
+        gradlePluginPortal()
+    }
+}
+
+// build.gradle.kts
+plugins {
+    java
+    id("org.springframework.boot") version "3.5.16"
+    id("io.github.winky.springtune") version "0.2.0"
+}
+
+repositories {
+    maven("file:///path/to/springtune-maven-repo-0.2.0")   // the engine (see below)
+    mavenCentral()
+}
+
+springtune {                       // all optional
+    profiles.set(listOf("prod"))
+    failOn.set("WARNING")          // ERROR, WARNING, INFO or NONE
+    formats.set(listOf("markdown", "sarif", "json"))
+}
+```
+
+| Property | `-P` override | Default |
+|---|---|---|
+| `profiles` | `-Pspringtune.profiles=prod,eu` | `springtune.yml` `profiles`, else `spring.profiles.active` |
+| `failOn` | `-Pspringtune.failOn=NONE` | `springtune.yml` `failOn`, else `ERROR` |
+| `formats` | `-Pspringtune.formats=sarif` | `markdown`, `sarif` |
+| `configFile` | | `<rootDirectory>/springtune.yml` if present |
+| `rootDirectory` | | the root project directory (report paths are relative to it) |
+| `outputDirectory` | | `build/springtune` |
+| `toolVersion` | | the plugin's version |
+
+**The resolved classpath decides which rules apply.** The plugin passes the module names on the project's
+resolved `runtimeClasspath`, and the resolved `org.springframework.boot:spring-boot` version, to the engine.
+They add to what is read from the build files, so dependencies declared through version catalogs, convention
+plugins or BOMs are seen, which a literal read of `build.gradle(.kts)` misses. This is also what Spring Boot's
+auto-configuration reacts to. If a dependency cannot be resolved (offline, missing repository), the check
+still uses the module name it requested, and warns that its transitive libraries are unknown.
+
+**The engine runs in isolation.** The plugin jar has no dependencies. The engine (Spring Boot, Jackson,
+JavaParser) is resolved through the `springtune` configuration from the project's repositories and runs in a
+Gradle worker with its own class loader, so its library versions never meet the Spring Boot Gradle plugin's or
+the build's. To pin or replace it, set `toolVersion` or add a dependency to the `springtune` configuration.
+
+`springtuneCheck` is never up-to-date: the engine reads parent build files, in-repo library sources and
+deployment manifests anywhere below the root, which cannot be declared as precise task inputs.
 
 ## What is a module
 
@@ -84,7 +143,8 @@ are taken into account. Artifact ids that occur twice are not followed.
 
 Build files: Maven `<dependencies>` (not `dependencyManagement`) of the module and its ancestor directories
 up to the root; Gradle coordinates in `build.gradle(.kts)`. The Spring Boot version is read from the parent
-POM, the BOM import, or the Gradle plugin, and is shown in the report.
+POM, the BOM import, or the Gradle plugin, and is shown in the report. Run through the Gradle plugin, the
+resolved runtime classpath and Spring Boot version are added (see [Gradle plugin](#gradle-plugin)).
 
 ## Known limitations
 

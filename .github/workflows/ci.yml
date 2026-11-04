@@ -23,8 +23,32 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
-      - name: Build, unit tests, plugin integration tests
-        run: mvn -B -ntp verify
+      - name: Build, unit tests, Maven plugin integration tests
+        # Gradle plugin functional tests run in the 'gradle' job below, once per Gradle version.
+        run: mvn -B -ntp verify -DskipITs
+
+  gradle:
+    name: Gradle plugin (Gradle ${{ matrix.gradle }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gradle: ["8.14.3", "9.8.2"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.gradle }}
+      - name: Functional tests (real Gradle builds apply the plugin by id from a staged repository)
+        run: |
+          gradle --version | grep "Gradle ${{ matrix.gradle }}"
+          mvn -B -ntp verify -Dinvoker.skip -pl springtune-gradle-plugin-tests -am \
+            -Dspringtune.it.requireGradle=true -Dspringtune.it.gradle="$(command -v gradle)"
 
   boot3:
     name: Compatibility (JDK 21, Spring Boot 3.5)
@@ -37,7 +61,7 @@ jobs:
           java-version: "21"
           cache: maven
       - name: Starter and sample against Spring Boot 3.5.x
-        run: mvn -B -ntp verify -Dspring-boot.version=3.5.16 -Dinvoker.skip
+        run: mvn -B -ntp verify -Dspring-boot.version=3.5.16 -Dinvoker.skip -DskipITs
 
   self-check:
     name: SpringTune check on the sample (demo)
@@ -50,14 +74,16 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - run: mvn -B -ntp -q package -DskipTests -Dinvoker.skip -pl springtune-check-cli -am
+      - run: |
+          mvn -B -ntp -q package -DskipTests -Dinvoker.skip -pl springtune-check-cli -am
+          cp springtune-check-cli/target/springtune-check-cli-*-all.jar springtune-cli.jar
       - name: Run the GitHub Action on the sample (broken on purpose, so it must fail with exit code 1)
         id: springtune
         continue-on-error: true
         uses: ./
         with:
           path: springtune-samples/broken-config
-          jar: springtune-check-cli/target/springtune-check-cli-0.1.0-SNAPSHOT-all.jar
+          jar: springtune-cli.jar
           format: text,markdown,sarif
       - name: Expect exit code 1 and a SARIF report
         run: |

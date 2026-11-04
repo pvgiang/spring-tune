@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd"
+         child.project.url.inherit.append.path="false">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.winky.springtune</groupId>
     <artifactId>springtune-parent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>SpringTune</name>
@@ -25,6 +26,9 @@
         <module>springtune-check-engine</module>
         <module>springtune-check-cli</module>
         <module>springtune-maven-plugin</module>
+        <module>springtune-gradle-plugin</module>
+        <module>springtune-gradle-plugin-marker</module>
+        <module>springtune-gradle-plugin-tests</module>
         <module>springtune-spring-boot-autoconfigure</module>
         <module>springtune-spring-boot-starter</module>
         <module>springtune-samples/broken-config</module>
@@ -42,6 +46,8 @@
         <picocli.version>4.7.7</picocli.version>
         <maven-api.version>3.9.11</maven-api.version>
         <maven-plugin-tools.version>3.15.1</maven-plugin-tools.version>
+        <!-- Compile-only Gradle API (Maven Central mirror of gradleApi()); the plugin is tested on real Gradle 8.x and 9.x. -->
+        <gradle-api.version>8.11.1</gradle-api.version>
     </properties>
 
     <dependencyManagement>
@@ -114,6 +120,11 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>3.5.3</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
                     <version>3.3.1</version>
                 </plugin>
@@ -161,6 +172,36 @@
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
                     <version>0.8.14</version>
+                </plugin>
+                <!--
+                  Consumer POMs without parent or BOM imports, with explicit versions. Applied to the modules Gradle
+                  resolves (the plugin, its marker and the engine): resolving them then needs only their own files
+                  instead of springtune-parent plus the Spring Boot, Jackson, ... BOMs it imports.
+                -->
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>flatten-maven-plugin</artifactId>
+                    <version>1.8.0</version>
+                    <configuration>
+                        <flattenMode>ossrh</flattenMode>
+                        <updatePomFile>true</updatePomFile>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>flatten</id>
+                            <phase>process-resources</phase>
+                            <goals>
+                                <goal>flatten</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>flatten-clean</id>
+                            <phase>clean</phase>
+                            <goals>
+                                <goal>clean</goal>
+                            </goals>
+                        </execution>
+                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>
