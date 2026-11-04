@@ -60,6 +60,28 @@ final class SampleWindow<S extends SampleWindow.Timed> {
         return samples.size();
     }
 
+    /** Latest sample taken at or before {@code at}, or {@code null}. */
+    synchronized S atOrBefore(Instant at) {
+        S result = null;
+        for (S sample : samples) {
+            if (sample.at().isAfter(at)) {
+                break;
+            }
+            result = sample;
+        }
+        return result;
+    }
+
+    /** Earliest sample taken at or after {@code at}, or {@code null}. */
+    synchronized S firstAtOrAfter(Instant at) {
+        for (S sample : samples) {
+            if (!sample.at().isBefore(at)) {
+                return sample;
+            }
+        }
+        return null;
+    }
+
     static <S> double ratio(List<S> samples, Function<S, Boolean> predicate) {
         if (samples.isEmpty()) {
             return 0;

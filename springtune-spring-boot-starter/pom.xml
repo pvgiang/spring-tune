@@ -11,7 +11,7 @@
 
     <artifactId>springtune-spring-boot-starter</artifactId>
     <name>SpringTune :: Spring Boot Starter</name>
-    <description>Drop-in starter: /actuator/tuning with knobs, signals and explained recommendations. Read-only.</description>
+    <description>Drop-in starter: /actuator/tuning with knobs, signals, explained recommendations and apply plans. Read-only unless springtune.mode=apply (experimental, guarded).</description>
 
     <dependencies>
         <dependency>

@@ -11,7 +11,7 @@
 
     <artifactId>springtune-spring-boot-autoconfigure</artifactId>
     <name>SpringTune :: Spring Boot Auto-configuration</name>
-    <description>Runtime knob registry, signals and explainable recommendations (observe/advise, read-only).</description>
+    <description>Runtime knob registry, signals and explainable recommendations (observe/advise), plus experimental guarded apply mode.</description>
 
     <dependencies>
         <dependency>
@@ -63,6 +63,22 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Apply-mode security test: a real web app with actuator and Spring Security. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

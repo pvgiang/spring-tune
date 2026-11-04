@@ -35,6 +35,7 @@ class BrokenConfigApplicationTest {
         assertThat(response.body())
                 .contains("\"mode\":\"ADVISE\"")
                 .contains("\"applySupported\":false")
+                .contains("\"applyPlans\":[")
                 .contains("\"perInstanceCap\":13")
                 .contains("\"id\":\"hikari:orders-pool\"")
                 .contains("\"id\":\"hikari.orders-pool.maximumPoolSize\"")
@@ -42,9 +43,17 @@ class BrokenConfigApplicationTest {
                 .contains("\"id\":\"executor:applicationTaskExecutor\"");
     }
 
+    /** Advise mode (the sample's default): no write operation, whatever the body. */
     @Test
     void tuningEndpointHasNoWriteOperation() throws Exception {
         int status = send("POST", "/actuator/tuning").statusCode();
         assertThat(status).isIn(404, 405);
+        String port = environment.getProperty("local.server.port");
+        HttpRequest apply = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/actuator/tuning"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"action\":\"apply\",\"ruleId\":\"ST-REC-HIKARI-001\","
+                        + "\"knobId\":\"hikari.orders-pool.maximumPoolSize\",\"expectedCurrent\":20,\"reason\":\"x\"}"))
+                .build();
+        assertThat(http.send(apply, HttpResponse.BodyHandlers.ofString()).statusCode()).isIn(404, 405);
     }
 }

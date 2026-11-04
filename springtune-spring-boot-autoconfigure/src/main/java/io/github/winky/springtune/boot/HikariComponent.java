@@ -13,17 +13,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** Reads a {@link HikariDataSource}. Never calls a setter. */
+/**
+ * Reads a {@link HikariDataSource}. Never calls a setter: in apply mode the only write path is the
+ * {@link HikariPoolWriter} of its {@link #writableKnob() writable knob}.
+ */
 final class HikariComponent implements TunedComponent {
 
+    private final String beanName;
     private final HikariDataSource dataSource;
     private final TimerReader timers;
     private final SpringTuneProperties properties;
     private final Optional<Integer> budgetCap;
     private final SampleWindow<HikariSample> samples;
+    private volatile WritableKnob writableKnob;
 
-    HikariComponent(HikariDataSource dataSource, TimerReader timers, SpringTuneProperties properties,
+    HikariComponent(String beanName, HikariDataSource dataSource, TimerReader timers, SpringTuneProperties properties,
             Optional<Integer> budgetCap) {
+        this.beanName = beanName;
         this.dataSource = dataSource;
         this.timers = timers;
         this.properties = properties;
@@ -31,6 +37,54 @@ final class HikariComponent implements TunedComponent {
         Duration retention = max(properties.getHikari().getWindow(), properties.getHikari().getLowUtilizationWindow())
                 .plus(properties.getSampling().getInterval());
         this.samples = new SampleWindow<>(retention);
+    }
+
+    /**
+     * {@code maximumPoolSize} as apply mode sees it: writer, startup value and this pool's own counters, or
+     * {@code null} until the pool has started (Hikari starts lazily and fills in defaults only then). The
+     * startup value is the one seen the first time the started pool is inspected.
+     */
+    WritableKnob writableKnob() {
+        WritableKnob knob = writableKnob;
+        if (knob == null && dataSource.getHikariPoolMXBean() != null) {
+            knob = new WritableKnob(knobId("maximumPoolSize"), id(), WritableKnob.Kind.HIKARI,
+                    dataSource.getHikariConfigMXBean().getMaximumPoolSize(),
+                    new HikariPoolWriter(dataSource::getHikariConfigMXBean), this::counters);
+            writableKnob = knob;
+        }
+        return knob;
+    }
+
+    /** Cumulative counters of this pool (verification signals R1-R3) plus HTTP totals as evidence. */
+    Map<String, Double> counters() {
+        Map<String, Double> counters = new LinkedHashMap<>();
+        timers.read("hikaricp.connections.acquire", poolName()).ifPresent(t -> {
+            counters.put(Verification.ACQUIRES, (double) t.count());
+            counters.put(Verification.ACQUIRE_MS, t.totalMs());
+            counters.put(Verification.TIMEOUTS,
+                    timers.counter("hikaricp.connections.timeout", poolName()).orElse(0.0));
+        });
+        timers.read("hikaricp.connections.usage", poolName()).ifPresent(t -> {
+            counters.put(Verification.USAGES, (double) t.count());
+            counters.put(Verification.USAGE_MS, t.totalMs());
+        });
+        if (!counters.isEmpty()) {
+            timers.http().ifPresent(http -> {
+                counters.put(Verification.HTTP_REQUESTS, (double) http.requests());
+                counters.put(Verification.HTTP_MS, http.totalMs());
+                counters.put(Verification.HTTP_5XX, (double) http.serverErrors());
+            });
+        }
+        return counters;
+    }
+
+    @Override
+    public Optional<ApplyPlan> applyPlan(Recommendation recommendation) {
+        if (!recommendation.knobId().equals(knobId("maximumPoolSize"))) {
+            return Optional.empty();
+        }
+        return ApplyPlans.hikari(recommendation, beanName, poolName(),
+                dataSource.getHikariConfigMXBean().getMinimumIdle(), properties.getBudget(), budgetCap);
     }
 
     private static Duration max(Duration a, Duration b) {

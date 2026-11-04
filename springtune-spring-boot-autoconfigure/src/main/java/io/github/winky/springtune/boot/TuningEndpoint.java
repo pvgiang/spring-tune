@@ -4,8 +4,9 @@ import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 
 /**
- * {@code /actuator/tuning}: knobs, live signals, budget and explained recommendations. Read-only: there is
- * no write operation in this release. Expose it with {@code management.endpoints.web.exposure.include=tuning}.
+ * {@code /actuator/tuning}: knobs, live signals, budget, explained recommendations and their apply plans.
+ * Read-only: the only write operation is the web-only {@link TuningApplyWebExtension}, which exists only in
+ * {@code springtune.mode=apply}. Expose it with {@code management.endpoints.web.exposure.include=tuning}.
  */
 @Endpoint(id = "tuning")
 public class TuningEndpoint {

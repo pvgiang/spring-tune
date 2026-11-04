@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import javax.sql.DataSource;
 import org.apache.commons.logging.Log;
@@ -19,7 +20,9 @@ import org.springframework.util.ClassUtils;
 
 /**
  * Discovers tunable components, samples them and computes recommendations. Read-only by design: no code
- * path in this class or its components calls a setter on a pool or executor.
+ * path in this class or its components calls a setter on a pool or executor. In apply mode the
+ * {@link ChangeController} attached to it is driven by the same sampler tick and writes through
+ * {@link KnobWriter}s only.
  */
 public class TuningService {
 
@@ -33,6 +36,7 @@ public class TuningService {
     private final boolean micrometerPresent;
     private volatile List<TunedComponent> components;
     private volatile List<Recommendation> recommendations = List.of();
+    private volatile ChangeController changes;
 
     public TuningService(SpringTuneProperties properties, ListableBeanFactory beanFactory, Clock clock) {
         this.properties = properties;
@@ -61,6 +65,23 @@ public class TuningService {
         return Optional.of(new ConnectionBudget(max, budget.getSafetyFactor()).perInstanceCap(replicas));
     }
 
+    Optional<Integer> budgetCap() {
+        return budgetCap;
+    }
+
+    Clock clock() {
+        return clock;
+    }
+
+    /** Apply mode only: the controller ticked after every sample and shown in the snapshot. */
+    void attach(ChangeController controller) {
+        this.changes = controller;
+    }
+
+    ChangeController changes() {
+        return changes;
+    }
+
     /** Components discovered on first use (after the context has created its singletons). */
     public List<TunedComponent> components() {
         List<TunedComponent> current = components;
@@ -77,18 +98,21 @@ public class TuningService {
 
     private List<TunedComponent> discover() {
         List<TunedComponent> found = new ArrayList<>();
+        TimerReader timers = micrometerPresent ? MicrometerSupport.timerReader(beanFactory) : TimerReader.NONE;
         if (hikariPresent) {
-            TimerReader timers = micrometerPresent ? MicrometerSupport.timerReader(beanFactory) : TimerReader.NONE;
-            for (DataSource dataSource : beanFactory.getBeansOfType(DataSource.class, false, false).values()) {
-                unwrapHikari(dataSource).ifPresent(hikari -> found.add(
-                        new HikariComponent(hikari, timers, properties, budgetCap)));
+            for (Map.Entry<String, DataSource> entry : beanFactory.getBeansOfType(DataSource.class, false, false)
+                    .entrySet()) {
+                unwrapHikari(entry.getValue()).ifPresent(hikari -> found.add(
+                        new HikariComponent(entry.getKey(), hikari, timers, properties, budgetCap)));
             }
         }
         beanFactory.getBeansOfType(ThreadPoolTaskExecutor.class, false, false)
-                .forEach((name, executor) -> found.add(new ExecutorComponent(name, executor, properties)));
+                .forEach((name, executor) -> found.add(new ExecutorComponent(name, executor, properties, timers)));
         found.sort(Comparator.comparing(TunedComponent::id));
         LOG.info("SpringTune " + properties.getMode().name().toLowerCase() + " mode: watching "
-                + found.stream().map(TunedComponent::id).toList() + " (read-only)");
+                + found.stream().map(TunedComponent::id).toList()
+                + (properties.getMode() == SpringTuneProperties.Mode.APPLY
+                        ? " (apply mode, experimental: changes only through the guarded endpoint)" : " (read-only)"));
         return found;
     }
 
@@ -106,7 +130,27 @@ public class TuningService {
         return Optional.empty();
     }
 
-    /** Takes one sample of every component and, in ADVISE mode, recomputes recommendations. */
+    /** Knobs apply mode may change (only components that have started). */
+    List<WritableKnob> writableKnobs() {
+        List<WritableKnob> knobs = new ArrayList<>();
+        for (TunedComponent component : components()) {
+            WritableKnob knob = null;
+            if (hikariPresent && component instanceof HikariComponent hikari) {
+                knob = hikari.writableKnob();
+            } else if (component instanceof ExecutorComponent executor) {
+                knob = executor.writableKnob();
+            }
+            if (knob != null) {
+                knobs.add(knob);
+            }
+        }
+        return knobs;
+    }
+
+    /**
+     * Takes one sample of every component and, in ADVISE/APPLY mode, recomputes recommendations. In apply mode
+     * the change controller then records counters and drives the change in flight.
+     */
     public void sample() {
         Instant now = clock.instant();
         for (TunedComponent component : components()) {
@@ -116,21 +160,52 @@ public class TuningService {
                 LOG.warn("SpringTune could not sample " + component.id(), ex);
             }
         }
-        if (properties.getMode() == SpringTuneProperties.Mode.ADVISE) {
-            List<Recommendation> next = new ArrayList<>();
-            for (TunedComponent component : components()) {
-                try {
-                    next.addAll(component.recommend(now));
-                } catch (RuntimeException ex) {
-                    LOG.warn("SpringTune could not evaluate " + component.id(), ex);
-                }
-            }
-            recommendations = List.copyOf(next);
+        if (properties.getMode() != SpringTuneProperties.Mode.OBSERVE) {
+            recommendations = evaluate(now);
         }
+        ChangeController controller = changes;
+        if (controller != null) {
+            controller.tick(now);
+        }
+    }
+
+    /** Recomputes recommendations from the retained samples (also used by apply mode to re-check a request). */
+    List<Recommendation> evaluate(Instant now) {
+        List<Recommendation> next = new ArrayList<>();
+        for (TunedComponent component : components()) {
+            try {
+                next.addAll(component.recommend(now));
+            } catch (RuntimeException ex) {
+                LOG.warn("SpringTune could not evaluate " + component.id(), ex);
+            }
+        }
+        return List.copyOf(next);
     }
 
     public List<Recommendation> recommendations() {
         return recommendations;
+    }
+
+    /** Apply plans for the current INCREASE/DECREASE recommendations. */
+    public List<ApplyPlan> applyPlans() {
+        List<ApplyPlan> plans = new ArrayList<>();
+        for (Recommendation rec : recommendations) {
+            components().stream()
+                    .map(component -> safePlan(component, rec))
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .ifPresent(plans::add);
+        }
+        return plans;
+    }
+
+    private static ApplyPlan safePlan(TunedComponent component, Recommendation rec) {
+        try {
+            return component.applyPlan(rec).orElse(null);
+        } catch (RuntimeException ex) {
+            LOG.debug("SpringTune could not plan " + rec.knobId(), ex);
+            return null;
+        }
     }
 
     public TuningSnapshot snapshot() {
@@ -140,9 +215,11 @@ public class TuningService {
                     Map.copyOf(component.signals())));
         }
         SpringTuneProperties.Budget budget = properties.getBudget();
-        return new TuningSnapshot(properties.getMode().name(), false, clock.instant(),
+        ChangeController controller = changes;
+        boolean apply = properties.getMode() == SpringTuneProperties.Mode.APPLY && controller != null;
+        return new TuningSnapshot(properties.getMode().name(), apply, clock.instant(),
                 new TuningSnapshot.Budget(budget.getDatabaseMaxConnections(), budget.getMaxReplicas(),
                         budget.getSafetyFactor(), budgetCap.orElse(null)),
-                views, recommendations);
+                views, recommendations, applyPlans(), apply ? controller.view() : null);
     }
 }
