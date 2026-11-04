@@ -32,6 +32,38 @@ class RequestPolicyTest {
     }
 
     @Test
+    void actuatorBelowTheDispatcherServletPathIsExcluded() {
+        // spring.mvc.servlet.path=/api: Spring MVC serves the actuator at /api/actuator/**.
+        RequestPolicy policy = new RequestPolicy(new LimiterProperties(), new MockEnvironment(), "/api/");
+        assertThat(policy.isBypassed("/api/actuator/health/liveness", 8080, null, null)).isTrue();
+        assertThat(policy.isBypassed("/api/orders", 8080, null, null)).isFalse();
+    }
+
+    @Test
+    void healthIsExcludedWhenEndpointsAreAtTheRoot() {
+        RequestPolicy root = new RequestPolicy(new LimiterProperties(),
+                new MockEnvironment().withProperty("management.endpoints.web.base-path", "/"));
+        assertThat(root.isBypassed("/health", 8080, null, null)).isTrue();
+        assertThat(root.isBypassed("/health/readiness", 8080, null, null)).isTrue();
+        assertThat(root.isBypassed("/orders", 8080, null, null)).isFalse();
+
+        RequestPolicy mapped = new RequestPolicy(new LimiterProperties(), new MockEnvironment()
+                .withProperty("management.endpoints.web.base-path", "")
+                .withProperty("management.endpoints.web.path-mapping.health", "healthz"));
+        assertThat(mapped.isBypassed("/healthz", 8080, null, null)).isTrue();
+    }
+
+    @Test
+    void additionalProbePathsAreExcluded() {
+        RequestPolicy policy = new RequestPolicy(new LimiterProperties(), new MockEnvironment()
+                .withProperty("management.endpoint.health.probes.add-additional-paths", "true"));
+        assertThat(policy.isBypassed("/livez", 8080, null, null)).isTrue();
+        assertThat(policy.isBypassed("/readyz", 8080, null, null)).isTrue();
+        RequestPolicy off = new RequestPolicy(new LimiterProperties(), new MockEnvironment());
+        assertThat(off.isBypassed("/livez", 8080, null, null)).isFalse();
+    }
+
+    @Test
     void includeAndExcludePaths() {
         LimiterProperties properties = new LimiterProperties();
         properties.setIncludePaths(List.of("/api/**"));

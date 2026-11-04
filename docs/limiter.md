@@ -58,9 +58,11 @@ from subscription until the response completes, errors or is cancelled (`doFinal
 
 **Never limited** (counted as `outcome=bypassed`):
 
-- the actuator base path (`management.endpoints.web.base-path`, default `/actuator/**`), whatever
-  `exclude-paths` says, so liveness/readiness probes never get a 503 and Kubernetes does not restart an
-  instance *because* it is shedding load;
+- the actuator base path (`management.endpoints.web.base-path`, default `/actuator/**`, below
+  `spring.mvc.servlet.path` if that is set), whatever `exclude-paths` says, so liveness/readiness probes never
+  get a 503 and Kubernetes does not restart an instance *because* it is shedding load. With the base path at the
+  root (`/`) only the health endpoint (`/health/**`, or its `path-mapping`) is excluded automatically; with
+  `management.endpoint.health.probes.add-additional-paths=true`, also `/livez` and `/readyz`;
 - requests on a separate management port (`management.server.port`);
 - `Accept: text/event-stream` (SSE) and WebSocket upgrade requests: a stream would hold a permit for minutes
   and its "latency" is meaningless;
@@ -99,7 +101,7 @@ An adaptive limiter is not free. It is the wrong tool, or needs care, when:
 |---|---|
 | `enabled=false` | Nothing changes by adding the jar. |
 | `enforce=false` (shadow) | Evidence first: you see what *would* be rejected before anything is. |
-| `algorithm=vegas` | Measured. Vegas compares latency with the lowest latency seen; under sustained overload its limit stayed within 7–39 in every run. Gradient2 compares short- with long-term average latency; under sustained overload the long-term average drifts up with it, and in the same test its limit swung 8–85 in enforce mode and climbed to `max-limit` (200) in shadow mode, so shadow mode would have under-reported. Gradient2 and AIMD stay available. |
+| `algorithm=vegas` | Measured, on one synthetic downstream (one endpoint, fixed capacity), so it is a reasoned default, not a proven one. Vegas compares latency with the lowest latency seen; under sustained overload its limit stayed within 7–39 in every run. Gradient2 compares short- with long-term average latency; under sustained overload the long-term average drifts up with it, and in the same test its limit swung 8–85 in enforce mode and climbed to `max-limit` (200) in shadow mode, so shadow mode would have under-reported. The price: Vegas served fewer requests (363–439 OK/s vs Gradient2's 462 in its one run), trading throughput for latency. Gradient2 and AIMD stay available. |
 | `initial-limit=20`, `min-limit=10`, `max-limit=200` | A floor that keeps an instance useful while the algorithm is wrong; a ceiling below Tomcat's 200 worker threads. |
 | `warmup-samples=500` | No rejection on a cold or quiet instance. |
 | `exclude-paths=/actuator/**` | Probes and scraping are never limited. |
@@ -242,6 +244,11 @@ changes shape. These are in-JVM tests on one machine.
   exposed yet).
 - **AIMD** reacts only to dropped (timed-out) requests and the internal 5 s timeout; for synchronous endpoints it
   only grows. Use Vegas or Gradient2.
+- **The bypass rules trust request headers.** Any request with `Accept: ...text/event-stream...` or
+  `Upgrade: websocket` is bypassed, whatever endpoint it reaches and whether or not it streams. Ordinary clients
+  do not send these to plain endpoints (some, e.g. MCP clients, send `Accept: application/json,
+  text/event-stream` on every call), but a client that wants to skip the limit can. The limiter sheds overload; it
+  is not an abuse control.
 - The limiter runs **before Spring Security**: unauthenticated requests take permits too (they are usually
   fast, so they barely affect the limit).
 
@@ -258,9 +265,10 @@ no extra starter.
 | Check | Test |
 |---|---|
 | Outcome mapping (< 500 success, 5xx ignore, dropped), idempotent release, warmup rule (5xx does not count), shadow never rejects, [min, max] clamp for all three algorithms, fail-fast validation | `AdaptiveLimiterTest` (real Netflix `SimpleLimiter`) |
-| Paths, actuator base path, SSE, WebSocket, management port | `RequestPolicyTest` |
-| Off by default; shadow by default when enabled; mode logged; servlet vs reactive wiring; no servlet API needed for reactive; not installed without the Netflix jar or outside web apps; `min > max` fails; meters | `LimiterAutoConfigurationTest` |
-| `DeferredResult` holds its permit until completed and releases it; timeout releases as dropped; `Callable`; rejection format (503, `Retry-After: 1`, text body); health and SSE served while the only permit is taken; WebSocket upgrade bypassed | `ServletAsyncAndBypassTest` (Tomcat, limit pinned to 1) |
+| Paths, actuator base path (also below the servlet path and at the root), `/livez`/`/readyz`, SSE, WebSocket, management port | `RequestPolicyTest` |
+| Actuator below `spring.mvc.servlet.path` and additional probe paths bypassed end to end; `..` through the actuator path reaches no handler | `ServletPathBypassTest` (Tomcat, raw sockets) |
+| Off by default; shadow by default when enabled; mode logged; servlet vs reactive wiring; no servlet API needed for reactive; not installed without the Netflix jar or outside web apps; works without Micrometer; `min > max`, `min-limit=0`, initial outside [min, max] and negative `retry-after` fail; meters | `LimiterAutoConfigurationTest` |
+| `DeferredResult` holds its permit until completed and releases it; timeout releases as dropped; `Callable`; exceptions (sync and `setErrorResult`) release without a sample; rejection format (503, `Retry-After: 1`, text body); health and SSE served while the only permit is taken; WebSocket upgrade bypassed | `ServletAsyncAndBypassTest` (Tomcat, limit pinned to 1) |
 | Overload, off vs enforce vs shadow (numbers above); rejections in `http.server.requests`; no leaked permits | `ServletOverloadTest` |
 | Same on Netty; client cancellation releases the permit without a sample; SSE and actuator bypassed | `ReactiveOverloadTest` |
 | Spring Boot 4.1.2 and 3.5.16 | same tests, `-Dspring-boot.version=3.5.16` |

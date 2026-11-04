@@ -124,6 +124,16 @@ class ServletAsyncAndBypassTest {
     }
 
     @Test
+    void exceptionsReleaseThePermitWithoutASample() throws Exception {
+        long samples = limiter.completedSamples();
+        assertThat(send("/boom", null).get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(500);
+        assertThat(send("/async/error", null).get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(500);
+        Await.noInflight(limiter);
+        assertThat(limiter.completedSamples()).isEqualTo(samples);
+        assertThat(send("/work", null).get(10, TimeUnit.SECONDS).statusCode()).isEqualTo(200);
+    }
+
+    @Test
     void webSocketUpgradeIsBypassed() throws Exception {
         long bypassed = limiter.count(Decision.BYPASSED);
         // java.net.http forbids setting Upgrade, so send the handshake headers over a raw socket.

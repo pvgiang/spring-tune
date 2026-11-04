@@ -31,13 +31,34 @@ final class RequestPolicy {
 
     private volatile long nextPortCheck;
 
+    /** Reactive applications: actuator endpoints are served relative to the application path. */
     RequestPolicy(LimiterProperties properties, Environment environment) {
+        this(properties, environment, "");
+    }
+
+    /**
+     * @param servletPath the {@code DispatcherServlet} path ({@code spring.mvc.servlet.path}); Spring MVC serves
+     * actuator endpoints below it, e.g. {@code /api/actuator/health} for {@code /api}
+     */
+    RequestPolicy(LimiterProperties properties, Environment environment, String servletPath) {
         PathPatternParser parser = PathPatternParser.defaultInstance;
         this.include = properties.getIncludePaths().stream().map(parser::parse).toList();
         Set<String> excluded = new LinkedHashSet<>(properties.getExcludePaths());
-        String basePath = environment.getProperty("management.endpoints.web.base-path", "/actuator");
-        if (!basePath.isEmpty() && !basePath.equals("/")) {
-            excluded.add((basePath.startsWith("/") ? basePath : "/" + basePath) + "/**");
+        String prefix = trimSlashes(servletPath);
+        String basePath = trimSlashes(environment.getProperty("management.endpoints.web.base-path", "/actuator"));
+        if (basePath.isEmpty()) {
+            // Endpoints at the root (/health, /info, ...): at least never limit the probes.
+            String health = trimSlashes(environment.getProperty("management.endpoints.web.path-mapping.health",
+                    "health"));
+            excluded.add(prefix + (health.isEmpty() ? "/health" : health) + "/**");
+        } else {
+            excluded.add(prefix + basePath + "/**");
+        }
+        if (environment.getProperty("management.endpoint.health.probes.add-additional-paths", Boolean.class,
+                false)) {
+            // Boot serves the liveness and readiness probes on the main port too.
+            excluded.add(prefix + "/livez/**");
+            excluded.add(prefix + "/readyz/**");
         }
         this.exclude = excluded.stream().map(parser::parse).toList();
         this.environment = environment;
@@ -70,6 +91,21 @@ final class RequestPolicy {
             }
         }
         return true;
+    }
+
+    /** {@code "/a/b/"}, {@code "a/b"} → {@code "/a/b"}; {@code null}, {@code ""}, {@code "/"} → {@code ""}. */
+    private static String trimSlashes(String path) {
+        if (path == null) {
+            return "";
+        }
+        String trimmed = path.strip();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
     }
 
     /**

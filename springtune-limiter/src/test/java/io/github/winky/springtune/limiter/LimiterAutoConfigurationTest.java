@@ -85,6 +85,23 @@ class LimiterAutoConfigurationTest {
     }
 
     @Test
+    void worksWithoutMicrometer() {
+        servlet.withClassLoader(new FilteredClassLoader("io.micrometer"))
+                .withPropertyValues("springtune.limiter.enabled=true")
+                .run(context -> assertThat(context).hasNotFailed().hasSingleBean(ConcurrencyLimitFilter.class));
+    }
+
+    @Test
+    void zeroMinLimitAndNegativeRetryAfterFailFast() {
+        servlet.withPropertyValues("springtune.limiter.enabled=true", "springtune.limiter.min-limit=0")
+                .run(context -> assertThat(context).hasFailed());
+        servlet.withPropertyValues("springtune.limiter.enabled=true", "springtune.limiter.retry-after=-1s")
+                .run(context -> assertThat(context).hasFailed());
+        servlet.withPropertyValues("springtune.limiter.enabled=true", "springtune.limiter.initial-limit=5")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
     void minAboveMaxFailsFast() {
         servlet.withPropertyValues("springtune.limiter.enabled=true", "springtune.limiter.min-limit=300")
                 .run(context -> {
