@@ -74,7 +74,8 @@ management:
 ```
 
 **Startup fails in apply mode if Spring Security is not on the classpath.** There is no "allow anonymous" switch: a
-call without a principal is refused (401) even if your security configuration permits it. You must secure the
+call without a principal, or with Spring Security's anonymous authentication (`anonymousUser`), is refused (401) even
+if your security configuration permits it. You must secure the
 endpoint yourself, for example:
 
 ```java
@@ -183,6 +184,8 @@ outcomes (`confirmed`, `reverted`, `kept_inconclusive`, `superseded`, `revert_fa
 - **Per instance.** Apply acts on the instance that receives the request; behind a load balancer you cannot choose
   which one. Other replicas are unaffected, and nothing coordinates changes across replicas. The budget cap assumes
   every replica could be at the same size, so raising one instance never exceeds it.
+- **Per pool.** The per-instance cap applies to each Hikari pool separately (as in ST-HIKARI-004). If one instance has
+  several pools on the **same** database, size `springtune.budget.*` for that (e.g. count each pool as a replica).
 - **Cumulative metrics only.** Verification and hold-time means use differences of cumulative Micrometer values.
   SpringTune reads from the first non-`StepMeterRegistry` registry (e.g. Prometheus, `SimpleMeterRegistry`) and treats
   hold-time metrics as unavailable when only step registries exist (Datadog, New Relic, ...). Push registries that do
@@ -251,6 +254,7 @@ Expose with `management.endpoints.web.exposure.include=tuning`, then `GET /actua
 | Only `*Writer` classes call size setters | `WriterIsolationTest` |
 | **Real HikariCP + H2 + Micrometer**, 8 threads on 2 connections: (a) 15 ms holds → apply 2→3, `minimumIdle` 2→3, ≤ 3 connections and 3 used, CONFIRMED, audit complete, `springtune.changes{outcome=confirmed}`; (b) a database that slows down above 2 concurrent sessions (15 → 35 ms) → R2 → REVERTED to 2/2 | `HikariApplyIntegrationTest` |
 | Real Boot web app with actuator + Spring Security: unauthenticated 401, wrong role 403, right role 200 with `who` recorded, invalid body 400 | `ApplySecurityWebTest` |
+| Misconfigured `permitAll()` (anonymous authentication on): still 401, not frozen; an `AnonymousAuthenticationToken` principal is not a caller | `ApplyPermitAllWebTest`, `TuningApplyWebExtensionTest` |
 | **Real HikariCP + H2 + Micrometer**, advise: 15 ms holds → INCREASE 2→3 (cap 13); budget cap 2 → HOLD; 700 ms holds → "do not raise" | `HikariContentionIntegrationTest` |
 | Real Boot app: `/actuator/tuning` content, POST rejected in advise mode | `BrokenConfigApplicationTest` |
 

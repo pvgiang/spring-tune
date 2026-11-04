@@ -355,6 +355,75 @@ class ChangeControllerTest {
                 .containsExactly("change-5", "change-4", "change-3");
     }
 
+    /** Refusals during verification push the in-flight entry out of a bounded audit; freeze must still work. */
+    @Test
+    void freezeStillFreezesWhenTheInFlightEntryWasEvictedFromTheAudit() {
+        properties.getApply().setAuditSize(2);
+        controller = newController();
+        ticks(31);
+        assertThat(apply().status()).isEqualTo(200);
+        for (int i = 0; i < 3; i++) {
+            assertThat(apply().code()).isEqualTo("CHANGE_IN_FLIGHT"); // e.g. a retrying client
+        }
+        ChangeResponse freeze = controller.handle(new ChangeRequest("freeze", null, null, null, "incident"), OPS);
+        assertThat(freeze.status()).isEqualTo(200);
+        assertThat(controller.frozen()).isTrue();
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+        assertThat(controller.audit()).anyMatch(e -> e.action().equals("apply") && e.outcome() == Outcome.REVERTED);
+        assertThat(apply().code()).isEqualTo("FROZEN");
+    }
+
+    @Test
+    void confirmationIsRecordedWhenTheInFlightEntryWasEvictedFromTheAudit() {
+        properties.getApply().setAuditSize(2);
+        controller = newController();
+        ticks(31);
+        assertThat(apply().status()).isEqualTo(200);
+        for (int i = 0; i < 3; i++) {
+            apply();
+        }
+        acquireMs = 5;
+        ticks(34);
+        assertThat(controller.state(KNOB)).isEqualTo(State.CONFIRMED);
+        assertThat(controller.audit().get(0).outcome()).isEqualTo(Outcome.CONFIRMED);
+        assertThat(events).extracting(ChangeAuditEntry::outcome).contains(Outcome.CONFIRMED);
+        assertThat(apply().code()).isEqualTo("COOLDOWN");
+        ChangeResponse revert = controller.handle(new ChangeRequest("revert", null, KNOB, null, "back"), OPS);
+        assertThat(revert.status()).isEqualTo(200);
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+    }
+
+    @Test
+    void concurrentAppliesWriteOnce() throws Exception {
+        ticks(31);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<ChangeResponse>> results = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            results.add(pool.submit(() -> {
+                go.await();
+                return controller.handle(new ChangeRequest("apply", RULE, KNOB, 10L, "race"), OPS);
+            }));
+        }
+        go.countDown();
+        List<String> codes = new ArrayList<>();
+        for (java.util.concurrent.Future<ChangeResponse> result : results) {
+            codes.add(result.get().code());
+        }
+        pool.shutdown();
+        assertThat(codes).containsOnlyOnce("OK");
+        assertThat(writer.writes).hasSize(1);
+        assertThat(writer.values).containsEntry("maximumPoolSize", 13L);
+    }
+
+    @Test
+    void auditLogLinesCannotBeForgedWithLineBreaks() {
+        ChangeResponse refused = controller.handle(new ChangeRequest("apply", RULE, KNOB, 1L,
+                "x\n2026-01-01 INFO springtune.audit change-99 apply by admin outcome=CONFIRMED"), OPS);
+        assertThat(ChangeController.auditLine(refused.change())).doesNotContain("\n").doesNotContain("\r")
+                .contains("x\\n2026-01-01");
+    }
+
     @Test
     void invalidGuardrailSettingsAreRejected() {
         properties.getApply().setMaxStep(0);

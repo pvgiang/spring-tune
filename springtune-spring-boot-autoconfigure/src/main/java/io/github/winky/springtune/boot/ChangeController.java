@@ -66,8 +66,16 @@ final class ChangeController {
     private record KnobState(State state, Instant since, Instant cooldownUntil) {
     }
 
-    private record InFlight(WritableKnob knob, String entryId, Instant t0, Window baseline, Map<String, Long> before,
-            Map<String, Long> after) {
+    /**
+     * The change being verified. Its audit entry is kept here, not looked up in the bounded audit, which may
+     * already have evicted it (e.g. after many refusals during the verification window).
+     */
+    private record InFlight(WritableKnob knob, ChangeAuditEntry entry, Instant t0, Window baseline,
+            Map<String, Long> before, Map<String, Long> after) {
+
+        String entryId() {
+            return entry.id();
+        }
     }
 
     /** Last change of a knob that may still be reverted on request (confirmed or kept). */
@@ -197,7 +205,7 @@ final class ChangeController {
                 + " after a " + Format.duration(settings.getWarmup()) + " warmup.");
         ChangeAuditEntry entry = record(new ChangeAuditEntry(nextId(), now, "apply", who, request.reason(),
                 rec.ruleId(), target.knobId(), before, after, Outcome.VERIFYING, null, null, reasons, Map.of(), null));
-        inFlight = new InFlight(target, entry.id(), now, baseline, before, after);
+        inFlight = new InFlight(target, entry, now, baseline, before, after);
         states.put(target.knobId(), new KnobState(State.VERIFYING, now, null));
         return new ChangeResponse(200, "OK", "Applied " + target.knobId() + " " + before.get(target.writer().setting())
                 + " -> " + after.get(target.writer().setting()) + "; verifying.", entry);
@@ -265,11 +273,12 @@ final class ChangeController {
                 LOG.debug("SpringTune could not read counters of " + knob.knobId(), ex);
             }
         }
-        if (inFlight != null) {
+        InFlight change = inFlight;
+        if (change != null) {
             try {
                 progress(now);
             } catch (RuntimeException ex) {
-                LOG.warn("SpringTune could not verify change " + inFlight.entryId(), ex);
+                LOG.warn("SpringTune could not verify change " + change.entryId(), ex);
             }
         }
     }
@@ -334,11 +343,12 @@ final class ChangeController {
         applied.put(change.knob().knobId(), new Applied(change.before(), change.after(), ruleIdOf(change)));
     }
 
-    private void supersede(InFlight change, long live, Instant now) {
-        finish(change, Outcome.SUPERSEDED, null, List.of("The live value changed to " + live + " (applied "
-                + change.after().get(change.knob().writer().setting()) + ") by someone else; SpringTune leaves it"
-                + " alone."), Map.of(), now);
+    private ChangeAuditEntry supersede(InFlight change, long live, Instant now) {
+        ChangeAuditEntry entry = finish(change, Outcome.SUPERSEDED, null, List.of("The live value changed to " + live
+                + " (applied " + change.after().get(change.knob().writer().setting()) + ") by someone else; SpringTune"
+                + " leaves it alone."), Map.of(), now);
         states.put(change.knob().knobId(), new KnobState(State.SUPERSEDED, now, now.plus(settings.getCooldown())));
+        return entry;
     }
 
     /** Reverts the change in flight (automatic, manual or freeze) and returns its final audit entry. */
@@ -348,8 +358,7 @@ final class ChangeController {
         String setting = change.knob().writer().setting();
         long live = change.knob().current();
         if (live != change.after().get(setting)) {
-            supersede(change, live, now);
-            return find(change.entryId());
+            return supersede(change, live, now);
         }
         List<String> reasons = new ArrayList<>();
         reasons.add(cause);
@@ -394,12 +403,11 @@ final class ChangeController {
     private ChangeAuditEntry finish(InFlight change, Outcome outcome, String verdict, List<String> reasons,
             Map<String, String> evidence, Instant now) {
         inFlight = null;
-        ChangeAuditEntry entry = find(change.entryId());
-        return record(entry.finish(outcome, verdict, reasons, evidence, now));
+        return record(change.entry().finish(outcome, verdict, reasons, evidence, now));
     }
 
     private String ruleIdOf(InFlight change) {
-        return find(change.entryId()).ruleId();
+        return change.entry().ruleId();
     }
 
     private void freezeInternally(String reason) {
@@ -415,11 +423,7 @@ final class ChangeController {
         return "change-" + (++sequence);
     }
 
-    private ChangeAuditEntry find(String id) {
-        return audit.stream().filter(e -> e.id().equals(id)).findFirst().orElseThrow();
-    }
-
-    /** Adds or replaces (same id) an audit entry, logs it and publishes it. */
+    /** Adds or replaces (same id) an audit entry, logs it and publishes it. An evicted entry is added again. */
     private ChangeAuditEntry record(ChangeAuditEntry entry) {
         boolean replaced = false;
         List<ChangeAuditEntry> entries = new ArrayList<>(audit);
@@ -434,14 +438,7 @@ final class ChangeController {
         }
         audit.clear();
         audit.addAll(entries.subList(0, Math.min(entries.size(), settings.getAuditSize())));
-        String line = entry.id() + " " + entry.action() + " by " + entry.who() + " outcome=" + entry.outcome()
-                + (entry.code() != null ? " code=" + entry.code() : "")
-                + (entry.knobId() != null ? " knob=" + entry.knobId() : "")
-                + (entry.ruleId() != null ? " rule=" + entry.ruleId() : "")
-                + (entry.before().isEmpty() ? "" : " before=" + entry.before() + " after=" + entry.after())
-                + (entry.verdict() != null ? " verdict=" + entry.verdict() : "")
-                + " why=\"" + (entry.why() == null ? "" : entry.why()) + "\" reasons=" + entry.reasons()
-                + (entry.evidence().isEmpty() ? "" : " evidence=" + entry.evidence());
+        String line = auditLine(entry);
         if (entry.outcome() == Outcome.REVERT_FAILED) {
             AUDIT.warn(line);
         } else {
@@ -453,6 +450,20 @@ final class ChangeController {
             LOG.warn("SpringTune change listener failed for " + entry.id(), ex);
         }
         return entry;
+    }
+
+    /** The {@code springtune.audit} log line of an entry. */
+    static String auditLine(ChangeAuditEntry entry) {
+        String line = entry.id() + " " + entry.action() + " by " + entry.who() + " outcome=" + entry.outcome()
+                + (entry.code() != null ? " code=" + entry.code() : "")
+                + (entry.knobId() != null ? " knob=" + entry.knobId() : "")
+                + (entry.ruleId() != null ? " rule=" + entry.ruleId() : "")
+                + (entry.before().isEmpty() ? "" : " before=" + entry.before() + " after=" + entry.after())
+                + (entry.verdict() != null ? " verdict=" + entry.verdict() : "")
+                + " why=\"" + (entry.why() == null ? "" : entry.why()) + "\" reasons=" + entry.reasons()
+                + (entry.evidence().isEmpty() ? "" : " evidence=" + entry.evidence());
+        // Caller-supplied text (why, ruleId, knobId, principal) must not start a forged log line.
+        return line.replace("\r", "\\r").replace("\n", "\\n");
     }
 
     // ------------------------------------------------------------------ state
