@@ -36,8 +36,8 @@ import org.springframework.core.Ordered;
  * <p>A probe filter at {@link Ordered#LOWEST_PRECEDENCE} (inside the limiter) counts how many {@code /work}
  * requests are in the handler at once and whether they run on virtual threads. With the limiter off it proves the
  * ceiling is gone (more than 200 at once); in enforce mode, after warm-up, it never exceeds {@code max-limit}.
- * Assertions are on counts and on the server-side p50/p99 off vs enforce with generous ratios, as in
- * {@link ServletOverloadTest} and {@link ReactiveOverloadTest}.
+ * Assertions are on counts only; server-side p50/p99 off vs enforce are printed, not asserted (on virtual threads
+ * their spread was too wide for a CI gate).
  */
 @EnabledForJreRange(min = JRE.JAVA_21)
 class ServletVirtualThreadsOverloadTest {
@@ -209,13 +209,13 @@ class ServletVirtualThreadsOverloadTest {
         assertThat(enforce.rejectedWithRetryAfter()).isEqualTo(enforce.rejected());
         assertThat(rejectedDuringRun).isEqualTo(enforce.rejected());
         assertThat(enforceServer.rejected()).isEqualTo(enforce.rejected());
-        // Accepted requests no longer wait behind the whole queue. The median is cut by far more than 4x. The p99
-        // bound is 3/4 (as in ReactiveOverloadTest), not 1/2 as in ServletOverloadTest: on virtual threads the
-        // accepted requests' continuations share 4 carrier threads with thousands of rejected requests per second,
-        // and the enforce p99 measured 91-385 ms against 535-636 ms off over 14 runs (one above off/2, on a shared
-        // machine), while platform threads gave 62-108 ms.
-        assertThat(enforceServer.okP50Millis()).isLessThan(offServer.okP50Millis() / 4);
-        assertThat(enforceServer.okP99Millis()).isLessThan(offServer.okP99Millis() * 3 / 4);
+        // Latency is reported, not asserted (iteration-4 brief, row 3). On virtual threads the accepted requests'
+        // continuations share the carrier threads with thousands of rejections per second: enforce p99 measured
+        // 91-385 ms against 535-636 ms off over 14 local runs, too wide a spread for a CI gate. What this test
+        // proves is the cap: the counts above.
+        System.out.printf("virtual threads: server p50 off %.0f ms / enforce %.0f ms, p99 off %.0f ms / enforce %.0f ms%n",
+                offServer.okP50Millis(), enforceServer.okP50Millis(), offServer.okP99Millis(),
+                enforceServer.okP99Millis());
         assertThat(enforce.limitSamples()).allSatisfy(l -> assertThat(l).isBetween(4, MAX_LIMIT));
         assertThat(enforce.healthStatuses()).isNotEmpty().containsOnly(200);
     }

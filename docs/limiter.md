@@ -247,9 +247,9 @@ changes shape. These are in-JVM tests on one machine.
   requests in 4 s (server-side p50 805 ms) while rejecting ~900/s, although the same pinned run with the limiter
   off served ~280/s and the platform-thread test passed pinned. Our reading, not proven: the server has one
   carrier thread per CPU, which competes with every other runnable thread for CPU, and that share goes to cheap
-  rejections. The test therefore needs ≥ 2 CPUs (it is skipped otherwise), and on virtual threads its p99 bound
-  is 3/4 of the limiter-off p99, not 1/2: enforce p99 measured 91–385 ms over 14 runs (off 535–636 ms) on a shared
-  4 vCPU machine, against 62–108 ms with platform threads. Not tested: WebFlux with virtual threads,
+  rejections. The test therefore needs ≥ 2 CPUs (it is skipped otherwise). On virtual threads it asserts the cap
+  (counts) and only reports latency: enforce p99 measured 91–385 ms over 14 runs (off 535–636 ms) on a shared
+  4 vCPU machine, against 62–108 ms with platform threads, too wide a spread for a CI gate. Not tested: WebFlux with virtual threads,
   Jetty/Undertow, pinning-heavy code (`synchronized` around blocking I/O on Java 21–23).
 - **Separate management port:** bypassed by port (the filter compares the request's local port with
   `local.management.port`); unit-tested, not exercised end-to-end. (Boot's separate management server is a
@@ -317,6 +317,6 @@ no extra starter.
 | `DeferredResult` holds its permit until completed and releases it; timeout releases as dropped; `Callable`; exceptions (sync and `setErrorResult`) release without a sample; rejection format (503, `Retry-After: 1`, text body); health and SSE served while the only permit is taken; WebSocket upgrade bypassed | `ServletAsyncAndBypassTest` (Tomcat, limit pinned to 1) |
 | Overload, off vs enforce vs shadow (numbers above); rejections in `http.server.requests`; no leaked permits | `ServletOverloadTest` |
 | Same on Netty; client cancellation releases the permit without a sample; SSE and actuator bypassed | `ReactiveOverloadTest` |
-| Virtual threads (`spring.threads.virtual.enabled=true`, Java 21+), 240 callers, `max-limit=60`: off → more than 200 in the handler at once, all on virtual threads; enforce → in-handler concurrency and `inflight` ≤ `max-limit` after warm-up, no request without a permit, 503s with `Retry-After` and in `http.server.requests`, health 200, inflight back to 0, server p50 < off / 4 and p99 < off × 3/4; skipped below 2 CPUs | `ServletVirtualThreadsOverloadTest` |
+| Virtual threads (`spring.threads.virtual.enabled=true`, Java 21+), 240 callers, `max-limit=60`: off → more than 200 in the handler at once, all on virtual threads; enforce → in-handler concurrency and `inflight` ≤ `max-limit` after warm-up, no request without a permit, 503s with `Retry-After` and in `http.server.requests`, health 200, inflight back to 0; server p50/p99 printed, not asserted; skipped below 2 CPUs | `ServletVirtualThreadsOverloadTest` |
 | HTTP Basic (Spring Security) behind the limiter, enforce, 10% unauthenticated callers: only 200/401/503, 503s also for unauthenticated requests, all with `Retry-After`, every request counted by the limiter, health 200, no leaked permit | `LimiterWithSpringSecurityTest` (own surefire execution) |
 | Spring Boot 4.1.2 and 3.5.16 | same tests, `-Dspring-boot.version=3.5.16` |
