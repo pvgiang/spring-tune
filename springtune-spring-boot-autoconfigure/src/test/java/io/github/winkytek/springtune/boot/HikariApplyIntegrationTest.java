@@ -113,7 +113,7 @@ class HikariApplyIntegrationTest {
                 assertThat(System.nanoTime()).as("contention established within 10 s").isLessThan(deadline);
                 Thread.sleep(10);
             }
-            Thread.sleep(fastMs * 2);
+            awaitSteadyContention(dataSource);
             for (int i = 0; i < 32; i++) {
                 tick(service, clock);
             }
@@ -152,6 +152,32 @@ class HikariApplyIntegrationTest {
             for (Thread worker : workers) {
                 worker.join(2000);
             }
+        }
+    }
+
+    /**
+     * The baseline window must see steady contention. A single "threads are waiting" reading is not enough: on a
+     * cold JVM (the first test of the class on a slow CI runner) the closed-loop load can take a while to settle,
+     * and a baseline recorded meanwhile showed a mean acquire time of 7-12 ms instead of ~45 ms, so the raise was
+     * judged a regression (R3) and reverted. Wait until half the workers have been waiting in at least 80% of
+     * 20 ms readings over one second (bounded by 15 s).
+     */
+    private static void awaitSteadyContention(HikariDataSource dataSource) throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        while (true) {
+            int saturated = 0;
+            int readings = 50;
+            for (int i = 0; i < readings; i++) {
+                if (dataSource.getHikariPoolMXBean().getThreadsAwaitingConnection() >= THREADS / 2) {
+                    saturated++;
+                }
+                Thread.sleep(20);
+            }
+            if (saturated >= readings * 0.8) {
+                return;
+            }
+            assertThat(System.nanoTime()).as("steady contention within 15 s (last second: %s of %s readings)",
+                    saturated, readings).isLessThan(deadline);
         }
     }
 

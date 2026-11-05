@@ -96,7 +96,13 @@ The design was produced by the Eng architect and attacked by the PO/SRE skeptic.
 | `mvn -B verify -Dspring-boot.version=3.5.16 -Dinvoker.skip -DskipITs` (CI `boot3` job), all modules | ✅ BUILD SUCCESS, 247 tests |
 | Starter modules after the review fixes (autoconfigure, starter, sample), Boot 4.1.2 | ✅ |
 | Maven plugin invoker ITs | ✅ 2/2 |
-| Gradle plugin functional tests (Gradle 8.14.3) | 3/4. The version-catalog fixture failed because Gradle in this container could not resolve `spring-boot-starter-data-jpa:3.5.16` from Maven Central; the plugin reported it as designed (iteration 2, challenge 4). No file in the Gradle plugin, engine, model or their tests changed in this iteration; CI's `gradle` job is the authority. |
+| Gradle plugin functional tests (Gradle 8.14.3) | ✅ 4/4 after the CI fix below. The first local run's 3/4 was blamed on the network; CI showed the real cause. |
+
+**CI fix (after merge).** The `gradle` CI job had failed since iteration 2: it runs with `-Dinvoker.skip` to skip
+the Maven plugin ITs, and in maven-invoker-plugin 3.x that property also skips the `install` goal that stages the
+plugin, marker and engine into `target/it-repo`. Every Gradle build then failed with "plugin not found". Local
+runs passed only because a stale `target/it-repo` was left over. The staging execution now sets
+`skipInstallation=false`; verified with CI's exact command from `clean` (4/4).
 
 Not verified here: the JDK 17/25 CI matrix, Docker-based suites, a real Grafana import, a real Central upload.
 
