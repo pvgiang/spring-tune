@@ -83,5 +83,12 @@
             <artifactId>spring-boot-starter-security</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Apply-mode security over WebFlux (ApplyReactiveSecurityWebTest). Same starter name on Boot 3.5 and 4.x;
+             servlet tests keep running on Tomcat because Boot prefers SERVLET when both stacks are present. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

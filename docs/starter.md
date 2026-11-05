@@ -90,6 +90,9 @@ SecurityFilterChain tuning(HttpSecurity http) throws Exception {
 }
 ```
 
+On WebFlux, secure it with a `SecurityWebFilterChain` (`ServerHttpSecurity`) the same way; an `anonymous()`
+principal is refused there too.
+
 (`EndpointRequest` lives in `org.springframework.boot.actuate.autoconfigure.security.servlet` on Boot 3 and in
 `org.springframework.boot.security.autoconfigure.actuate.web.servlet` on Boot 4.)
 
@@ -256,8 +259,10 @@ Expose with `management.endpoints.web.exposure.include=tuning`, then `GET /actua
 | **Real HikariCP + H2 + Micrometer**, 8 threads on 2 connections: (a) 15 ms holds → apply 2→3, `minimumIdle` 2→3, ≤ 3 connections and 3 used, CONFIRMED, audit complete, `springtune.changes{outcome=confirmed}`; (b) a database that slows down above 2 concurrent sessions (15 → 35 ms) → R2 → REVERTED to 2/2 | `HikariApplyIntegrationTest` |
 | Real Boot web app with actuator + Spring Security: unauthenticated 401, wrong role 403, right role 200 with `who` recorded, invalid body 400 | `ApplySecurityWebTest` |
 | Misconfigured `permitAll()` (anonymous authentication on): still 401, not frozen; an `AnonymousAuthenticationToken` principal is not a caller | `ApplyPermitAllWebTest`, `TuningApplyWebExtensionTest` |
+| Real **WebFlux** app (Reactor Netty) with actuator + reactive Spring Security (`SecurityWebFilterChain`, HTTP Basic): the write operation is reachable over WebFlux; no credentials 401 (nothing audited); wrong role 403 `ROLE_REQUIRED` with `who`; right role: `UNKNOWN_KNOB` 400 and `freeze` 200, both with `who` recorded. `anonymous()` + `permitAll()`: GET served, every POST 401 `NOT_AUTHENTICATED` (`who=anonymous`), not frozen, nothing kept in the in-memory audit | `ApplyReactiveSecurityWebTest` |
+| **Real `ThreadPoolTaskExecutor`** (`AbortPolicy`, core = max = 2), open-loop submitter (130 tasks/s, seeded jitter, 20 ms tasks, counts the `TaskRejectedException`s it gets): (a) bounded queue → ST-REC-EXEC-001 `maxPoolSize` 2→3, written as `max=3`, CONFIRMED on R6; (b) tasks slow from 20 to 45 ms above 2 concurrent → R6 "more tasks are rejected" → REVERTED to 2, threads above it retire; (c) unbounded queue → `corePoolSize` 2→3 across the maximum: apply writes `max=3, core=3`, manual revert writes `core=2, max=2`. In (a) and (b) the rejections counted for R6 equal those the submitter received from `AbortPolicy` | `ExecutorApplyIntegrationTest` |
 | **Real HikariCP + H2 + Micrometer**, advise: 15 ms holds → INCREASE 2→3 (cap 13); budget cap 2 → HOLD; 700 ms holds → "do not raise" | `HikariContentionIntegrationTest` |
 | Real Boot app: `/actuator/tuning` content, POST rejected in advise mode | `BrokenConfigApplicationTest` |
 
 All of the above run on Spring Boot 4.1 and 3.5. Not verified here: production metric registries other than
-`SimpleMeterRegistry`, WebFlux applications, and real databases (no Docker in this environment).
+`SimpleMeterRegistry`, WebFlux beyond the write operation's security (`ApplyReactiveSecurityWebTest`), and real databases (no Docker in this environment).

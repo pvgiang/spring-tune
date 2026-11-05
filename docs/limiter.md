@@ -71,7 +71,8 @@ from subscription until the response completes, errors or is cancelled (`doFinal
 **Ordering.** The servlet filter runs at `Ordered.HIGHEST_PRECEDENCE + 10`: after Boot's observation filter
 (`HIGHEST_PRECEDENCE + 1`), so rejections show up in `http.server.requests` (with `status=503`), and before
 Spring Security (`-100`). In WebFlux, observation is done by the `HttpWebHandlerAdapter`, outside every
-`WebFilter`, with the same effect. Both are verified by the load tests below.
+`WebFilter`, with the same effect. Both are verified by the load tests below; what running before Security
+means is in [Spring Security in front](#spring-security-in-front).
 
 ## When it hurts
 
@@ -232,8 +233,24 @@ changes shape. These are in-JVM tests on one machine.
   first: if all worker threads are blocked (e.g. by bypassed or excluded endpoints, or by work done before the
   filter), new requests wait in Tomcat's queue and the limiter never sees them. Keep `max-limit` below
   `server.tomcat.threads.max`.
-- **Virtual threads: unproven.** With `spring.threads.virtual.enabled=true` there is no worker-thread ceiling,
-  so the limiter becomes the main concurrency cap. Not load-tested here.
+- **Virtual threads: tested on Tomcat, servlet stack only.** With `spring.threads.virtual.enabled=true` there is
+  no worker-thread ceiling, so the limiter is the only concurrency cap. `ServletVirtualThreadsOverloadTest`
+  (Java 21+, skipped on older JREs) runs 240 callers (more than Tomcat's default 200 workers) with
+  `max-limit=60`: with the limiter off more than 200 requests are in the handler at once (all on virtual
+  threads), so the ceiling really is gone; in enforce mode, after warm-up, the requests in the handler at once
+  and the limiter's `inflight` never exceed `max-limit`, nothing passes without a permit, every 503 has
+  `Retry-After`, health answers 200, `inflight` returns to 0, and the server-side p50 is under a quarter and the p99
+  under three quarters of the limiter-off values. **During warm-up**
+  (`warmup-samples`) nothing is rejected, so a cold instance hit by a burst has no cap at all on virtual
+  threads (`max-limit` does not apply either); keep `warmup-samples` small. **One CPU:** pinned to a single CPU
+  (`taskset -c 0`, server and 240 client threads together), enforce mode on virtual threads served only 20
+  requests in 4 s (server-side p50 805 ms) while rejecting ~900/s, although the same pinned run with the limiter
+  off served ~280/s and the platform-thread test passed pinned. Our reading, not proven: the server has one
+  carrier thread per CPU, which competes with every other runnable thread for CPU, and that share goes to cheap
+  rejections. The test therefore needs ≥ 2 CPUs (it is skipped otherwise), and on virtual threads its p99 bound
+  is 3/4 of the limiter-off p99, not 1/2: enforce p99 measured 91–385 ms over 14 runs (off 535–636 ms) on a shared
+  4 vCPU machine, against 62–108 ms with platform threads. Not tested: WebFlux with virtual threads,
+  Jetty/Undertow, pinning-heavy code (`synchronized` around blocking I/O on Java 21–23).
 - **Separate management port:** bypassed by port (the filter compares the request's local port with
   `local.management.port`); unit-tested, not exercised end-to-end. (Boot's separate management server is a
   child context that, as far as we know, does not apply the main context's filters anyway; the port check is a
@@ -249,8 +266,37 @@ changes shape. These are in-JVM tests on one machine.
   do not send these to plain endpoints (some, e.g. MCP clients, send `Accept: application/json,
   text/event-stream` on every call), but a client that wants to skip the limit can. The limiter sheds overload; it
   is not an abuse control.
-- The limiter runs **before Spring Security**: unauthenticated requests take permits too (they are usually
-  fast, so they barely affect the limit).
+- The limiter runs **before Spring Security** (see [Spring Security in front](#spring-security-in-front)):
+  unauthenticated requests take permits too, and get 503 rather than 401 while the limit is full.
+
+## Spring Security in front
+
+The servlet filter runs at `HIGHEST_PRECEDENCE + 10`, Spring Security's `FilterChainProxy` at `-100` (WebFlux:
+the limiter `WebFilter` also runs before `WebFilterChainProxy`). So the limiter decides **before**
+authentication:
+
+- **Every request takes a permit, authenticated or not.** A request without (valid) credentials that arrives
+  while the limit is full gets `503` + `Retry-After`, not `401`. Clients must not read a 503 as "credentials
+  accepted".
+- **A 401 is a successful sample.** Status < 500 counts as success, so fast 401s feed low latencies into the
+  algorithm. A flood of unauthenticated requests both uses permits and shapes the limit; the limiter is
+  overload protection, not abuse control (rate-limit or block such traffic in front of the instance).
+- **Authentication runs inside the permit, so its cost is part of the latency the limit learns from.**
+  Requests rejected by the limiter are never authenticated, which protects the CPU from authentication work
+  under overload, but only after warm-up: before `warmup-samples` requests completed, nothing is rejected.
+  Observed once while writing the test (4 vCPU shared with other builds): with `InMemoryUserDetailsManager`
+  Spring Security upgrades a `{noop}` password to BCrypt after the first login, every request then spent tens of
+  ms of CPU in BCrypt, the 50-sample warm-up did not finish under 160 callers, and `/work` took 12–15 s on the
+  server. Cheap authentication (tokens, cached sessions) or a short warm-up avoids this; it is not an assertion
+  of any test.
+
+`LimiterWithSpringSecurityTest` (Tomcat, HTTP Basic, enforce, 160 callers of which 16 send no credentials,
+plus a health poller) asserts: authenticated callers get only 200 or 503, unauthenticated ones only 401 or 503
+(never a 500 from the filters' interaction), unauthenticated requests are rejected with 503 too, every 503 has
+`Retry-After`, `/actuator/health` (permitted) answers 200 throughout, every `/work` request (with or without
+credentials) was counted by the limiter, and `inflight` returns to 0: a request Security answers with 401
+releases its permit. It runs in its own surefire execution (Spring Security on the classpath would secure the
+other test applications of the module). The same ordering on WebFlux is not load-tested with Security.
 
 ## Why a separate artifact
 
@@ -271,4 +317,6 @@ no extra starter.
 | `DeferredResult` holds its permit until completed and releases it; timeout releases as dropped; `Callable`; exceptions (sync and `setErrorResult`) release without a sample; rejection format (503, `Retry-After: 1`, text body); health and SSE served while the only permit is taken; WebSocket upgrade bypassed | `ServletAsyncAndBypassTest` (Tomcat, limit pinned to 1) |
 | Overload, off vs enforce vs shadow (numbers above); rejections in `http.server.requests`; no leaked permits | `ServletOverloadTest` |
 | Same on Netty; client cancellation releases the permit without a sample; SSE and actuator bypassed | `ReactiveOverloadTest` |
+| Virtual threads (`spring.threads.virtual.enabled=true`, Java 21+), 240 callers, `max-limit=60`: off → more than 200 in the handler at once, all on virtual threads; enforce → in-handler concurrency and `inflight` ≤ `max-limit` after warm-up, no request without a permit, 503s with `Retry-After` and in `http.server.requests`, health 200, inflight back to 0, server p50 < off / 4 and p99 < off × 3/4; skipped below 2 CPUs | `ServletVirtualThreadsOverloadTest` |
+| HTTP Basic (Spring Security) behind the limiter, enforce, 10% unauthenticated callers: only 200/401/503, 503s also for unauthenticated requests, all with `Retry-After`, every request counted by the limiter, health 200, no leaked permit | `LimiterWithSpringSecurityTest` (own surefire execution) |
 | Spring Boot 4.1.2 and 3.5.16 | same tests, `-Dspring-boot.version=3.5.16` |
