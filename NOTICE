@@ -1,0 +1,13 @@
+SpringTune
+Copyright 2026 Giang Pham and the SpringTune contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+springtune-limiter depends on Netflix concurrency-limits (https://github.com/Netflix/concurrency-limits),
+Copyright Netflix, Inc., licensed under the Apache License, Version 2.0. It is not bundled.
+
+The springtune-cli "-all" jar bundles third-party libraries licensed under the Apache License, Version 2.0
+(Spring Framework, Spring Boot, Micrometer, Jackson, SnakeYAML, picocli, JavaParser, Apache Commons Logging,
+JSpecify). In that jar their NOTICE files are merged into this file. jackson-core embeds FastDoubleParser and
+Schubfach, licensed under the MIT License; their license texts are kept in META-INF/FastDoubleParser-LICENSE,
+META-INF/FastDoubleParser-ThirdParty-LICENSE and META-INF/Schubfach-LICENSE.

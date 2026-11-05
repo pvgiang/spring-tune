@@ -1,0 +1,74 @@
+name: "Feature: fleet view / approvals / cross-service budget / audit"
+description: You run SpringTune on more than one service and need a view or controls across them.
+title: "[fleet] "
+labels: ["paid-signal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These features are not in the open-source part. We build them only once several teams ask, so this form
+        tells us whether, and for whom, they are worth building. Nothing here commits you to anything.
+  - type: checkboxes
+    id: features
+    attributes:
+      label: What do you need?
+      options:
+        - label: Fleet view (every service, knob, finding and recommendation in one place, with history)
+        - label: Review and approval before a change is applied, with automatic rollback
+        - label: Connection budget across services that share one database, recalculated as replicas scale
+        - label: Audit log, RBAC/SSO, Slack/Teams notifications, change freeze windows
+        - label: Something else (describe below)
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem today
+      description: What goes wrong, or what you do by hand now (spreadsheets, dashboards, runbooks)?
+    validations:
+      required: true
+  - type: dropdown
+    id: team-size
+    attributes:
+      label: Engineers who would use it
+      options:
+        - "1-5"
+        - "6-20"
+        - "21-100"
+        - "More than 100"
+    validations:
+      required: true
+  - type: dropdown
+    id: services
+    attributes:
+      label: Spring Boot services in production
+      options:
+        - "1-5"
+        - "6-20"
+        - "21-100"
+        - "More than 100"
+    validations:
+      required: true
+  - type: dropdown
+    id: shared-db
+    attributes:
+      label: Largest number of services sharing one database
+      options:
+        - "1 (no sharing)"
+        - "2-5"
+        - "6 or more"
+        - "Don't know"
+  - type: dropdown
+    id: pilot
+    attributes:
+      label: Would you try a pilot?
+      description: The bracketed token is what the gate query searches for.
+      options:
+        - "Yes, and we could pay for it if it works [pilot-paid]"
+        - "Yes, a free pilot [pilot-free]"
+        - "Not now [pilot-no]"
+    validations:
+      required: true
+  - type: input
+    id: contact
+    attributes:
+      label: How to reach you about a pilot (optional)
+      description: This issue is public. Leave it empty and we will reply here, or write something like "DM on LinkedIn".

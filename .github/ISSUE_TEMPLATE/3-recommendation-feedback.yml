@@ -1,0 +1,71 @@
+name: Recommendation feedback
+description: Tell us what you did with an /actuator/tuning recommendation (ST-REC-*). Rejections are as useful as acceptances.
+title: "[recommendation] ST-REC-XXX-000: "
+labels: ["rec-feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        SpringTune collects no telemetry, so this form is how we learn whether recommendations are trusted.
+        One issue per recommendation, please; keep the ID in the title. Remove hostnames and anything confidential.
+  - type: dropdown
+    id: rec
+    attributes:
+      label: Recommendation ID
+      options:
+        - ST-REC-HIKARI-001
+        - ST-REC-HIKARI-002
+        - ST-REC-HIKARI-003
+        - ST-REC-EXEC-001
+        - Other (name it below)
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      description: The bracketed token is what the gate query searches for, so please keep it.
+      options:
+        - "Applied as recommended [rec-applied]"
+        - "Applied with a different value [rec-edited]"
+        - "Agreed, not applied yet [rec-accepted]"
+        - "Rejected [rec-rejected]"
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: How it was applied (if it was)
+      options:
+        - Committed the property and redeployed
+        - Guarded apply (springtune apply mode)
+        - Not applied
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: For rejected or edited, what did SpringTune not know? For applied, what happened afterwards (acquire time, timeouts, latency)?
+    validations:
+      required: true
+  - type: textarea
+    id: payload
+    attributes:
+      label: The recommendation as shown
+      description: The entry from GET /actuator/tuning (recommendations[]), with names you consider sensitive replaced.
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: SpringTune version
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: replicas
+    attributes:
+      label: Replicas of this service in production
+      options:
+        - "1"
+        - "2-5"
+        - "6-20"
+        - "More than 20"

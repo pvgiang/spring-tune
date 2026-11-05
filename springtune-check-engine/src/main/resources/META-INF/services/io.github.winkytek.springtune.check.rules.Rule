@@ -1,0 +1,13 @@
+io.github.winkytek.springtune.check.rules.HikariConnectionTimeoutRule
+io.github.winkytek.springtune.check.rules.HikariLeakDetectionRule
+io.github.winkytek.springtune.check.rules.HikariMaxLifetimeRule
+io.github.winkytek.springtune.check.rules.HikariConnectionBudgetRule
+io.github.winkytek.springtune.check.rules.HikariPoolSizeRule
+io.github.winkytek.springtune.check.rules.TomcatThreadsVsPoolRule
+io.github.winkytek.springtune.check.rules.AsyncDefaultExecutorRule
+io.github.winkytek.springtune.check.rules.UnboundedExecutorRule
+io.github.winkytek.springtune.check.rules.HttpClientTimeoutRule
+io.github.winkytek.springtune.check.rules.FeignReadTimeoutRule
+io.github.winkytek.springtune.check.rules.TransactionTimeoutRule
+io.github.winkytek.springtune.check.rules.RetryBackoffRule
+io.github.winkytek.springtune.check.rules.CircuitBreakerSlowCallRule

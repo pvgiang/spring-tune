@@ -4,24 +4,24 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>io.github.winky.springtune</groupId>
+        <groupId>io.github.winkytek.springtune</groupId>
         <artifactId>springtune-parent</artifactId>
-        <version>0.2.0-SNAPSHOT</version>
+        <version>0.3.0-SNAPSHOT</version>
     </parent>
 
     <!--
-      Gradle plugin marker: plugins { id("io.github.winky.springtune") version "x" } looks up
+      Gradle plugin marker: plugins { id("io.github.winkytek.springtune") version "x" } looks up
       <plugin id>:<plugin id>.gradle.plugin:<version> in the plugin repositories and follows its dependency
       to the implementation jar. The plugin id equals our groupId, so the coordinates line up.
     -->
-    <artifactId>io.github.winky.springtune.gradle.plugin</artifactId>
+    <artifactId>io.github.winkytek.springtune.gradle.plugin</artifactId>
     <packaging>pom</packaging>
     <name>SpringTune :: Gradle Plugin Marker</name>
-    <description>Plugin marker for the Gradle plugin id io.github.winky.springtune.</description>
+    <description>Plugin marker for the Gradle plugin id io.github.winkytek.springtune.</description>
 
     <dependencies>
         <dependency>
-            <groupId>io.github.winky.springtune</groupId>
+            <groupId>io.github.winkytek.springtune</groupId>
             <artifactId>springtune-gradle-plugin</artifactId>
             <version>${project.version}</version>
         </dependency>

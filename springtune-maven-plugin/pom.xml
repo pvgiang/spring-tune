@@ -4,15 +4,17 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>io.github.winky.springtune</groupId>
+        <groupId>io.github.winkytek.springtune</groupId>
         <artifactId>springtune-parent</artifactId>
-        <version>0.2.0-SNAPSHOT</version>
+        <version>0.3.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>springtune-maven-plugin</artifactId>
     <packaging>maven-plugin</packaging>
     <name>SpringTune :: Maven Plugin</name>
     <description>mvn springtune:check - fail the build on risky Spring Boot configuration.</description>
+    <!-- Explicit, not inherited: Maven Central's POM check wants <url> in every published POM. -->
+    <url>https://github.com/pvgiang/spring-tune</url>
 
     <prerequisites>
         <maven>3.9.0</maven>
@@ -20,7 +22,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.github.winky.springtune</groupId>
+            <groupId>io.github.winkytek.springtune</groupId>
             <artifactId>springtune-check-engine</artifactId>
         </dependency>
         <dependency>

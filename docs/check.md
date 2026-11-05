@@ -31,7 +31,7 @@ where `springtune.yml` is looked up), and `springtune.skip`. A module with no Sp
 
 ## Gradle plugin
 
-Plugin id `io.github.winky.springtune`, Gradle 8.5+ (tested with 8.5, 8.14 and 9.8; configuration cache
+Plugin id `io.github.winkytek.springtune`, Gradle 8.5+ (tested with 8.5, 8.14 and 9.8; configuration cache
 compatible). It registers `springtuneCheck` in every project it is applied to. With the `java` plugin, `check`
 depends on it.
 
@@ -39,7 +39,7 @@ depends on it.
 // settings.gradle.kts: until the plugin is on the Gradle Plugin Portal, use the release's Maven repository
 pluginManagement {
     repositories {
-        maven("file:///path/to/springtune-maven-repo-0.2.0")
+        maven("file:///path/to/springtune-maven-repo-0.3.0")
         gradlePluginPortal()
     }
 }
@@ -48,11 +48,11 @@ pluginManagement {
 plugins {
     java
     id("org.springframework.boot") version "3.5.16"
-    id("io.github.winky.springtune") version "0.2.0"
+    id("io.github.winkytek.springtune") version "0.3.0"
 }
 
 repositories {
-    maven("file:///path/to/springtune-maven-repo-0.2.0")   // the engine (see below)
+    maven("file:///path/to/springtune-maven-repo-0.3.0")   // the engine (see below)
     mavenCentral()
 }
 

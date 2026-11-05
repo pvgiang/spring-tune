@@ -4,12 +4,13 @@ Spring Boot config safety and self-tuning.
 
 Catch the Spring Boot configuration that will take you down before production does. Then let it tune itself when you're ready.
 
-SpringTune has two parts that share one model and one set of rule IDs:
+SpringTune has two parts that share one model and one set of rule IDs, plus an opt-in limiter:
 
 | Part | When it runs | What it does |
 |---|---|---|
 | **`springtune check`** (CLI, Maven plugin, Gradle plugin, GitHub Action) | CI, before deploy | Static analysis of `application*.yml/properties` (resolved exactly like Spring Boot does), Java sources and Helm/Kubernetes manifests. 13 rules for pool exhaustion, hung threads and retry storms. Text/Markdown/JSON/SARIF output; fails the build at a threshold. |
-| **`springtune-spring-boot-starter`** | Runtime | `/actuator/tuning` with live knobs (HikariCP, `ThreadPoolTaskExecutor`), signals and **explained, budget-capped recommendations**. Read-only: it never changes anything. |
+| **`springtune-spring-boot-starter`** | Runtime | `/actuator/tuning` with live knobs (HikariCP, `ThreadPoolTaskExecutor`), signals and **explained, budget-capped recommendations**. Read-only by default; experimental guarded `apply` mode (one reviewed change, verified and auto-reverted) is opt-in. |
+| **`springtune-limiter`** (opt-in) | Runtime | Adaptive concurrency limiter (servlet and WebFlux): fast `503` + `Retry-After` instead of a queue when a downstream saturates. Off by default; shadow mode (count, never reject) until you enforce. [Docs](docs/limiter.md) |
 
 ## Quick start
 
@@ -37,32 +38,28 @@ jobs:
 **CLI** (any build tool, Java 17+), from the [latest release](https://github.com/pvgiang/spring-tune/releases):
 
 ```bash
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.1.0/springtune-cli-0.1.0.jar
-java -jar springtune-cli-0.1.0.jar check path/to/repo --profile prod
+curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.3.0/springtune-cli-0.3.0.jar
+java -jar springtune-cli-0.3.0.jar check path/to/repo --profile prod
 # exit 0 = clean, 1 = findings at/above --fail-on (default ERROR), 2 = usage/config error
 ```
 
-**Maven plugin and runtime starter** (`io.github.winky.springtune:*:0.1.0`). Until Maven Central publishing
-is set up, unzip `springtune-maven-repo-0.1.0.zip` from the release and add it as a file repository:
+**Maven plugin and runtime starter** (`io.github.winkytek.springtune:*:0.3.0`, Maven Central from 0.3.0;
+0.1.0 was published as `io.github.winky.springtune` in a GitHub release zip only):
 
 ```xml
-<pluginRepositories>
-  <pluginRepository><id>springtune</id><url>file:///path/to/springtune-maven-repo-0.1.0</url></pluginRepository>
-</pluginRepositories>
-<!-- ... -->
 <plugin>
-  <groupId>io.github.winky.springtune</groupId>
+  <groupId>io.github.winkytek.springtune</groupId>
   <artifactId>springtune-maven-plugin</artifactId>
-  <version>0.1.0</version>
+  <version>0.3.0</version>
   <executions><execution><goals><goal>check</goal></goals></execution></executions>
 </plugin>
 ```
 
 ```xml
 <dependency>
-  <groupId>io.github.winky.springtune</groupId>
+  <groupId>io.github.winkytek.springtune</groupId>
   <artifactId>springtune-spring-boot-starter</artifactId>
-  <version>0.1.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -73,18 +70,28 @@ springtune.budget:            # optional, caps pool recommendations: floor(100 x
   max-replicas: 6
 ```
 
-**Gradle plugin** (from 0.2.0; Gradle 8.5+, configuration cache compatible). The resolved runtime classpath
+**Adaptive limiter** (from 0.3.0, opt-in, separate artifact `springtune-limiter`). Starts in shadow mode:
+it only counts the requests it would reject. Actuator, SSE and WebSocket requests are never limited. In the
+module's load test (160 callers, downstream capacity 10) it cut server-side p99 of accepted requests from
+351–435 ms to 70–108 ms; read [docs/limiter.md](docs/limiter.md) (when it hurts, retry budgets, rollout) before
+enforcing.
+
+```yaml
+springtune.limiter.enabled: true     # shadow; add springtune.limiter.enforce: true after the rollout steps
+```
+
+**Gradle plugin** (from 0.3.0; Gradle 8.5+, configuration cache compatible). The resolved runtime classpath
 decides which rules apply, so dependencies declared through version catalogs and convention plugins count:
 
 ```kotlin
 plugins {
-    id("io.github.winky.springtune") version "0.2.0"   // ./gradlew check now runs springtuneCheck
+    id("io.github.winkytek.springtune") version "0.3.0"   // ./gradlew check now runs springtuneCheck
 }
 springtune { profiles.set(listOf("prod")) }            // optional; see docs/check.md#gradle-plugin
 ```
 
-Until it is on the Gradle Plugin Portal, add the release's Maven repository to `pluginManagement.repositories`
-and `repositories` ([setup](docs/check.md#gradle-plugin)).
+Until it is on the Gradle Plugin Portal, add `mavenCentral()` to `pluginManagement.repositories`
+([setup](docs/check.md#gradle-plugin)).
 
 ## Case study: what we found in 20 popular Spring Boot projects
 
@@ -121,12 +128,13 @@ results: [corpus report](docs/corpus/2026-11-corpus-report.md).
 **Try it on your own repo now.** It's static only, so nothing is built and nothing leaves your machine:
 
 ```bash
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.1.0/springtune-cli-0.1.0.jar
-java -jar springtune-cli-0.1.0.jar check . --profile prod
+curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.3.0/springtune-cli-0.3.0.jar
+java -jar springtune-cli-0.3.0.jar check . --profile prod
 ```
 
-Found something, or a false positive? [Open an issue](https://github.com/pvgiang/spring-tune/issues): every
-false positive becomes a regression test.
+Found something, or a false positive? [Open an issue](https://github.com/pvgiang/spring-tune/issues/new/choose)
+(forms for false positives, rule requests, recommendation feedback, fleet/approval needs and bugs): every false
+positive becomes a regression test.
 
 ## Try it on the sample
 
@@ -151,7 +159,7 @@ Requires JDK 17+ and Maven 3.9+. The Gradle plugin's functional tests run real G
 (`.github/workflows/ci.yml`) runs JDK 17/21/25, Boot 4.1 and 3.5, Gradle 8.14 and 9.8, and runs the GitHub
 Action against the sample. Releases: push a `vX.Y.Z` tag, or run *Actions → Release →
 Run workflow* with the version. `.github/workflows/release.yml` builds, tests and publishes the GitHub Release
-with notes from `docs/releases/`.
+with notes from `docs/releases/`, and deploys to Maven Central once the secrets exist ([releasing](docs/releasing.md)).
 
 ## Modules
 
@@ -161,8 +169,9 @@ with notes from `docs/releases/`.
 | `springtune-check-engine` | Config resolution, scanners, rule API, 13 rules, reporters |
 | `springtune-check-cli` | `springtune check` / `springtune rules` (runnable `-all.jar`) |
 | `springtune-maven-plugin` | `mvn springtune:check`, bound to `verify` |
-| `springtune-gradle-plugin` (+ `-marker`, `-tests`) | Plugin `io.github.winky.springtune`: `./gradlew springtuneCheck`, wired into `check`; functional tests on real Gradle builds |
+| `springtune-gradle-plugin` (+ `-marker`, `-tests`) | Plugin `io.github.winkytek.springtune`: `./gradlew springtuneCheck`, wired into `check`; functional tests on real Gradle builds |
 | `springtune-spring-boot-autoconfigure` / `-starter` | Runtime registry, sampler, recommendations, `/actuator/tuning` |
+| `springtune-limiter` | Opt-in adaptive concurrency limiter (`Filter`/`WebFilter` over Netflix concurrency-limits), Micrometer metrics |
 | `springtune-samples/broken-config` | Runnable demo and end-to-end fixture |
 | `action.yml` | GitHub Action wrapping the CLI |
 
@@ -177,6 +186,16 @@ with notes from `docs/releases/`.
 - [Case study: what we found in 20 popular Spring Boot projects](docs/case-study/what-we-found-in-20-spring-boot-projects.md)
 - [Corpus run: method, per-rule precision, raw results](docs/corpus/2026-11-corpus-report.md)
 - [Runtime starter](docs/starter.md)
+- [Adaptive limiter: when it helps, when it hurts, rollout, measurements](docs/limiter.md)
 - [CI integration (GitHub code scanning)](docs/ci-integration.md)
+- [Grafana dashboard for the starter, apply and limiter metrics](docs/grafana/README.md)
+- [Adoption gates: what we measure and how (no telemetry)](docs/adoption/gates.md)
+- [Releasing: Maven Central, Gradle Plugin Portal, one-time setup](docs/releasing.md)
 - [Release notes](docs/releases/)
+- [Roadmap after 0.3.0](docs/roadmap.md)
 - [Business & implementation plan](docs/business-and-implementation-plan.md)
+
+## License
+
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attributions. Every published jar carries both files in
+`META-INF/`.

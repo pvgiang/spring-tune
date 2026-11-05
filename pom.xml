@@ -5,9 +5,9 @@
          child.project.url.inherit.append.path="false">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.winky.springtune</groupId>
+    <groupId>io.github.winkytek.springtune</groupId>
     <artifactId>springtune-parent</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.3.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>SpringTune</name>
@@ -18,8 +18,32 @@
         <license>
             <name>Apache License, Version 2.0</name>
             <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
         </license>
     </licenses>
+
+    <!-- Required by Maven Central (with name, description, url, licenses). Kept in flattened POMs (flattenMode ossrh). -->
+    <developers>
+        <developer>
+            <id>pvgiang</id>
+            <name>Giang Pham</name>
+            <url>https://github.com/pvgiang</url>
+        </developer>
+    </developers>
+
+    <scm child.scm.connection.inherit.append.path="false"
+         child.scm.developerConnection.inherit.append.path="false"
+         child.scm.url.inherit.append.path="false">
+        <connection>scm:git:https://github.com/pvgiang/spring-tune.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/pvgiang/spring-tune.git</developerConnection>
+        <url>https://github.com/pvgiang/spring-tune</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <issueManagement>
+        <system>GitHub</system>
+        <url>https://github.com/pvgiang/spring-tune/issues</url>
+    </issueManagement>
 
     <modules>
         <module>springtune-model</module>
@@ -31,6 +55,7 @@
         <module>springtune-gradle-plugin-tests</module>
         <module>springtune-spring-boot-autoconfigure</module>
         <module>springtune-spring-boot-starter</module>
+        <module>springtune-limiter</module>
         <module>springtune-samples/broken-config</module>
     </modules>
 
@@ -48,6 +73,16 @@
         <maven-plugin-tools.version>3.15.1</maven-plugin-tools.version>
         <!-- Compile-only Gradle API (Maven Central mirror of gradleApi()); the plugin is tested on real Gradle 8.x and 9.x. -->
         <gradle-api.version>8.11.1</gradle-api.version>
+
+        <!-- Release to Maven Central (profile 'release', see docs/releasing.md). -->
+        <jreleaser.version>1.26.0</jreleaser.version>
+        <!-- Staging repository written by 'mvn deploy -Prelease -DaltDeploymentRepository=...' and read by JReleaser. -->
+        <springtune.staging.dir>${maven.multiModuleProjectDirectory}/target/staging-repo</springtune.staging.dir>
+        <!-- UPLOAD: validate and stop, a human presses Publish on central.sonatype.com. FULL: publish automatically. -->
+        <springtune.central.stage>UPLOAD</springtune.central.stage>
+
+        <!-- Adaptive limit algorithms for springtune-limiter (Apache 2.0, one runtime dependency: slf4j-api). -->
+        <concurrency-limits.version>0.5.4</concurrency-limits.version>
     </properties>
 
     <dependencyManagement>
@@ -67,24 +102,34 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-model</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-check-engine</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-spring-boot-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.winkytek.springtune</groupId>
+                <artifactId>springtune-limiter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.netflix.concurrency-limits</groupId>
+                <artifactId>concurrency-limits-core</artifactId>
+                <version>${concurrency-limits.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.github.javaparser</groupId>
@@ -173,6 +218,21 @@
                     <artifactId>jacoco-maven-plugin</artifactId>
                     <version>0.8.14</version>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <version>3.3.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.12.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.jreleaser</groupId>
+                    <artifactId>jreleaser-maven-plugin</artifactId>
+                    <version>${jreleaser.version}</version>
+                </plugin>
                 <!--
                   Consumer POMs without parent or BOM imports, with explicit versions. Applied to the modules Gradle
                   resolves (the plugin, its marker and the engine): resolving them then needs only their own files
@@ -206,6 +266,33 @@
             </plugins>
         </pluginManagement>
         <plugins>
+            <!-- LICENSE and NOTICE in META-INF of every jar (Apache 2.0, section 4). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-legal-files</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}/META-INF</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${maven.multiModuleProjectDirectory}</directory>
+                                    <includes>
+                                        <include>LICENSE</include>
+                                        <include>NOTICE</include>
+                                    </includes>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
@@ -250,4 +337,85 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+          Maven Central release (docs/releasing.md). Normal builds never activate it.
+            1. mvn -Prelease deploy -DskipTests -Dinvoker.skip -DaltDeploymentRepository=staging::file:target/staging-repo
+               adds -sources and -javadoc jars to every published module and stages everything in target/staging-repo.
+            2. mvn -Prelease -N jreleaser:deploy
+               signs (GPG key from JRELEASER_GPG_* env), adds checksums, checks Central's rules and uploads the bundle
+               (JRELEASER_MAVENCENTRAL_USERNAME/PASSWORD). Add -Djreleaser.dry.run=true to stop before uploading.
+        -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <quiet>true</quiet>
+                            <release>${maven.compiler.release}</release>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.jreleaser</groupId>
+                        <artifactId>jreleaser-maven-plugin</artifactId>
+                        <inherited>false</inherited>
+                        <configuration>
+                            <jreleaser>
+                                <signing>
+                                    <pgp>
+                                        <active>ALWAYS</active>
+                                        <armored>true</armored>
+                                        <mode>MEMORY</mode>
+                                    </pgp>
+                                </signing>
+                                <deploy>
+                                    <maven>
+                                        <mavenCentral>
+                                            <sonatype>
+                                                <active>ALWAYS</active>
+                                                <url>https://central.sonatype.com/api/v1/publisher</url>
+                                                <stagingRepositories>${springtune.staging.dir}</stagingRepositories>
+                                                <stage>${springtune.central.stage}</stage>
+                                                <applyMavenCentralRules>true</applyMavenCentralRules>
+                                                <sign>true</sign>
+                                                <checksums>true</checksums>
+                                                <sourceJar>true</sourceJar>
+                                                <javadocJar>true</javadocJar>
+                                                <verifyPom>true</verifyPom>
+                                            </sonatype>
+                                        </mavenCentral>
+                                    </maven>
+                                </deploy>
+                            </jreleaser>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

@@ -4,11 +4,11 @@
 plugins {
     java
     alias(libs.plugins.spring.boot)
-    id("io.github.winky.springtune") version "@VERSION@"
+    id("io.github.winkytek.springtune") version "@VERSION@"
 }
 
 repositories {
-    maven("@REPO_URL@") { content { includeGroup("io.github.winky.springtune") } }
+    maven("@REPO_URL@") { content { includeGroup("io.github.winkytek.springtune") } }
     mavenCentral()
 }
 

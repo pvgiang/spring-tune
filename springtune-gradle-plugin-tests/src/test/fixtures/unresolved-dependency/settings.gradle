@@ -1,6 +1,6 @@
 pluginManagement {
     repositories {
-        maven { url = '@REPO_URL@'; content { includeGroup('io.github.winky.springtune') } }
+        maven { url = '@REPO_URL@'; content { includeGroup('io.github.winkytek.springtune') } }
         gradlePluginPortal()
     }
 }
