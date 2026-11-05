@@ -102,6 +102,15 @@ class HikariApplyIntegrationTest {
                                 ex.printStackTrace();
                             }
                         }
+                        // Think time between requests. Without it the returning thread re-borrows its own
+                        // connection through HikariCP's thread-local fast path before a waiter gets the handoff:
+                        // most recorded acquires are then ~0 ms re-borrows while starved waits are not recorded
+                        // yet, and the window's mean acquire time swung between 0 and 58 ms, so R3 flapped.
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException ex) {
+                            return;
+                        }
                     }
                 });
                 worker.setDaemon(true);
@@ -156,11 +165,9 @@ class HikariApplyIntegrationTest {
     }
 
     /**
-     * The baseline window must see steady contention. A single "threads are waiting" reading is not enough: on a
-     * cold JVM (the first test of the class on a slow CI runner) the closed-loop load can take a while to settle,
-     * and a baseline recorded meanwhile showed a mean acquire time of 7-12 ms instead of ~45 ms, so the raise was
-     * judged a regression (R3) and reverted. Wait until half the workers have been waiting in at least 80% of
-     * 20 ms readings over one second (bounded by 15 s).
+     * The baseline window must start under steady contention, not on a single "threads are waiting" reading:
+     * wait until half the workers have been waiting in at least 80% of 20 ms readings over one second (bounded
+     * by 15 s).
      */
     private static void awaitSteadyContention(HikariDataSource dataSource) throws InterruptedException {
         long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
