@@ -417,5 +417,17 @@
                 </plugins>
             </build>
         </profile>
+        <!--
+          JMH overhead benchmarks (docs/benchmarks.md). Never installed or deployed; JMH (GPLv2 + Classpath Exception)
+          is a development-time tool only. Normal and release builds never include the module.
+            mvn -B -ntp -Pbenchmarks package -DskipTests -Dinvoker.skip -pl springtune-benchmarks -am
+            java -jar springtune-benchmarks/target/benchmarks.jar -prof gc
+        -->
+        <profile>
+            <id>benchmarks</id>
+            <modules>
+                <module>springtune-benchmarks</module>
+            </modules>
+        </profile>
     </profiles>
 </project>
