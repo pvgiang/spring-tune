@@ -74,7 +74,10 @@ jobs:
         run: |
           mkdir -p dist
           cp springtune-check-cli/target/springtune-check-cli-$VERSION-all.jar dist/springtune-cli-$VERSION.jar
+          cp LICENSE NOTICE target/staging-repo/
           (cd target/staging-repo && zip -qr ../../dist/springtune-maven-repo-$VERSION.zip .)
+          rm target/staging-repo/LICENSE target/staging-repo/NOTICE
+          cp LICENSE dist/LICENSE.txt
           (cd dist && sha256sum * > SHA256SUMS)
           java -jar dist/springtune-cli-$VERSION.jar --version | grep -q "SpringTune $VERSION"
 

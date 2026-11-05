@@ -3,7 +3,7 @@
 A release is one tag. [`.github/workflows/release.yml`](../.github/workflows/release.yml) builds and tests it,
 publishes the GitHub Release (CLI jar, Maven repository zip, checksums), and, **when the repository secrets below
 exist**, deploys the same artifacts to Maven Central. Without the secrets the Central job is skipped and the
-release is GitHub-only, exactly as for 0.1.0 and 0.2.0. The Gradle Plugin Portal is a separate, manual workflow.
+release is GitHub-only, exactly as for 0.1.0. The Gradle Plugin Portal is a separate, manual workflow.
 
 ```
 tag vX.Y.Z ──► release job ──► GitHub Release
@@ -22,7 +22,7 @@ tag vX.Y.Z ──► release job ──► GitHub Release
    [central.sonatype.com → Publishing → Deployments](https://central.sonatype.com/publishing/deployments), check the
    deployment is *Validated* and contains every module, and press **Publish**. (Skip this once the repository
    variable `CENTRAL_STAGE` is `FULL`.)
-4. When `https://repo.maven.apache.org/maven2/io/github/winky/springtune/springtune-check-engine/X.Y.Z/` exists, run
+4. When `https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-engine/X.Y.Z/` exists, run
    *Actions → Gradle Plugin Portal → Run workflow* with `X.Y.Z`. It refuses to run before the engine is on Central,
    because the plugin resolves the engine from the user's repositories at check time.
 
@@ -68,18 +68,20 @@ The dry run warns that the throwaway key "was NOT found as published"; with the 
 
 None of this can be done or verified from CI or by an agent: it needs accounts, identity checks and secrets.
 
-### 1. Sonatype Central namespace `io.github.winky`
+### 1. Sonatype Central namespace `io.github.winkytek`
 
-All artifacts use groupId `io.github.winky.springtune`, so the Central Portal account must own the namespace
-`io.github.winky`.
+All artifacts use groupId `io.github.winkytek.springtune`, so the Central Portal account must own the namespace
+`io.github.winkytek`.
 
-- Sign in at [central.sonatype.com](https://central.sonatype.com) **with the GitHub account `winky`**. Central then
-  verifies `io.github.winky` automatically. With any other login, *Namespaces → Add namespace → io.github.winky*
-  asks you to create a temporary public repository under `github.com/winky` named with a verification key.
-- **Check this first.** The repository lives at `github.com/pvgiang/spring-tune`. If you do not control the GitHub
-  account `winky`, you cannot verify `io.github.winky`, and the choice is: get that account, use a domain you own
-  (`com.example.springtune`, verified with a DNS TXT record), or move the groupId to `io.github.pvgiang`. Moving
-  it is cheap now (nothing is on Central yet) and expensive after the first Central release.
+- The GitHub account **`winkytek`** owns the namespace (it is a collaborator on `pvgiang/spring-tune`). Sign in at
+  [central.sonatype.com](https://central.sonatype.com) **with the GitHub account `winkytek`**; Central then
+  verifies `io.github.winkytek` automatically. With any other login, *Namespaces → Add namespace →
+  io.github.winkytek* asks you to create a temporary public repository under `github.com/winkytek` named with a
+  verification key; do that while signed in to GitHub as `winkytek`.
+- Generate the user token (step 2) on that same Central account.
+- In 0.1.0 (and the unreleased 0.2.0) the groupId was `io.github.winky.springtune` (GitHub release zip only, never on Central). From
+  0.3.0 it is `io.github.winkytek.springtune`, Java packages are `io.github.winkytek.springtune.*` and the Gradle
+  plugin id is `io.github.winkytek.springtune`.
 
 ### 2. Central user token
 
@@ -129,9 +131,11 @@ The issue forms only apply labels that exist. Create them with the commands in
 
 - Sign in at [plugins.gradle.org](https://plugins.gradle.org) (GitHub login), open *API Keys* and store them as
   secrets `GRADLE_PUBLISH_KEY` and `GRADLE_PUBLISH_SECRET`.
-- The first version of a plugin is **reviewed by hand** by the Portal team. Plugin IDs under `io.github.<user>`
-  are expected to belong to that GitHub user, so the same `winky` question as in step 1 applies: the plugin's
-  website and VCS URL point at `github.com/pvgiang`.
+- Sign in **as `winkytek`**. The first version of a plugin is **reviewed by hand** by the Portal team. Plugin IDs
+  under `io.github.<user>` are expected to belong to that GitHub user; `winkytek` publishing
+  `io.github.winkytek.springtune` matches. If the reviewer asks why the website and VCS URL point at
+  `github.com/pvgiang/spring-tune`, answer that `winkytek` is a collaborator on that repository (or move the
+  repository to `github.com/winkytek/spring-tune` to remove the question).
 
 ## Gradle Plugin Portal
 
@@ -140,8 +144,8 @@ Gradle plugin. The options, honestly:
 
 | Option | What users write | Status |
 |---|---|---|
-| **A. Maven Central only.** The plugin jar and its marker (`io.github.winky.springtune:io.github.winky.springtune.gradle.plugin`) are already in the Central bundle. | `pluginManagement { repositories { mavenCentral(); gradlePluginPortal() } }` in `settings.gradle(.kts)`, then `id("io.github.winky.springtune")` | Works as soon as Central works. Same mechanism the plugin's functional tests use today with a staged repository; not yet tried against Central itself. |
-| **B. Portal, from a small Gradle build.** [`springtune-gradle-plugin/portal/`](../springtune-gradle-plugin/portal/build.gradle.kts) compiles the same sources with Gradle and publishes with `com.gradle.plugin-publish`. Run by [`gradle-plugin-portal.yml`](../.github/workflows/gradle-plugin-portal.yml). | Nothing: `plugins { id("io.github.winky.springtune") version "X.Y.Z" }` | Built locally with Gradle 8.14.3 (`build publishToMavenLocal`: jar, sources, javadoc, marker, no runtime dependencies). `publishPlugins` has not been run: it needs the account. |
+| **A. Maven Central only.** The plugin jar and its marker (`io.github.winkytek.springtune:io.github.winkytek.springtune.gradle.plugin`) are already in the Central bundle. | `pluginManagement { repositories { mavenCentral(); gradlePluginPortal() } }` in `settings.gradle(.kts)`, then `id("io.github.winkytek.springtune")` | Works as soon as Central works. Same mechanism the plugin's functional tests use today with a staged repository; not yet tried against Central itself. |
+| **B. Portal, from a small Gradle build.** [`springtune-gradle-plugin/portal/`](../springtune-gradle-plugin/portal/build.gradle.kts) compiles the same sources with Gradle and publishes with `com.gradle.plugin-publish`. Run by [`gradle-plugin-portal.yml`](../.github/workflows/gradle-plugin-portal.yml). | Nothing: `plugins { id("io.github.winkytek.springtune") version "X.Y.Z" }` | Built locally with Gradle 8.14.3 (`build publishToMavenLocal`: jar, sources, javadoc, marker, no runtime dependencies). `publishPlugins` has not been run: it needs the account. |
 | C. Rewrite the module as a Gradle build. | as B | Not worth it: the Maven reactor builds and tests everything else, including the plugin's functional tests. |
 
 With A and B both in place, users of the Portal get the Gradle-built jar and users of Central the Maven-built

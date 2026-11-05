@@ -1,4 +1,4 @@
-// Publishes io.github.winky.springtune to the Gradle Plugin Portal. See docs/releasing.md#gradle-plugin-portal.
+// Publishes io.github.winkytek.springtune to the Gradle Plugin Portal. See docs/releasing.md#gradle-plugin-portal.
 //
 //   gradle -p springtune-gradle-plugin/portal publishPlugins -PspringtuneVersion=0.3.0 \
 //          -Pgradle.publish.key=... -Pgradle.publish.secret=...
@@ -14,7 +14,7 @@ plugins {
 val springtuneVersion = providers.gradleProperty("springtuneVersion").orNull
     ?: error("Pass -PspringtuneVersion=<released version>")
 
-group = "io.github.winky.springtune"
+group = "io.github.winkytek.springtune"
 version = springtuneVersion
 
 repositories {
@@ -25,7 +25,7 @@ repositories {
 
 dependencies {
     // Compile-only, exactly like <scope>provided</scope> in ../pom.xml.
-    compileOnly("io.github.winky.springtune:springtune-check-engine:$springtuneVersion")
+    compileOnly("io.github.winkytek.springtune:springtune-check-engine:$springtuneVersion")
 }
 
 java {
@@ -57,6 +57,11 @@ tasks.processResources {
             line.replace("\${project.version}", springtuneVersion).replace("\${project.groupId}", project.group.toString())
         }
     }
+    // LICENSE and NOTICE in META-INF, as in the Maven-built jar.
+    from(rootDir.resolve("../../")) {
+        include("LICENSE", "NOTICE")
+        into("META-INF")
+    }
 }
 
 gradlePlugin {
@@ -64,8 +69,8 @@ gradlePlugin {
     vcsUrl.set("https://github.com/pvgiang/spring-tune")
     plugins {
         create("springtune") {
-            id = "io.github.winky.springtune"
-            implementationClass = "io.github.winky.springtune.gradle.SpringTunePlugin"
+            id = "io.github.winkytek.springtune"
+            implementationClass = "io.github.winkytek.springtune.gradle.SpringTunePlugin"
             displayName = "SpringTune"
             description = "Fails the build on risky Spring Boot configuration: connection pools, timeouts, executors, retries."
             tags.set(listOf("spring-boot", "static-analysis", "hikaricp", "configuration", "sarif"))

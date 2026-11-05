@@ -20,7 +20,7 @@ It is a separate artifact; the runtime starter does **not** pull it in (see [Why
 
 ```xml
 <dependency>
-  <groupId>io.github.winky.springtune</groupId>
+  <groupId>io.github.winkytek.springtune</groupId>
   <artifactId>springtune-limiter</artifactId>
   <version>${springtune.version}</version>
 </dependency>

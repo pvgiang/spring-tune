@@ -83,7 +83,7 @@ The design was produced by the Eng architect and attacked by the PO/SRE skeptic.
 
 ## 5. Needs a human
 
-1. **groupId namespace.** Central verifies `io.github.winky` only for the GitHub account `winky`; this repository is `pvgiang/spring-tune`. Either control that account, use an owned domain, or move to `io.github.pvgiang` **before** the first Central release (cheap now, expensive after).
+1. **groupId namespace.** Decided: renamed to `io.github.winkytek` (groupId `io.github.winkytek.springtune`, packages, Gradle plugin id) before the first Central release. The GitHub account `winkytek` is a collaborator on this repository and verifies the namespace on Central and the Plugin Portal.
 2. Central account + user token, GPG key, the five secrets, then press *Publish* once (`docs/releasing.md`).
 3. Create the issue labels (`gh label create …` in `docs/adoption/gates.md`).
 4. Gradle Plugin Portal account and keys.
@@ -100,10 +100,7 @@ The design was produced by the Eng architect and attacked by the PO/SRE skeptic.
 
 Not verified here: the JDK 17/25 CI matrix, Docker-based suites, a real Grafana import, a real Central upload.
 
-## 7. Next (in plan order)
+## 7. Next
 
-1. Do the human steps in §5 and release 0.3.0, so §9 gate 1 becomes measurable.
-2. Find a design partner to run `advise` (then `apply`) in staging; record accepted recommendations through the feedback issue form (§9 gate 2).
-3. Testcontainers PostgreSQL + Gatling suites as a CI-only job (Docker), including 3 replicas raising at once against a real `max_connections`.
-4. WebFlux end-to-end security test for apply; executor R6 end-to-end; limiter with virtual threads and Spring Security in front.
-5. Gate review at week 28 (plan §19): go / no-go for the paid controller.
+See the [roadmap after 0.3.0](../roadmap.md): release 0.3.0, finish Phase 2 under real load (0.4), adoption in
+parallel, gate review at week 28, then the paid controller only if the paid trigger fires.

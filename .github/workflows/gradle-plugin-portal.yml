@@ -1,6 +1,6 @@
 name: Gradle Plugin Portal
 
-# Publishes io.github.winky.springtune to plugins.gradle.org for an already released version.
+# Publishes io.github.winkytek.springtune to plugins.gradle.org for an already released version.
 # Run it by hand (Actions > Gradle Plugin Portal > Run workflow) AFTER the version is live on Maven Central:
 # the plugin resolves springtune-check-engine from the user's repositories at check time, so publishing it
 # earlier would hand users a plugin whose engine cannot be found. See docs/releasing.md#gradle-plugin-portal.
@@ -35,7 +35,7 @@ jobs:
           HAS_SECRETS: ${{ secrets.GRADLE_PUBLISH_KEY != '' && secrets.GRADLE_PUBLISH_SECRET != '' }}
         run: |
           [ "$HAS_SECRETS" = "true" ] || { echo "::error::Set GRADLE_PUBLISH_KEY and GRADLE_PUBLISH_SECRET (docs/releasing.md)"; exit 1; }
-          URL="https://repo.maven.apache.org/maven2/io/github/winky/springtune/springtune-check-engine/$VERSION/springtune-check-engine-$VERSION.pom"
+          URL="https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-engine/$VERSION/springtune-check-engine-$VERSION.pom"
           curl -fsSI "$URL" > /dev/null || { echo "::error::$URL not found: publish to Maven Central first"; exit 1; }
 
       - name: Publish

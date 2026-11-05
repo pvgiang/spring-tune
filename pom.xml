@@ -5,9 +5,9 @@
          child.project.url.inherit.append.path="false">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.winky.springtune</groupId>
+    <groupId>io.github.winkytek.springtune</groupId>
     <artifactId>springtune-parent</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.3.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>SpringTune</name>
@@ -18,6 +18,7 @@
         <license>
             <name>Apache License, Version 2.0</name>
             <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
         </license>
     </licenses>
 
@@ -101,27 +102,27 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-model</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-check-engine</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-spring-boot-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.winky.springtune</groupId>
+                <groupId>io.github.winkytek.springtune</groupId>
                 <artifactId>springtune-limiter</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -265,6 +266,33 @@
             </plugins>
         </pluginManagement>
         <plugins>
+            <!-- LICENSE and NOTICE in META-INF of every jar (Apache 2.0, section 4). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-legal-files</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}/META-INF</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${maven.multiModuleProjectDirectory}</directory>
+                                    <includes>
+                                        <include>LICENSE</include>
+                                        <include>NOTICE</include>
+                                    </includes>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>

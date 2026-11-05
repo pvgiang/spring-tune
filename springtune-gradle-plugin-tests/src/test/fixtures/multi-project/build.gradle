@@ -1,12 +1,12 @@
 plugins {
-    id 'io.github.winky.springtune' version '@VERSION@' apply false
+    id 'io.github.winkytek.springtune' version '@VERSION@' apply false
 }
 
 subprojects {
     apply plugin: 'java'
-    apply plugin: 'io.github.winky.springtune'
+    apply plugin: 'io.github.winkytek.springtune'
     repositories {
-        maven { url = '@REPO_URL@'; content { includeGroup('io.github.winky.springtune') } }
+        maven { url = '@REPO_URL@'; content { includeGroup('io.github.winkytek.springtune') } }
         mavenCentral()
     }
 }
