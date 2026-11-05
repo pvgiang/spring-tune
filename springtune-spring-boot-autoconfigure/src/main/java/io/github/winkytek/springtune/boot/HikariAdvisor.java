@@ -20,6 +20,11 @@ import java.util.Optional;
  *   <li><b>ST-REC-HIKARI-002</b>: threads wait, but connections are held longer than {@code slowUsage}: the
  *       database work is the bottleneck. HOLD: more connections would only add load to the database.
  *       Also HOLD (low confidence) when hold-time metrics are unavailable.</li>
+ *   <li><b>ST-REC-HIKARI-004</b>: threads wait, but the pool holds fewer connections than its maximum in at
+ *       least {@code STARVED_RATIO} of the window's samples, or acquire timeouts occurred while it did: the
+ *       database refuses or fails new connections (server or role connection limit, network, authentication).
+ *       HOLD: a larger pool cannot open connections the current one cannot, and would add load to a failing
+ *       database. Checked before the other saturation rules.</li>
  *   <li><b>ST-REC-HIKARI-003</b>: over {@code lowUtilizationWindow} no thread ever waited and peak active
  *       stayed below {@code lowUtilization} of the pool: DECREASE to twice the peak (min 2), freeing
  *       database connections for other services.</li>
@@ -30,6 +35,10 @@ final class HikariAdvisor {
     static final String RAISE = "ST-REC-HIKARI-001";
     static final String HOLD_SLOW = "ST-REC-HIKARI-002";
     static final String LOWER = "ST-REC-HIKARI-003";
+    static final String HOLD_STARVED = "ST-REC-HIKARI-004";
+
+    /** Share of window samples in which threads waited while the pool was below its maximum. */
+    static final double STARVED_RATIO = 0.5;
 
     private HikariAdvisor() {
     }
@@ -81,6 +90,25 @@ final class HikariAdvisor {
         evidence.put("samples", String.valueOf(window.size()));
         evidence.put("samplesWithWaitingThreads", Format.percent(waiting));
         evidence.put("maxWaitingThreads", String.valueOf(window.stream().mapToInt(HikariSample::pending).max().orElse(0)));
+
+        double starved = SampleWindow.ratio(window, HikariSample::starved);
+        double timeouts = last.timeouts() - first.timeouts();
+        if (starved >= STARVED_RATIO || (timeouts > 0 && starved > 0)) {
+            int fewest = window.stream().filter(HikariSample::starved).mapToInt(s -> s.active() + s.idle()).min()
+                    .orElse(current);
+            evidence.put("samplesBelowMaximumWhileWaiting", Format.percent(starved));
+            evidence.put("fewestOpenConnectionsWhileWaiting", fewest + " of " + current);
+            evidence.put("acquireTimeouts", String.valueOf(Math.round(timeouts)));
+            return new Recommendation(HOLD_STARVED, knobId, Action.HOLD, current, current,
+                    "Do not raise the pool. Threads wait for connections, but the pool could not open the"
+                            + " connections it already has room for: it held fewer than " + current
+                            + " connections (as few as " + fewest + ") while threads waited in "
+                            + Format.percent(starved) + " of samples" + (timeouts > 0 ? ", and " + Math.round(timeouts)
+                            + " connection requests timed out" : "") + ". The database is refusing or failing new"
+                            + " connections (max_connections, a role CONNECTION LIMIT, network or authentication)."
+                            + " A larger pool would only add connection attempts to a failing database.",
+                    evidence, Confidence.HIGH, List.of("ST-HIKARI-004"), now);
+        }
 
         boolean timers = window.stream().allMatch(HikariSample::timersAvailable);
         long usageCount = last.usageCount() - first.usageCount();

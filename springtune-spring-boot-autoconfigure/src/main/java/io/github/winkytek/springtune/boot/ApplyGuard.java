@@ -14,8 +14,9 @@ import java.util.Optional;
  * <p>A request can only apply the {@code recommendedValue} of a <b>current</b> INCREASE/DECREASE
  * recommendation (matched by {@code ruleId} + {@code knobId}, re-evaluated at request time), and only when
  * the caller's {@code expectedCurrent} equals the live value (compare-and-set). On top of that the value must
- * stay within the step and growth limits, raising a Hikari pool needs a configured connection budget and stays
- * under its per-instance cap, the knob must not be cooling down, and no other change may be in flight.
+ * stay within the step and growth limits, raising a Hikari pool needs a configured connection budget that the
+ * database server can honour ({@link ServerConnectionLimit}, when it could be read) and stays under its
+ * per-instance cap, the knob must not be cooling down, and no other change may be in flight.
  */
 final class ApplyGuard {
 
@@ -37,6 +38,7 @@ final class ApplyGuard {
         STALE_EXPECTED_CURRENT(409),
         STALE_EXPECTED_TARGET(409),
         NO_BUDGET(400),
+        BUDGET_EXCEEDS_SERVER(409),
         ABOVE_BUDGET_CAP(400),
         STEP_LIMIT(400),
         GROWTH_LIMIT(400),
@@ -85,7 +87,13 @@ final class ApplyGuard {
      * @param baselineCovered whether counters cover the baseline window before now
      */
     record KnobFacts(String knobId, WritableKnob.Kind kind, long current, long configured, Instant cooldownUntil,
-            boolean baselineCovered) {
+            boolean baselineCovered, ServerConnectionLimit serverLimit) {
+
+        KnobFacts(String knobId, WritableKnob.Kind kind, long current, long configured, Instant cooldownUntil,
+                boolean baselineCovered) {
+            this(knobId, kind, current, configured, cooldownUntil, baselineCovered,
+                    ServerConnectionLimit.notApplicable());
+        }
     }
 
     /** Effective bounds for the next change of a knob (shown by the endpoint). */
@@ -162,6 +170,16 @@ final class ApplyGuard {
     static Decision checkApply(ChangeRequest request, State state, Optional<KnobFacts> knobFacts,
             List<Recommendation> recommendations, Optional<Integer> budgetCap, SpringTuneProperties.Apply settings,
             Instant now) {
+        return checkApply(request, state, knobFacts, recommendations, budgetCap, null, settings, now);
+    }
+
+    /**
+     * @param databaseMaxConnections the configured {@code springtune.budget.database-max-connections}, compared
+     *                               with the server's limit ({@link KnobFacts#serverLimit()}) before raising a pool
+     */
+    static Decision checkApply(ChangeRequest request, State state, Optional<KnobFacts> knobFacts,
+            List<Recommendation> recommendations, Optional<Integer> budgetCap, Integer databaseMaxConnections,
+            SpringTuneProperties.Apply settings, Instant now) {
         if (state.mode() != SpringTuneProperties.Mode.APPLY) {
             return Decision.refuse(Code.MODE_NOT_APPLY, "springtune.mode is " + state.mode() + ", not apply.");
         }
@@ -213,6 +231,15 @@ final class ApplyGuard {
             if (budgetCap.isEmpty()) {
                 return Decision.refuse(Code.NO_BUDGET, "Raising maximumPoolSize needs a connection budget:"
                         + " set springtune.budget.database-max-connections and max-replicas.");
+            }
+            ServerConnectionLimit server = knob.serverLimit();
+            if (server != null && server.known() && databaseMaxConnections != null
+                    && databaseMaxConnections > server.limit()) {
+                return Decision.refuse(Code.BUDGET_EXCEEDS_SERVER, "springtune.budget.database-max-connections="
+                        + databaseMaxConnections + " is more than the database server accepts (" + server.detail()
+                        + "), so the per-instance cap of " + budgetCap.get() + " is not safe. Set"
+                        + " database-max-connections to at most " + server.limit() + " (minus what other services"
+                        + " use) before raising the pool.");
             }
             if (target > budgetCap.get()) {
                 return Decision.refuse(Code.ABOVE_BUDGET_CAP, target + " is above the per-instance connection budget"

@@ -134,6 +134,36 @@ class ApplyGuardTest {
     }
 
     @Test
+    void configuredBudgetAboveTheServersLimitRefusesARaise() {
+        List<Recommendation> recs = List.of(rec(Action.INCREASE, 10, 13));
+        ServerConnectionLimit server = new ServerConnectionLimit(ServerConnectionLimit.Status.KNOWN, 20, "PostgreSQL",
+                "PostgreSQL max_connections 23 - superuser_reserved_connections 3 - reserved_connections 0 = 20");
+        KnobFacts facts = new KnobFacts(KNOB, WritableKnob.Kind.HIKARI, 10, 10, null, true, server);
+        Decision refused = ApplyGuard.checkApply(apply(10), ok, Optional.of(facts), recs, Optional.of(13), 100,
+                settings, NOW);
+        assertThat(refused.refusal().code()).isEqualTo(Code.BUDGET_EXCEEDS_SERVER);
+        assertThat(refused.refusal().status()).isEqualTo(409);
+        assertThat(refused.refusal().message()).contains("database-max-connections=100").contains("= 20")
+                .contains("at most 20");
+        // Equal to the server's limit is consistent.
+        assertThat(ApplyGuard.checkApply(apply(10), ok, Optional.of(facts), recs, Optional.of(13), 20, settings, NOW)
+                .approved()).isTrue();
+        // Unknown database, or the limit not read yet: not checked.
+        for (ServerConnectionLimit unknown : List.of(
+                new ServerConnectionLimit(ServerConnectionLimit.Status.UNSUPPORTED, null, "H2", "cannot read"),
+                ServerConnectionLimit.notRead("no idle connection yet"))) {
+            KnobFacts unchecked = new KnobFacts(KNOB, WritableKnob.Kind.HIKARI, 10, 10, null, true, unknown);
+            assertThat(ApplyGuard.checkApply(apply(10), ok, Optional.of(unchecked), recs, Optional.of(13), 100,
+                    settings, NOW).approved()).isTrue();
+        }
+        // Lowering a pool is never refused for it.
+        Recommendation lower = new Recommendation("ST-REC-HIKARI-003", KNOB, Action.DECREASE, 10, 6, "x", Map.of(),
+                Confidence.MEDIUM, List.of(), NOW);
+        assertThat(ApplyGuard.checkApply(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L, "idle"), ok,
+                Optional.of(facts), List.of(lower), Optional.of(13), 100, settings, NOW).approved()).isTrue();
+    }
+
+    @Test
     void executorIncreaseNeedsNoBudget() {
         String knobId = "executor.app.corePoolSize";
         Recommendation rec = new Recommendation("ST-REC-EXEC-001", knobId, Action.INCREASE, 8, 10, "x", Map.of(),
