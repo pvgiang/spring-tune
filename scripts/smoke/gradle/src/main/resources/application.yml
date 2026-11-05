@@ -1,0 +1,5 @@
+# Risky on purpose: springtuneCheck must report ST-HIKARI-001 (connectionTimeout 0 waits forever for a connection).
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 0

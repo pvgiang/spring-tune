@@ -15,6 +15,10 @@ Each step names its exit signal, so progress is measured by evidence rather than
 
 ## Step 1: release 0.3.0 (week 0)
 
+> **Status:** 0.3.0 shipped as a GitHub Release only; the Maven Central job was skipped because the secrets were
+> not set. Items 1–3 move to **0.4.0**, the first Central release ([releasing.md](releasing.md#releasing-040)).
+> Item 5 is [`post-release-smoke.yml`](../.github/workflows/post-release-smoke.yml).
+
 1. One-time setup in [releasing.md](releasing.md): the Central account as `winkytek`, user token, GPG key, the five
    secrets, and the issue labels.
 2. Tag `v0.3.0`. Check the bundle on central.sonatype.com and press *Publish*, then set `CENTRAL_STAGE=FULL`.
@@ -32,14 +36,17 @@ The plan's 0.5 definition of done requires proof under load. 0.3.0 has in-JVM ev
 | Item | Why | Exit |
 |---|---|---|
 | Testcontainers PostgreSQL + Gatling suite as a CI-only job (Docker) | Plan §16 testing. A real `max_connections`, real slow queries | Raise, "don't raise" and revert verified against PostgreSQL |
-| Three replicas raising at the same time against one database | The skeptic's pre-registered criterion for apply (brief AC-12) | Total connections never exceed the budget |
+| Three replicas raising at the same time against one database | Bar 2 of the pre-registered bar for apply ([iteration-4 brief §2](delivery/iteration-4-brief.md#2-pre-registered-bar-for-leaving-experimental-posre-recorded-before-any-load-test-code)) | Total connections never exceed the budget |
 | Apply over WebFlux security end to end; executor R6 end to end | Currently unit-level only | Tests green |
 | Limiter with virtual threads and with Spring Security in front | Declared gaps in `limiter.md` | Tests green, or documented as unsupported |
-| JMH overhead of the starter's sampler and the limiter filter | Plan §20: publish numbers | Numbers in the docs |
+| JMH overhead of the starter's sampler and the limiter filter | Plan §20: publish numbers | Numbers in the docs: [benchmarks.md](benchmarks.md) (both pre-registered gates pass) |
 | Re-run the corpus's Gradle projects through the Gradle plugin | Iteration 2 next step; the blind spot of the literal build reader | Updated corpus report |
 | Rules from `rule-request` issues; Kafka listener concurrency and cache rules from plan §1 | Phase 1 rule backlog | Each with docs page and fixture, false-positive rate tracked |
 
-**Exit (0.4):** load-suite results published; apply loses its "experimental" label only if AC-12 passes.
+**Exit (0.4):** load-suite results published. Apply loses its "experimental" label only when **all six** bars of
+[iteration-4 brief §2](delivery/iteration-4-brief.md#2-pre-registered-bar-for-leaving-experimental-posre-recorded-before-any-load-test-code)
+are met, including bar 1, a design partner running advise in production. Bars 2–6 are iteration 4's to prove;
+bar 1 cannot be met with zero users, so apply stays experimental in 0.4.0.
 
 ## Step 3: adoption, in parallel (weeks 1–28)
 
@@ -61,7 +68,7 @@ Score the four gates in [gates.md](adoption/gates.md) honestly:
 | Gate | Threshold | If it passes | If it fails |
 |---|---|---|---|
 | CI check has pull | 10+ teams, rule requests arriving | continue | more content, fewer features |
-| Recommendations trusted | ≥ 30% accepted | promote apply from experimental | improve rules; keep apply experimental |
+| Recommendations trusted | ≥ 30% accepted | promote apply from experimental, if all six bars of [iteration-4 brief §2](delivery/iteration-4-brief.md#2-pre-registered-bar-for-leaving-experimental-posre-recorded-before-any-load-test-code) are met | improve rules; keep apply experimental |
 | **Paid trigger** | 3+ teams ask for fleet, approvals, budget or audit; 1+ agrees to a paid pilot | **Step 5** | fallback: paid Spring production-readiness audits using the tool |
 | Autonomy wanted | Repeated unedited acceptance on one knob | offer autonomous mode for that knob only | stay at level 3 |
 
