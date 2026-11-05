@@ -74,5 +74,53 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Only for LimiterWithSpringSecurityTest, which runs in its own surefire execution (see below). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Spring Security on the test classpath would secure every test application of this module. The
+                 default execution runs without it; LimiterWithSpringSecurityTest runs alone, with it. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-test</id>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/LimiterWithSpringSecurityTest.java</exclude>
+                            </excludes>
+                            <classpathDependencyExcludes>
+                                <classpathDependencyExclude>org.springframework.boot:spring-boot-starter-security</classpathDependencyExclude>
+                                <classpathDependencyExclude>org.springframework.boot:spring-boot-security</classpathDependencyExclude>
+                                <classpathDependencyExclude>org.springframework.security:spring-security-config</classpathDependencyExclude>
+                                <classpathDependencyExclude>org.springframework.security:spring-security-core</classpathDependencyExclude>
+                                <classpathDependencyExclude>org.springframework.security:spring-security-crypto</classpathDependencyExclude>
+                                <classpathDependencyExclude>org.springframework.security:spring-security-web</classpathDependencyExclude>
+                            </classpathDependencyExcludes>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>spring-security-test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Explicit, so a -Dtest=... on the command line does not run other tests here. -->
+                            <test>LimiterWithSpringSecurityTest</test>
+                            <systemPropertyVariables>
+                                <springtune.test.spring-security>true</springtune.test.spring-security>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>
