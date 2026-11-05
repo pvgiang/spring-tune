@@ -77,6 +77,10 @@
                         </goals>
                         <configuration>
                             <localRepositoryPath>${project.build.directory}/it-repo</localRepositoryPath>
+                            <!-- CI runs this module with -Dinvoker.skip (to skip the Maven plugin ITs). In invoker 3.x
+                                 that property also skips install, which left the Gradle builds with an empty
+                                 repository. Staging is not an invoker IT, so it always runs. -->
+                            <skipInstallation>false</skipInstallation>
                         </configuration>
                     </execution>
                 </executions>
