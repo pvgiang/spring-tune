@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.github.winkytek.springtune</groupId>
+        <artifactId>springtune-parent</artifactId>
+        <version>0.3.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>springtune-loadtests</artifactId>
+    <name>SpringTune :: Load Tests</name>
+    <description>
+        Apply mode under load against a real PostgreSQL (docs/loadtests.md). Never installed or deployed. The suites
+        run only when asked for: -Dspringtune.it.postgres.url=... (an external server, superuser) or
+        -Dspringtune.it.requireDocker=true (Testcontainers postgres:17-alpine, fails without Docker) or
+        -Dspringtune.it.load=true (Testcontainers when Docker is available, skipped otherwise). A plain
+        'mvn verify' compiles them and runs nothing.
+    </description>
+
+    <properties>
+        <maven.install.skip>true</maven.install.skip>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+        <maven.source.skip>true</maven.source.skip>
+        <jacoco.skip>true</jacoco.skip>
+        <!-- The Boot 3.5 BOM manages Testcontainers 1.21.x (artifact 'postgresql'); 2.x renamed the modules. -->
+        <testcontainers.version>2.0.5</testcontainers.version>
+        <springtune.loadtests.skip>true</springtune.loadtests.skip>
+        <springtune.it.postgres.url/>
+        <springtune.it.postgres.user>postgres</springtune.it.postgres.user>
+        <springtune.it.postgres.password/>
+        <springtune.it.postgres.log/>
+        <springtune.it.requireDocker>false</springtune.it.requireDocker>
+        <springtune.it.seed/>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Declared before the BOM import so it wins over the parent's spring-boot-dependencies entries. -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers</artifactId>
+                <version>${testcontainers.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.winkytek.springtune</groupId>
+            <artifactId>springtune-spring-boot-starter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Response parsing in the tests (Jackson 2 on Boot 3.5 and 4.1 alike). -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <skipIfEmpty>true</skipIfEmpty>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>${springtune.loadtests.skip}</skip>
+                    <!-- No retries anywhere (docs/delivery/iteration-4-brief.md row 11). -->
+                    <rerunFailingTestsCount>0</rerunFailingTestsCount>
+                    <!-- One suite at a time: every suite budgets the same server's connections. -->
+                    <forkCount>1</forkCount>
+                    <reuseForks>true</reuseForks>
+                    <redirectTestOutputToFile>true</redirectTestOutputToFile>
+                    <systemPropertyVariables>
+                        <springtune.it.postgres.url>${springtune.it.postgres.url}</springtune.it.postgres.url>
+                        <springtune.it.postgres.user>${springtune.it.postgres.user}</springtune.it.postgres.user>
+                        <springtune.it.postgres.password>${springtune.it.postgres.password}</springtune.it.postgres.password>
+                        <springtune.it.postgres.log>${springtune.it.postgres.log}</springtune.it.postgres.log>
+                        <springtune.it.requireDocker>${springtune.it.requireDocker}</springtune.it.requireDocker>
+                        <springtune.it.seed>${springtune.it.seed}</springtune.it.seed>
+                        <springtune.it.results>${project.build.directory}/loadtests</springtune.it.results>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>loadtests-external</id>
+            <activation>
+                <property>
+                    <name>springtune.it.postgres.url</name>
+                </property>
+            </activation>
+            <properties>
+                <springtune.loadtests.skip>false</springtune.loadtests.skip>
+            </properties>
+        </profile>
+        <profile>
+            <id>loadtests-docker</id>
+            <activation>
+                <property>
+                    <name>springtune.it.requireDocker</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <springtune.loadtests.skip>false</springtune.loadtests.skip>
+            </properties>
+        </profile>
+        <profile>
+            <id>loadtests-opt-in</id>
+            <activation>
+                <property>
+                    <name>springtune.it.load</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <springtune.loadtests.skip>false</springtune.loadtests.skip>
+            </properties>
+        </profile>
+    </profiles>
+</project>

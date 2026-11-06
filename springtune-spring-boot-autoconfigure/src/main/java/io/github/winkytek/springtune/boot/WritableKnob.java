@@ -13,9 +13,15 @@ import java.util.function.Supplier;
  * @param configuredValue value when SpringTune discovered the component (the startup configuration)
  * @param writer          the only path to the setter
  * @param counters        cumulative counters, read on every sampler tick; empty when unavailable
+ * @param serverLimit     the database server's connection limit (Hikari), checked before a pool is raised
  */
 record WritableKnob(String knobId, String componentId, Kind kind, long configuredValue, KnobWriter writer,
-        Supplier<Map<String, Double>> counters) {
+        Supplier<Map<String, Double>> counters, Supplier<ServerConnectionLimit> serverLimit) {
+
+    WritableKnob(String knobId, String componentId, Kind kind, long configuredValue, KnobWriter writer,
+            Supplier<Map<String, Double>> counters) {
+        this(knobId, componentId, kind, configuredValue, writer, counters, ServerConnectionLimit::notApplicable);
+    }
 
     enum Kind {
         HIKARI,

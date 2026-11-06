@@ -68,6 +68,43 @@ class AdvisorTest {
         assertThat(rec.reason()).contains("No connection budget is configured");
     }
 
+    /** Saturated samples with fast holds, of which the first {@code starved} hold only {@code open} connections. */
+    private static List<HikariSample> failing(int count, int starved, int open, double timeoutsPerSample) {
+        List<HikariSample> samples = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            int total = i < starved ? open : 10;
+            samples.add(new HikariSample(T0.plusSeconds(10L * i), total, 0, 4, 10, true, 10L * i, 10L * i * 30.0,
+                    10L * i, 10L * i * 20, timeoutsPerSample * i));
+        }
+        return samples;
+    }
+
+    @Test
+    void poolThatCannotOpenConnectionsIsNotRaised() {
+        // Failing database: threads wait, holds are short (20 ms), but the pool stays at 4 of 10 connections.
+        Recommendation rec = advise(failing(31, 31, 4, 0), List.of(), Optional.of(50)).orElseThrow();
+        assertThat(rec.ruleId()).isEqualTo(HikariAdvisor.HOLD_STARVED);
+        assertThat(rec.action()).isEqualTo(Action.HOLD);
+        assertThat(rec.recommendedValue()).isEqualTo(10);
+        assertThat(rec.reason()).startsWith("Do not raise the pool").contains("as few as 4")
+                .contains("refusing or failing new connections");
+        assertThat(rec.evidence()).containsEntry("samplesBelowMaximumWhileWaiting", "100%")
+                .containsEntry("fewestOpenConnectionsWhileWaiting", "4 of 10").containsEntry("acquireTimeouts", "0");
+
+        // A few starved samples plus acquire timeouts are enough.
+        Recommendation timeouts = advise(failing(31, 3, 8, 1), List.of(), Optional.of(50)).orElseThrow();
+        assertThat(timeouts.ruleId()).isEqualTo(HikariAdvisor.HOLD_STARVED);
+        assertThat(timeouts.reason()).contains("30 connection requests timed out");
+
+        // A few starved samples without timeouts (Hikari filling after a raise, maxLifetime replacement): still raised.
+        Recommendation filling = advise(failing(31, 3, 8, 0), List.of(), Optional.of(50)).orElseThrow();
+        assertThat(filling.ruleId()).isEqualTo(HikariAdvisor.RAISE);
+        assertThat(filling.action()).isEqualTo(Action.INCREASE);
+        // Timeouts with a full pool are a pool that is too small, not a failing database.
+        Recommendation full = advise(failing(31, 0, 10, 1), List.of(), Optional.of(50)).orElseThrow();
+        assertThat(full.action()).isEqualTo(Action.INCREASE);
+    }
+
     @Test
     void longHoldsMeanDoNotRaise() {
         Recommendation rec = advise(hikari(31, 31, 900, 10, true), List.of(), Optional.of(50)).orElseThrow();

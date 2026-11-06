@@ -29,6 +29,7 @@ Every recommendation carries its evidence and a confidence level.
 |---|---|---|
 | `ST-REC-HIKARI-001` | Threads waited in ≥ `saturated-ratio` (80%) of samples over `window` (5 m) **and** the mean hold time ≤ `slow-usage` (500 ms) | INCREASE by `step` (25%, at least +1), capped by the budget. HOLD when at or above the cap. |
 | `ST-REC-HIKARI-002` | Same waiting, but the mean hold time > `slow-usage`, or hold-time metrics are missing | HOLD: "do not raise the pool", points at slow queries/transactions (HIGH confidence; LOW without metrics) |
+| `ST-REC-HIKARI-004` | Same waiting, but the pool held **fewer connections than its maximum** while threads waited in ≥ 50% of the window's samples, or acquire timeouts occurred while it did | HOLD: "do not raise the pool": the database refuses or fails new connections (`max_connections`, a role `CONNECTION LIMIT`, network, authentication), so a larger pool would only add connection attempts to a failing database. Checked before 001/002 (HIGH confidence). |
 | `ST-REC-HIKARI-003` | Over `low-utilization-window` (24 h) no thread ever waited and peak active < `low-utilization` (20%) of the pool | DECREASE to max(2, 2 × peak) |
 | `ST-REC-EXEC-001` | Queued tasks with all threads busy in ≥ `backlog-ratio` (80%) of samples | Unbounded queue: INCREASE `corePoolSize` (max size has no effect). Bounded queue at max: INCREASE `maxPoolSize`. |
 
@@ -130,6 +131,7 @@ current state). Every request, including refusals, is audited with the caller's 
 | Compare-and-set: `expectedCurrent` and the recommendation's `currentValue` must equal the live value | `STALE_EXPECTED_CURRENT` (409) |
 | Optional `expectedTarget` must equal the fresh recommendation's value | `STALE_EXPECTED_TARGET` (409) |
 | Raising a Hikari pool needs `springtune.budget.*` and stays ≤ the per-instance cap | `NO_BUDGET`, `ABOVE_BUDGET_CAP` (400) |
+| Raising a Hikari pool: `database-max-connections` must not exceed what the **server** accepts from application roles (read once through the pool: PostgreSQL `max_connections − superuser_reserved_connections − reserved_connections`, MySQL/MariaDB `@@max_connections`; other databases are not checked and the apply plan says so) | `BUDGET_EXCEEDS_SERVER` (409) |
 | Step: `abs(new − current) ≤ max(1, ceil(current × max-step))` | `STEP_LIMIT` (400) |
 | Growth: `new` within `[startup / max-growth-factor, startup × max-growth-factor]` | `GROWTH_LIMIT` (400) |
 | Counters cover the `baseline` window before the change | `BASELINE_NOT_COVERED` (409) |
@@ -188,6 +190,26 @@ outcomes (`confirmed`, `reverted`, `kept_inconclusive`, `superseded`, `revert_fa
 - **Per instance.** Apply acts on the instance that receives the request; behind a load balancer you cannot choose
   which one. Other replicas are unaffected, and nothing coordinates changes across replicas. The budget cap assumes
   every replica could be at the same size, so raising one instance never exceeds it.
+- **Count surge pods in `max-replicas`.** The cap is only as good as `max-replicas`. A rolling update's `maxSurge`
+  pods and an HPA's maximum run at the same pool size as everyone else: set `max-replicas` to the **largest number
+  of pods that can run at once** (HPA max + surge), not the steady-state count. The load suite shows what happens
+  otherwise: 4 pods with `max-replicas=3` reached 19 sessions against a usable budget of 16 and the server refused
+  connections (`docs/loadtests.md`).
+- **Other clients of the database.** `database-max-connections` is what *this service* may use. Other services,
+  admin sessions, migrations and monitoring must fit in the headroom the safety factor leaves
+  (`max − floor(max × safety-factor)`), or be subtracted from `database-max-connections`.
+- **Server limit check.** In apply mode with a budget, SpringTune reads the server's connection limit once, with one
+  connection borrowed from the pool like any other request, on a short-lived thread (the sampler never waits for
+  it). Until that read succeeds the check is skipped and the apply plan says "server limit not checked yet". It is
+  not re-read after a database restart with a different `max_connections`; restart the application then.
+- **Failing database.** When threads wait but the pool cannot open the connections it has room for (connections
+  refused or failing), the recommendation is `ST-REC-HIKARI-004` HOLD, so apply is refused
+  (`RECOMMENDATION_IS_HOLD`). A change already in flight is still judged by R1 (timeouts) and reverted.
+- **A revert of a fixed-size pool does not close the extra connection at once.** With `minimumIdle` =
+  `maximumPoolSize`, HikariCP never retires idle connections, so a connection opened while the pool was larger
+  stays open until `maxLifetime`: after a 4 → 5 → 4 revert the database still sees 5 sessions from that instance for
+  up to `maxLifetime` (30 min by default). The budget cap already assumes every instance at the cap, so this never
+  exceeds it.
 - **Per pool.** The per-instance cap applies to each Hikari pool separately (as in ST-HIKARI-004). If one instance has
   several pools on the **same** database, size `springtune.budget.*` for that (e.g. count each pool as a replica).
 - **Cumulative metrics only.** Verification and hold-time means use differences of cumulative Micrometer values.
@@ -263,6 +285,11 @@ Expose with `management.endpoints.web.exposure.include=tuning`, then `GET /actua
 | **Real `ThreadPoolTaskExecutor`** (`AbortPolicy`, core = max = 2), open-loop submitter (130 tasks/s, seeded jitter, 20 ms tasks, counts the `TaskRejectedException`s it gets): (a) bounded queue → ST-REC-EXEC-001 `maxPoolSize` 2→3, written as `max=3`, CONFIRMED on R6; (b) tasks slow from 20 to 45 ms above 2 concurrent → R6 "more tasks are rejected" → REVERTED to 2, threads above it retire; (c) unbounded queue → `corePoolSize` 2→3 across the maximum: apply writes `max=3, core=3`, manual revert writes `core=2, max=2`. In (a) and (b) the rejections counted for R6 equal those the submitter received from `AbortPolicy` | `ExecutorApplyIntegrationTest` |
 | **Real HikariCP + H2 + Micrometer**, advise: 15 ms holds → INCREASE 2→3 (cap 13); budget cap 2 → HOLD; 700 ms holds → "do not raise" | `HikariContentionIntegrationTest` |
 | Real Boot app: `/actuator/tuning` content, POST rejected in advise mode | `BrokenConfigApplicationTest` |
+| Starved pool (failing database) → `ST-REC-HIKARI-004` HOLD; a few starved samples without timeouts (filling after a raise) still raise; timeouts with a full pool still raise | `AdvisorTest` |
+| `BUDGET_EXCEEDS_SERVER`: refused above the server's limit, allowed at it, not checked for unknown databases or before the limit was read, never for a DECREASE; plan line; H2 is unsupported | `ApplyGuardTest`, `ApplyPlansTest` |
+| **Real PostgreSQL**, real Boot replicas, open-loop load: raise confirmed, slow SQL held, regression reverted once without oscillation, 3 replicas raising at once within budget, short `maxLifetime`, one replica reverting while two raise, another service holding connections, surge pod (breach detected when not counted, none when counted), `BUDGET_EXCEEDS_SERVER` (100 vs 20), failing database (role `CONNECTION LIMIT`) not raised | `springtune-loadtests` ([docs/loadtests.md](loadtests.md)) |
 
-All of the above run on Spring Boot 4.1 and 3.5. Not verified here: production metric registries other than
-`SimpleMeterRegistry`, WebFlux beyond the write operation's security (`ApplyReactiveSecurityWebTest`), and real databases (no Docker in this environment).
+The unit and H2 tests run on Spring Boot 4.1 and 3.5; the load suites on Spring Boot 4.1 only (PostgreSQL 16
+locally, `postgres:17-alpine` in CI). Not verified: production metric registries other than `SimpleMeterRegistry`,
+WebFlux beyond the write operation's security (`ApplyReactiveSecurityWebTest`), MySQL/MariaDB (the server-limit query is written but untested), and replicas on separate
+machines (the load suite runs them in one JVM).

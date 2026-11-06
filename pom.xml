@@ -56,6 +56,7 @@
         <module>springtune-spring-boot-autoconfigure</module>
         <module>springtune-spring-boot-starter</module>
         <module>springtune-limiter</module>
+        <module>springtune-loadtests</module>
         <module>springtune-samples/broken-config</module>
     </modules>
 
