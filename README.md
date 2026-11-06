@@ -186,6 +186,7 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 - [Case study: what we found in 20 popular Spring Boot projects](docs/case-study/what-we-found-in-20-spring-boot-projects.md)
 - [Corpus run: method, per-rule precision, raw results](docs/corpus/2026-11-corpus-report.md)
 - [Runtime starter](docs/starter.md)
+- [Load tests: apply mode against a real PostgreSQL](docs/loadtests.md)
 - [Adaptive limiter: when it helps, when it hurts, rollout, measurements](docs/limiter.md)
 - [CI integration (GitHub code scanning)](docs/ci-integration.md)
 - [Grafana dashboard for the starter, apply and limiter metrics](docs/grafana/README.md)

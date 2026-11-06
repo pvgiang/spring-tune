@@ -63,6 +63,32 @@ jobs:
       - name: Starter and sample against Spring Boot 3.5.x
         run: mvn -B -ntp verify -Dspring-boot.version=3.5.16 -Dinvoker.skip -DskipITs
 
+  loadtests:
+    name: Load tests (real PostgreSQL, Testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Apply mode under load against postgres:17-alpine (one pass, no retries)
+        # requireDocker=true turns "no Docker" into a failure instead of a skip. docs/loadtests.md
+        run: >
+          mvn -B -ntp verify -pl springtune-loadtests -am -DskipITs -Dinvoker.skip
+          -Dspringtune.it.requireDocker=true
+      - name: Upload results and server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: loadtests-results
+          path: |
+            springtune-loadtests/target/loadtests/
+            springtune-loadtests/target/surefire-reports/
+          if-no-files-found: warn
+
   self-check:
     name: SpringTune check on the sample (demo)
     runs-on: ubuntu-latest

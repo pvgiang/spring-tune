@@ -1,0 +1,80 @@
+name: Nightly stability
+
+# Brief iteration 4, rows 11 and 17: the load suite 3 times and HikariApplyIntegrationTest 30 times, every night,
+# with no retries anywhere. The load suite gates release tags only after 20 consecutive green nightlies.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  loadtests:
+    name: Load suite (pass ${{ matrix.pass }} of 3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        pass: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Load suite against postgres:17-alpine
+        run: >
+          mvn -B -ntp verify -pl springtune-loadtests -am -DskipITs -Dinvoker.skip
+          -Dspringtune.it.requireDocker=true
+      - name: Upload results and server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-loadtests-pass-${{ matrix.pass }}
+          path: |
+            springtune-loadtests/target/loadtests/
+            springtune-loadtests/target/surefire-reports/
+          if-no-files-found: warn
+
+  hikari-apply-30x:
+    name: HikariApplyIntegrationTest x30
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Build once
+        run: mvn -B -ntp -q install -DskipTests -Dinvoker.skip -pl springtune-spring-boot-autoconfigure -am
+      - name: 30 consecutive runs, every failure counted, none retried
+        run: |
+          mvn -B -ntp -q test-compile -pl springtune-spring-boot-autoconfigure
+          failures=0
+          reports=springtune-spring-boot-autoconfigure/target
+          for i in $(seq 1 30); do
+            if mvn -B -ntp -o -q surefire:test -pl springtune-spring-boot-autoconfigure \
+                -Dtest=HikariApplyIntegrationTest; then
+              echo "run $i: green"
+            else
+              echo "run $i: RED"
+              failures=$((failures + 1))
+            fi
+            mkdir -p "$reports/nightly-reports/run-$i"
+            cp "$reports"/surefire-reports/*HikariApplyIntegrationTest* "$reports/nightly-reports/run-$i/" || true
+          done
+          echo "HikariApplyIntegrationTest: $((30 - failures))/30 green"
+          test "$failures" -eq 0
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-hikari-apply-reports
+          path: springtune-spring-boot-autoconfigure/target/nightly-reports/
+          if-no-files-found: warn

@@ -69,6 +69,8 @@ class DatabaseGuardLoadTest {
                 seen.add(r.path("ruleId").asText() + " " + r.path("action").asText());
                 return true;
             }, "a recommendation");
+            scenario.record("recommendation " + rec);
+            assertThat(rec.path("action").asText()).as(rec.toString()).isEqualTo("HOLD");
             ApplyResult reviewed = replica.apply(rec, "load test: apply what is recommended");
             ApplyResult raise = replica.apply(PostgresApplyLoadTest.RAISE, 4, 5, "load test: raise anyway");
             // For a whole window more, nothing recommends a raise.

@@ -116,9 +116,13 @@ class PostgresApplyLoadTest {
             assertThat(applied.status()).as(applied.body().toString()).isEqualTo(200);
             JsonNode entry = Operator.awaitFinal(replica, applied.changeId());
             int sessionsAtRevert = probe.maxOf("replica-1");
+            scenario.record("outcome " + entry.path("outcome").asText() + " verdict " + entry.path("verdict").asText()
+                    + " reasons " + entry.path("reasons") + " evidence " + entry.path("evidence"));
+            assertThat(entry.path("outcome").asText()).as(entry.toString()).isEqualTo("REVERTED");
 
             // Still saturated, so the operator tries again: the knob is locked for cooldown-after-revert.
             ApplyResult second = replica.apply(RAISE, 4, 5, "load test: second attempt after the revert");
+            assertThat(second.code()).as(second.body().toString()).isEqualTo("COOLDOWN");
             // No third change: for longer than the normal cooldown (10 s) the pool stays at 4.
             await("pool stays at 4 after the revert").during(Duration.ofSeconds(25)).atMost(Duration.ofSeconds(40))
                     .pollInterval(Duration.ofMillis(500)).until(() -> replica.maximumPoolSize() == 4);
@@ -128,8 +132,6 @@ class PostgresApplyLoadTest {
                     .count();
 
             scenario.record("load " + load.stats());
-            scenario.record("outcome " + entry.path("outcome").asText() + " verdict " + entry.path("verdict").asText()
-                    + " reasons " + entry.path("reasons") + " evidence " + entry.path("evidence"));
             scenario.record("second apply -> " + second.status() + " " + second.code() + "; third -> " + third.status()
                     + " " + third.code() + "; executed applies " + applied4to5);
             scenario.record("server sessions replica-1: max up to the revert " + sessionsAtRevert + ", max overall "
