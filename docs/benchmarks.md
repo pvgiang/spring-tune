@@ -6,7 +6,7 @@ asks for published numbers; the gates were pre-registered in the
 
 | Gate (pre-registered) | Measured (mean ± 99.9 % error) | Verdict |
 |---|---|---|
-| Sampler tick with 4 components **< 1 ms** | **479 ± 45 µs** | **Pass** (upper bound 524 µs) |
+| Sampler tick with 4 components **< 1 ms** | **376 ± 17 µs** (re-measured 2026-11-06 after a setup fix, see below) | **Pass** (upper bound 393 µs) |
 | Limiter filter adds **< 10 µs** per request, 1 thread | **0.38 ± 0.02 µs** (shadow), **0.39 ± 0.02 µs** (enforce) | **Pass** |
 | Limiter filter adds **< 10 µs** per request, 8 threads | **4.6 ± 3.3 µs** (shadow), **4.6 ± 1.0 µs** (enforce) | **Pass**, with less margin (upper bound 7.9 µs); see [contention](#contention-in-the-limiter) |
 
@@ -24,8 +24,11 @@ These are one machine's numbers, not a property of the code. Rerun on yours befo
 | SpringTune | 0.3.0-SNAPSHOT, commit `d1df94b` + this change |
 | JMH | `-f 2 -wi 3 -i 5 -prof gc`, 2 s per iteration: 2 forks × 5 measured iterations = 10 samples per row |
 
-Raw JMH output: [2026-11-05-sandbox-4vcpu.json](benchmarks/2026-11-05-sandbox-4vcpu.json) and, for the extra 4-thread
-filter run, [2026-11-05-sandbox-4vcpu-filter-4threads.json](benchmarks/2026-11-05-sandbox-4vcpu-filter-4threads.json).
+Raw JMH output: [2026-11-05-sandbox-4vcpu.json](benchmarks/2026-11-05-sandbox-4vcpu.json) (limiter filter; its sampler
+rows predate the setup fix below), for the extra 4-thread filter run
+[2026-11-05-sandbox-4vcpu-filter-4threads.json](benchmarks/2026-11-05-sandbox-4vcpu-filter-4threads.json), and for the
+sampler tick [2026-11-06-sandbox-4vcpu-sampler.json](benchmarks/2026-11-06-sandbox-4vcpu-sampler.json) (same machine,
+same options).
 
 ## Sampler tick (`SamplerTickBenchmark`)
 
@@ -41,10 +44,18 @@ and scans full windows. A freshly started application is cheaper.
 
 | Components | Time per tick | Allocated per tick |
 |---|---|---|
-| 1 (one Hikari pool) | 191 ± 22 µs | 115 KB |
-| 4 (two Hikari pools, two executors) | **479 ± 45 µs** | 231 KB |
+| 1 (one Hikari pool) | 170 ± 6 µs | 115 KB |
+| 4 (two Hikari pools, two executors) | **376 ± 17 µs** | 232 KB |
 
-At the default 10 s interval, 479 µs is about 0.005 % of one core. The cost is dominated by the Hikari component's
+**Setup fix (2026-11-06).** The first version of the benchmark filled the windows without advancing the clock, so all
+8,651 setup samples had the same timestamp: the 24 h window never counted as covered and the deque held up to twice
+the samples until about 8,641 ticks into the run evicted them all at once. A run without warm-up showed it (iterations
+of 1 s: 226, 470, 600, 596, 386, 354 µs). With the default 3 × 2 s warm-up that happened before measurement; the
+first published numbers (191 ± 22 and 479 ± 45 µs, in the 2026-11-05 JSON) were therefore also steady state. We
+have not explained why they are higher than the rerun (the host is a shared VM); the gate verdict is the same either
+way. Setup now steps the clock per sample.
+
+At the default 10 s interval, 376 µs is about 0.004 % of one core. The cost is dominated by the Hikari component's
 24 h window: every tick copies the samples covering it into a new list (hence ~115 KB per pool per tick), so it grows
 with `low-utilization-window / sampling.interval`. A 1 s interval with the default 24 h window would retain 86,401
 samples per pool and cost roughly ten times more per tick, ten times as often; that configuration was not measured.

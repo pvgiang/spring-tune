@@ -36,13 +36,16 @@ export GRADLE_USER_HOME="$WORK/gradle-home"
 if [ -z "$STAGING" ] && [ "$WAIT_MINUTES" -gt 0 ]; then
   CENTRAL="https://repo.maven.apache.org/maven2/$GROUP_PATH"
   URLS=(
+    "$CENTRAL/springtune-model/$VERSION/springtune-model-$VERSION.jar"
     "$CENTRAL/springtune-check-engine/$VERSION/springtune-check-engine-$VERSION.jar"
+    "$CENTRAL/springtune-spring-boot-autoconfigure/$VERSION/springtune-spring-boot-autoconfigure-$VERSION.jar"
     "$CENTRAL/springtune-spring-boot-starter/$VERSION/springtune-spring-boot-starter-$VERSION.pom"
     "$CENTRAL/springtune-limiter/$VERSION/springtune-limiter-$VERSION.jar"
   )
   MARKER="io.github.winkytek.springtune.gradle.plugin/$VERSION/io.github.winkytek.springtune.gradle.plugin-$VERSION.pom"
   case "$PLUGIN_REPO" in
-    portal) URLS+=("https://plugins.gradle.org/m2/$GROUP_PATH/$MARKER") ;;
+    portal) URLS+=("https://plugins.gradle.org/m2/$GROUP_PATH/$MARKER"
+                   "https://plugins.gradle.org/m2/$GROUP_PATH/springtune-gradle-plugin/$VERSION/springtune-gradle-plugin-$VERSION.jar") ;;
     central) URLS+=("$CENTRAL/$MARKER" "$CENTRAL/springtune-gradle-plugin/$VERSION/springtune-gradle-plugin-$VERSION.jar") ;;
   esac
   deadline=$(( $(date +%s) + WAIT_MINUTES * 60 ))

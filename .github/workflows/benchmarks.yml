@@ -33,12 +33,15 @@ jobs:
           { echo "## Machine"; echo '```'; nproc; grep -m1 "model name" /proc/cpuinfo; free -h | head -2; java -version 2>&1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run JMH
+        # Explicit bash: the default run shell has no pipefail, so a failing JMH run piped into tee would pass.
+        shell: bash
         env:
           JMH_ARGS: ${{ inputs.jmh-args }}
         run: |
-          # JMH_ARGS is split on spaces on purpose (it is a list of options).
+          # JMH_ARGS is split on spaces on purpose (it is a list of options). -foe true: a benchmark that throws
+          # (e.g. LimiterFilterBenchmark's "unexpected rejections" check) fails the run instead of being skipped.
           # shellcheck disable=SC2086
-          java -jar springtune-benchmarks/target/benchmarks.jar $JMH_ARGS -rf json -rff jmh-result.json | tee jmh.txt
+          java -jar springtune-benchmarks/target/benchmarks.jar $JMH_ARGS -foe true -rf json -rff jmh-result.json | tee jmh.txt
           { echo "## Results"; echo '```'; sed -n '/^Benchmark /,$p' jmh.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4

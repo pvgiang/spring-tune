@@ -98,6 +98,9 @@ public class SamplerTickBenchmark {
                 .plus(properties.getSampling().getInterval());
         long fill = longest.dividedBy(properties.getSampling().getInterval()) + 10;
         for (long i = 0; i < fill; i++) {
+            // Advance the clock as the measured ticks do: samples taken at one instant never cover the 24 h
+            // window, so every rule would see "not enough evidence" until 24 h of measured ticks had passed.
+            clock.step();
             service.sample();
         }
     }

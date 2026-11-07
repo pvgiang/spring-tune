@@ -86,7 +86,8 @@ class ExecutorApplyIntegrationTest {
     /** Runs the scenario; {@code afterVerification} runs while the load is still on (e.g. a manual revert). */
     private Run run(int queueCapacity, long fastMs, long slowMs, int saturatesAbove,
             java.util.function.Function<Run, Run> afterVerification) throws Exception {
-        long seed = System.nanoTime();
+        // Rerun a printed seed with -Dspringtune.test.seed=<seed> (the arrival times, not the scheduling, repeat).
+        long seed = Long.getLong("springtune.test.seed", System.nanoTime());
         System.out.println("ExecutorApplyIntegrationTest submitter seed=" + seed);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         RecordingExecutor executor = new RecordingExecutor();
