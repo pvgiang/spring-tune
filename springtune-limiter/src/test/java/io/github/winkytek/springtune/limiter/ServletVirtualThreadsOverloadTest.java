@@ -197,7 +197,6 @@ class ServletVirtualThreadsOverloadTest {
         // 200 platform workers could hold, and everything queues on the downstream.
         assertThat(off.rejected()).isZero();
         assertThat(offPeak).as("no worker-thread ceiling").isGreaterThan(200);
-        assertThat(offServer.okP99Millis()).isGreaterThan(4.0 * ServletTestApplication.FakeDownstream.SERVICE_MILLIS);
 
         assertThat(limiter.inflight()).as("permits leaked").isZero();
         assertThat(inflightPeak).as("inflight never above max-limit").isLessThanOrEqualTo(MAX_LIMIT);

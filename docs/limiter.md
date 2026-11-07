@@ -239,8 +239,8 @@ changes shape. These are in-JVM tests on one machine.
   `max-limit=60`: with the limiter off more than 200 requests are in the handler at once (all on virtual
   threads), so the ceiling really is gone; in enforce mode, after warm-up, the requests in the handler at once
   and the limiter's `inflight` never exceed `max-limit`, nothing passes without a permit, every 503 has
-  `Retry-After`, health answers 200, `inflight` returns to 0, and the server-side p50 is under a quarter and the p99
-  under three quarters of the limiter-off values. **During warm-up**
+  `Retry-After`, health answers 200 and `inflight` returns to 0. Latency is printed, not asserted (see below).
+  **During warm-up**
   (`warmup-samples`) nothing is rejected, so a cold instance hit by a burst has no cap at all on virtual
   threads (`max-limit` does not apply either); keep `warmup-samples` small. **One CPU:** pinned to a single CPU
   (`taskset -c 0`, server and 240 client threads together), enforce mode on virtual threads served only 20
