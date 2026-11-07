@@ -87,7 +87,12 @@ Every replica starts at 4/4 and is saturated, so each one is recommended 4 → 5
    short-lived thread with one pooled connection, so the sampler never waits behind a saturated pool.
 2. **`ST-REC-HIKARI-004` HOLD** (row 8). Threads waiting while the pool holds fewer connections than its maximum in
    ≥ 50% of the window's samples, or acquire timeouts while it does, means the database refuses or fails new
-   connections. Checked before 001/002.
+   connections. Checked before 001/002. "Fewer connections" is HikariCP's `getTotalConnections()` (one read of
+   the pool's connection list), not `active + idle`: those are two separate scans, and a connection handed from
+   one thread to the next between them is in neither. Measured on a healthy, full 4/4 pool with 1 ms holds and
+   12 threads: 7 of 1955 readings had `active + idle = 3` while threads waited (0 with `total`), so with acquire
+   timeouts in the window a single such reading turned a pool that is simply too small into a 004 HOLD (review
+   finding, fixed; `AdvisorTest.connectionInHandoffIsNotAStarvedPool`).
 
 Findings documented, not changed:
 
@@ -137,6 +142,14 @@ restored. Every one was caught (2026-11-05, PostgreSQL 16.15):
 | M4 | `ChangeController`: no cooldown after a revert (`cooldownUntil = now`; the property itself rejects 0) | same test | REVERTED, then the second apply was **200** "Applied 4 -> 5": oscillation |
 | M5 | `ApplyGuard`: `BUDGET_EXCEEDS_SERVER` check removed | `DatabaseGuardLoadTest.budgetLargerThanTheServerIsRefused` | the apply was accepted (200) with a budget of 100 on a 20-connection server |
 | M6 | `HikariAdvisor`: `ST-REC-HIKARI-004` removed (the product before this iteration) | `DatabaseGuardLoadTest.databaseRefusingConnectionsIsNotAnswerWithALargerPool` | the failing database got `ST-REC-HIKARI-001` **INCREASE** 4 → 5 ("connections were returned quickly (30 ms average hold)") |
+
+An independent review (2026-11-06) re-ran M5 and M6 (both caught as above) and added two mutations the load suite
+is **not** meant to catch, to show where the unit tests carry the proof:
+
+| # | Mutation | Load suite | Unit tests |
+|---|---|---|---|
+| M7 | `HikariPoolWriter.plan`: never moves `minimumIdle` (a fixed 4/4 pool becomes 5/4 dynamic) | **survives** (`PostgresApplyLoadTest`, `threeReplicasRaisingAtOnce...` green: HikariCP grows on demand anyway) | caught: `KnobWriterTest`, `HikariApplyIntegrationTest` |
+| M8 | `ChangeController`: in-flight flag always false (two changes at once) | not exercised (one knob per replica, no apply during VERIFYING) | caught: `ChangeControllerTest` (2 tests) |
 
 The surge test (`surgeReplicaNotCountedInMaxReplicasBreachesTheBudget`) is the standing negative control for the
 probe and `serverLogAndClientSeeTheServersLimit` for the log scan: both must observe a breach on every run.

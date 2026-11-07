@@ -106,6 +106,23 @@ class AdvisorTest {
     }
 
     @Test
+    void connectionInHandoffIsNotAStarvedPool() {
+        // A full, saturated pool that is too small (acquire timeouts). In one sample HikariCP's two separate scans
+        // (in use, then idle) missed a connection being handed from one thread to the next: active + idle = 9,
+        // but the pool holds all 10. That is not a failing database: the pool must still be raised.
+        List<HikariSample> samples = new ArrayList<>();
+        for (int i = 0; i < 31; i++) {
+            int active = i == 7 ? 9 : 10;
+            samples.add(new HikariSample(T0.plusSeconds(10L * i), active, 0, 4, 10, true, 10L * i, 10L * i * 30.0,
+                    10L * i, 10L * i * 20, i, 10));
+        }
+        Recommendation rec = advise(samples, List.of(), Optional.of(50)).orElseThrow();
+        assertThat(rec.ruleId()).isEqualTo(HikariAdvisor.RAISE);
+        assertThat(rec.action()).isEqualTo(Action.INCREASE);
+        assertThat(samples.get(7).starved()).isFalse();
+    }
+
+    @Test
     void longHoldsMeanDoNotRaise() {
         Recommendation rec = advise(hikari(31, 31, 900, 10, true), List.of(), Optional.of(50)).orElseThrow();
         assertThat(rec.ruleId()).isEqualTo(HikariAdvisor.HOLD_SLOW);

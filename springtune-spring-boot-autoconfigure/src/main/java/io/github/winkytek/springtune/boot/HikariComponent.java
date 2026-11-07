@@ -176,7 +176,7 @@ final class HikariComponent implements TunedComponent {
                 pool.getThreadsAwaitingConnection(), dataSource.getHikariConfigMXBean().getMaximumPoolSize(), available,
                 acquire.map(TimerReader.Totals::count).orElse(0L), acquire.map(TimerReader.Totals::totalMs).orElse(0.0),
                 usage.map(TimerReader.Totals::count).orElse(0L), usage.map(TimerReader.Totals::totalMs).orElse(0.0),
-                timers.counter("hikaricp.connections.timeout", poolName()).orElse(0.0)));
+                timers.counter("hikaricp.connections.timeout", poolName()).orElse(0.0), pool.getTotalConnections()));
         if (serverLimit.status() == ServerConnectionLimit.Status.NOT_READ
                 && readingServerLimit.compareAndSet(false, true)) {
             Thread reader = new Thread(this::readServerLimit, "springtune-server-limit-" + poolName());

@@ -94,7 +94,7 @@ final class HikariAdvisor {
         double starved = SampleWindow.ratio(window, HikariSample::starved);
         double timeouts = last.timeouts() - first.timeouts();
         if (starved >= STARVED_RATIO || (timeouts > 0 && starved > 0)) {
-            int fewest = window.stream().filter(HikariSample::starved).mapToInt(s -> s.active() + s.idle()).min()
+            int fewest = window.stream().filter(HikariSample::starved).mapToInt(HikariSample::total).min()
                     .orElse(current);
             evidence.put("samplesBelowMaximumWhileWaiting", Format.percent(starved));
             evidence.put("fewestOpenConnectionsWhileWaiting", fewest + " of " + current);
