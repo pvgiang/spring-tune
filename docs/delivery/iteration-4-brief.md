@@ -45,10 +45,52 @@ Eng architect designed, PO/SRE skeptic attacked; the user's instruction settles 
 | 16 | Eng | `docs/releases/v0.3.0.md` claims "first release on Maven Central"; it was GitHub-only. | Amended; 0.4.0 notes carry the first-Central framing and every known limit. |
 | 17 | PO/SRE | `HikariApplyIntegrationTest` must be proven stable, not hoped stable. | Root cause fixed (think time); 30 consecutive local runs recorded below, and the nightly runs it again. |
 
+### Review round (adversarial reviewers against the implementations)
+
+| # | Raised by | Finding | Decision |
+|---|---|---|---|
+| R1 | Load reviewer | **`ST-REC-HIKARI-004` false HOLD** on a healthy, too-small pool: HikariCP counts active and idle in two scans, so a connection in handoff was counted in neither and the pool looked starved (reproduced on PostgreSQL 16: 7 of 1955 readings at 1 ms holds). One such reading with timeouts blocked a needed raise for a window. | **Fixed (production):** starvation uses `getTotalConnections()` (one read). Regression test `AdvisorTest.connectionInHandoffIsNotAStarvedPool` fails on the old check. |
+| R2 | Load reviewer | A replica was CONFIRMED although the server refused its new connection: verification checks "nothing got worse", not that capacity was obtained. | Accepted, documented. 004 holds further raises and the budget already counts the slot; reverting on connect failures would act during exactly the outages where a revert helps least. |
+| R3 | Load reviewer | When the server-limit read fails, `BUDGET_EXCEEDS_SERVER` is skipped (retried each tick); never re-read after success. | Accepted per row 7, documented; the apply plan says "not checked yet". |
+| R4 | Load reviewer | The load suite cannot detect two mutations (`minimumIdle` not moved; two changes in flight): HikariCP grows on demand, and the suite never sends concurrent applies. | Accepted: `KnobWriterTest`, `HikariApplyIntegrationTest` and `ChangeControllerTest` kill them; listed in docs/loadtests.md. |
+| R5 | E2E reviewer | `SamplerTickBenchmark` filled windows without advancing the clock, so the claimed steady state was false. | Fixed; re-measured 376 ± 17 µs (gate < 1 ms holds). |
+| R6 | E2E reviewer | JMH exits 0 on a failed benchmark without `-foe true`, and `| tee` without pipefail hid it. | Fixed in `benchmarks.yml`. |
+| R7 | E2E reviewer / lead | Latency assertions in new tests (virtual threads: p99 bound loosened by the implementer; one off-mode p99 check left). | Removed (row 3); latency is printed. |
+| R8 | E2E reviewer | Seeds printed but not replayable; smoke wait loop polled only some artifacts. | Fixed (`-Dspringtune.test.seed`, more URLs). |
+
 ## 4. Scope
 
-(Filled in at delivery.)
+| In | Out (where it goes) |
+|---|---|
+| `springtune-loadtests` (not published): 12 real-PostgreSQL scenarios, external server or Testcontainers, open-loop JDBC load, server-log and `pg_stat_activity` probes, CI `loadtests` job, `nightly.yml` | Replicas on separate machines; MySQL load runs; Boot 3.5 load runs |
+| Product: `BUDGET_EXCEEDS_SERVER` guard (`ServerConnectionLimit`), `ST-REC-HIKARI-004` HOLD for a failing database | Verification requiring the new capacity to be obtained (R2) |
+| E2E: apply over WebFlux security, executor apply/revert/ordering, limiter on virtual threads and behind Spring Security | WebFlux on virtual threads, Jetty/Undertow |
+| `springtune-benchmarks` (JMH, `-Pbenchmarks`), `benchmarks.yml`, docs/benchmarks.md | Benchmarks on a pinned runner |
+| `post-release-smoke.yml` + `scripts/smoke/**`; v0.4.0 notes; v0.3.0 correction; roadmap fixes; version 0.4.0-SNAPSHOT | Gradle corpus re-run (row 9), Kafka/cache rules (row 10) |
 
 ## 5. Acceptance criteria and evidence
 
-(Filled in at delivery.)
+| ID | Criterion | Verification | Result |
+|---|---|---|---|
+| AC-4.1 (bar 2) | 3 replicas raising at once stay within the budget; surge excluded → breach detected, included → none; other service, short `maxLifetime`, revert-while-raising all within budget; zero 53300 | `BudgetLoadTest` (7 scenarios) | ✅ CI (Testcontainers) and 6 local passes; service peak 15 ≤ 16; surge-excluded 19 > 16 detected |
+| AC-4.2 (bar 3) | Failing database: no INCREASE applied | `DatabaseGuardLoadTest`, `AdvisorTest` | ✅ after the product fix (`ST-REC-HIKARI-004`) |
+| AC-4.3 (bar 4) | One revert, no oscillation | `PostgresApplyLoadTest` | ✅ REVERTED once on R2, then `COOLDOWN`, 1 change executed |
+| AC-4.4 | Raise confirmed and slow SQL held on real PostgreSQL | `PostgresApplyLoadTest` | ✅ |
+| AC-4.5 | `BUDGET_EXCEEDS_SERVER` refuses a budget above the server's limit | `DatabaseGuardLoadTest`, `ApplyGuardTest` | ✅ 409 (100 vs 20) |
+| AC-4.6 | Every load test fails under its mutation | mutation runs M1–M6 (implementer), M5–M8 (reviewer) | ✅ M1–M6 killed by the load suite; M7–M8 killed by unit tests (R4) |
+| AC-4.7 (bar 5) | Executor ordering both directions end to end; R6 confirm and revert | `ExecutorApplyIntegrationTest` | ✅ 5 rounds, pinned and loaded |
+| AC-4.8 (bar 6) | Write operation secured on WebFlux: 401/403/200, anonymous refused | `ApplyReactiveSecurityWebTest` | ✅ |
+| AC-4.9 | Limiter on virtual threads caps concurrency; behind Security no 500, no leaked permit | `ServletVirtualThreadsOverloadTest`, `LimiterWithSpringSecurityTest` | ✅ |
+| AC-4.10 | JMH gates: tick (4 components) < 1 ms; filter < 10 µs | docs/benchmarks.md | ✅ 376 µs; 0.39 µs (1 thread) / 4.6 µs (8 threads) |
+| AC-4.11 | `HikariApplyIntegrationTest` stable, no retries anywhere | 30 consecutive local runs under load | ✅ 30/30, baselines 44.9–49.5 ms |
+| AC-4.12 | Smoke fixtures prove a clean install | local runs against a staged repository (Maven, Gradle 8.14.3, 9.8.2) | ✅ locally; on Central after the release |
+| AC-4.13 | Nothing regresses: full reactor on Boot 4.1.2 and 3.5.16 | CI | see the PR |
+
+**Apply stays experimental:** bars 2–6 are met, bar 1 (a design partner in production) is not.
+
+## 6. Next
+
+1. Release 0.4.0: Release workflow with version `0.4.0`, Publish on central.sonatype.com, Plugin Portal workflow,
+   then `post-release-smoke.yml` (docs/releasing.md).
+2. Launch post within a week of the Central release (roadmap step 3); first `gates.md` log entry ~30 days later.
+3. 20 consecutive green nightlies before the load suite gates release tags.
