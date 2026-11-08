@@ -1,0 +1,87 @@
+name: Post-release smoke
+
+# After a release is live: a clean Maven project and clean Gradle builds install SpringTune VERSION from Maven
+# Central and the Gradle Plugin Portal, with empty local repositories and no mavenLocal(). See
+# docs/releasing.md#post-release-smoke. Run it by hand (Actions > Post-release smoke > Run workflow) after the
+# Plugin Portal workflow, or call it from another workflow. Each job first waits (up to 30 min) until the files
+# are visible on Central/the Portal; the builds themselves are never retried.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released version, without the leading v (e.g. 0.4.0)"
+        required: true
+  workflow_call:
+    inputs:
+      version:
+        description: "Released version, without the leading v"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  maven-smoke:
+    name: Maven (Central)
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      # Java 17: the supported baseline. No Maven cache: the point is a fresh local repository.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Smoke
+        env:
+          VERSION: ${{ inputs.version }}
+          WAIT_MINUTES: "30"
+        run: SMOKE_WORK="$RUNNER_TEMP/smoke-maven" scripts/smoke/maven-smoke.sh "${VERSION#v}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maven-smoke-reports
+          path: |
+            ${{ runner.temp }}/smoke-maven/project/target/springtune/
+            ${{ runner.temp }}/smoke-maven/project/target/surefire-reports/
+            ${{ runner.temp }}/smoke-maven/*.log
+            ${{ runner.temp }}/smoke-maven/*.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  gradle-smoke:
+    name: Gradle ${{ matrix.gradle }}, plugin from ${{ matrix.plugin-repo }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        gradle: ["8.14.3", "9.8.2"]
+        plugin-repo: [portal, central]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.gradle }}
+          cache-disabled: true
+      - name: Smoke
+        env:
+          VERSION: ${{ inputs.version }}
+          PLUGIN_REPO: ${{ matrix.plugin-repo }}
+          WAIT_MINUTES: "30"
+        run: SMOKE_WORK="$RUNNER_TEMP/smoke-gradle" scripts/smoke/gradle-smoke.sh "${VERSION#v}" "$PLUGIN_REPO"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gradle-smoke-${{ matrix.gradle }}-${{ matrix.plugin-repo }}
+          path: |
+            ${{ runner.temp }}/smoke-gradle/project/build/springtune/
+            ${{ runner.temp }}/smoke-gradle/*.log
+            ${{ runner.temp }}/smoke-gradle/*.txt
+          if-no-files-found: ignore
+          retention-days: 14

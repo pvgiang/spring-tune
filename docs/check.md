@@ -36,25 +36,19 @@ compatible). It registers `springtuneCheck` in every project it is applied to. W
 depends on it.
 
 ```kotlin
-// settings.gradle.kts: until the plugin is on the Gradle Plugin Portal, use the release's Maven repository
-pluginManagement {
-    repositories {
-        maven("file:///path/to/springtune-maven-repo-0.3.0")
-        gradlePluginPortal()
-    }
-}
-
-// build.gradle.kts
+// build.gradle.kts: the plugin comes from the Gradle Plugin Portal (from 0.4.0), the engine from Maven Central
 plugins {
     java
     id("org.springframework.boot") version "3.5.16"
-    id("io.github.winkytek.springtune") version "0.3.0"
+    id("io.github.winkytek.springtune") version "0.4.0"
 }
 
 repositories {
-    maven("file:///path/to/springtune-maven-repo-0.3.0")   // the engine (see below)
-    mavenCentral()
+    mavenCentral()                 // the plugin resolves the check engine here (see below)
 }
+
+// If the plugin is not on the Portal yet, add mavenCentral() to pluginManagement.repositories in
+// settings.gradle.kts: the plugin and its marker are also published to Maven Central.
 
 springtune {                       // all optional
     profiles.set(listOf("prod"))

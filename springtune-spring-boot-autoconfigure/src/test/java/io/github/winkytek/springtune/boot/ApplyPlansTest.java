@@ -81,4 +81,34 @@ class ApplyPlansTest {
         assertThat(other.commit()).singleElement().asString().startsWith("maxPoolSize=20 on ThreadPoolTaskExecutor"
                 + " bean 'mailExecutor'").doesNotContain("spring.task");
     }
+
+    @Test
+    void increasePlanComparesTheBudgetWithTheServersLimit() {
+        Recommendation raise = rec("ST-REC-HIKARI-001", "hikari.orders.maximumPoolSize", Action.INCREASE, 10, 13);
+        ServerConnectionLimit server = new ServerConnectionLimit(ServerConnectionLimit.Status.KNOWN, 20, "PostgreSQL",
+                "PostgreSQL max_connections 23 - superuser_reserved_connections 3 - reserved_connections 0 = 20");
+        assertThat(ApplyPlans.hikari(raise, "dataSource", "orders", 10, budget(100, 6), Optional.of(13), server)
+                .orElseThrow().budget()).last().asString().isEqualTo("server limit: PostgreSQL max_connections 23"
+                        + " - superuser_reserved_connections 3 - reserved_connections 0 = 20; database-max-connections"
+                        + " 100 > 20: apply mode refuses to raise the pool (BUDGET_EXCEEDS_SERVER)");
+        assertThat(ApplyPlans.hikari(raise, "dataSource", "orders", 10, budget(20, 1), Optional.of(16), server)
+                .orElseThrow().budget()).last().asString().endsWith("database-max-connections 20 <= 20: consistent"
+                        + " with the server");
+        ServerConnectionLimit h2 = new ServerConnectionLimit(ServerConnectionLimit.Status.UNSUPPORTED, null, "H2",
+                "SpringTune cannot read the connection limit of H2; database-max-connections is not checked against"
+                        + " the server");
+        assertThat(ApplyPlans.hikari(raise, "dataSource", "orders", 10, budget(100, 6), Optional.of(13), h2)
+                .orElseThrow().budget()).last().asString().startsWith("server limit not checked: SpringTune cannot"
+                        + " read the connection limit of H2");
+    }
+
+    @Test
+    void serverLimitOfAnUnknownDatabaseIsUnsupported() throws Exception {
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection("jdbc:h2:mem:limit")) {
+            ServerConnectionLimit limit = ServerConnectionLimit.read(connection);
+            assertThat(limit.status()).isEqualTo(ServerConnectionLimit.Status.UNSUPPORTED);
+            assertThat(limit.limit()).isNull();
+            assertThat(limit.product()).isEqualTo("H2");
+        }
+    }
 }

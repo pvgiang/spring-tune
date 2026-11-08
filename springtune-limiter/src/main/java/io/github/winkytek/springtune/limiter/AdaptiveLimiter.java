@@ -176,13 +176,15 @@ public final class AdaptiveLimiter {
             if (listener == null || !released.compareAndSet(false, true)) {
                 return;
             }
+            // Count the sample before the listener returns the permit, so that anyone who sees the permit back
+            // (inflight down) also sees the sample counted.
+            if (outcome != Outcome.IGNORE) {
+                completedSamples.increment();
+            }
             switch (outcome) {
                 case SUCCESS -> listener.onSuccess();
                 case DROPPED -> listener.onDropped();
                 case IGNORE -> listener.onIgnore();
-            }
-            if (outcome != Outcome.IGNORE) {
-                completedSamples.increment();
             }
         }
     }

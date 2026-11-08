@@ -22,6 +22,12 @@ final class ApplyPlans {
 
     static Optional<ApplyPlan> hikari(Recommendation rec, String beanName, String poolName, int minimumIdle,
             SpringTuneProperties.Budget budget, Optional<Integer> budgetCap) {
+        return hikari(rec, beanName, poolName, minimumIdle, budget, budgetCap, ServerConnectionLimit.notApplicable());
+    }
+
+    /** @param serverLimit the database server's connection limit, compared with the configured budget */
+    static Optional<ApplyPlan> hikari(Recommendation rec, String beanName, String poolName, int minimumIdle,
+            SpringTuneProperties.Budget budget, Optional<Integer> budgetCap, ServerConnectionLimit serverLimit) {
         if (rec.action() == Action.HOLD) {
             return Optional.empty();
         }
@@ -52,6 +58,9 @@ final class ApplyPlans {
                         + (to <= budgetCap.get() ? ": within budget" : ": above budget"));
                 arithmetic.add("fleet at max replicas: " + to + " x " + budget.getMaxReplicas() + " = "
                         + to * budget.getMaxReplicas() + " of " + usable + " usable connections (this service only)");
+                if (serverLimit.status() != ServerConnectionLimit.Status.NOT_APPLICABLE) {
+                    arithmetic.add(serverLimit.planLine(budget.getDatabaseMaxConnections()));
+                }
             } else {
                 arithmetic.add("No connection budget configured (springtune.budget.*): apply mode refuses to raise"
                         + " maximumPoolSize. Check that max_connections covers " + to + " x replicas plus every other"

@@ -26,6 +26,9 @@ final class HikariComponent implements TunedComponent {
     private final Optional<Integer> budgetCap;
     private final SampleWindow<HikariSample> samples;
     private volatile WritableKnob writableKnob;
+    private volatile ServerConnectionLimit serverLimit;
+    private final java.util.concurrent.atomic.AtomicBoolean readingServerLimit =
+            new java.util.concurrent.atomic.AtomicBoolean();
 
     HikariComponent(String beanName, HikariDataSource dataSource, TimerReader timers, SpringTuneProperties properties,
             Optional<Integer> budgetCap) {
@@ -37,6 +40,13 @@ final class HikariComponent implements TunedComponent {
         Duration retention = max(properties.getHikari().getWindow(), properties.getHikari().getLowUtilizationWindow())
                 .plus(properties.getSampling().getInterval());
         this.samples = new SampleWindow<>(retention);
+        this.serverLimit = budgetCap.isPresent() ? ServerConnectionLimit.notRead("the pool has not"
+                + " started yet") : ServerConnectionLimit.notApplicable();
+    }
+
+    /** The server's connection limit as last read (see {@link #sample(Instant)}). */
+    ServerConnectionLimit serverLimit() {
+        return serverLimit;
     }
 
     /**
@@ -49,7 +59,7 @@ final class HikariComponent implements TunedComponent {
         if (knob == null && dataSource.getHikariPoolMXBean() != null) {
             knob = new WritableKnob(knobId("maximumPoolSize"), id(), WritableKnob.Kind.HIKARI,
                     dataSource.getHikariConfigMXBean().getMaximumPoolSize(),
-                    new HikariPoolWriter(dataSource::getHikariConfigMXBean), this::counters);
+                    new HikariPoolWriter(dataSource::getHikariConfigMXBean), this::counters, this::serverLimit);
             writableKnob = knob;
         }
         return knob;
@@ -84,7 +94,7 @@ final class HikariComponent implements TunedComponent {
             return Optional.empty();
         }
         return ApplyPlans.hikari(recommendation, beanName, poolName(),
-                dataSource.getHikariConfigMXBean().getMinimumIdle(), properties.getBudget(), budgetCap);
+                dataSource.getHikariConfigMXBean().getMinimumIdle(), properties.getBudget(), budgetCap, serverLimit);
     }
 
     private static Duration max(Duration a, Duration b) {
@@ -139,6 +149,11 @@ final class HikariComponent implements TunedComponent {
         signals.put("waitingThreads", latest.pending());
         signals.put("maximumPoolSize", latest.maximumPoolSize());
         signals.put("holdTimeMetrics", latest.timersAvailable() ? "available" : "unavailable");
+        ServerConnectionLimit server = serverLimit;
+        if (server.status() != ServerConnectionLimit.Status.NOT_APPLICABLE) {
+            signals.put("serverConnectionLimit", server.known() ? server.limit() + " (" + server.detail() + ")"
+                    : server.status() + ": " + server.detail());
+        }
         return signals;
     }
 
@@ -156,10 +171,34 @@ final class HikariComponent implements TunedComponent {
         Optional<TimerReader.Totals> acquire = timers.read("hikaricp.connections.acquire", poolName());
         Optional<TimerReader.Totals> usage = timers.read("hikaricp.connections.usage", poolName());
         boolean available = acquire.isPresent() && usage.isPresent();
-        samples.add(new HikariSample(now, pool.getActiveConnections(), pool.getIdleConnections(),
+        int idle = pool.getIdleConnections();
+        samples.add(new HikariSample(now, pool.getActiveConnections(), idle,
                 pool.getThreadsAwaitingConnection(), dataSource.getHikariConfigMXBean().getMaximumPoolSize(), available,
                 acquire.map(TimerReader.Totals::count).orElse(0L), acquire.map(TimerReader.Totals::totalMs).orElse(0.0),
-                usage.map(TimerReader.Totals::count).orElse(0L), usage.map(TimerReader.Totals::totalMs).orElse(0.0)));
+                usage.map(TimerReader.Totals::count).orElse(0L), usage.map(TimerReader.Totals::totalMs).orElse(0.0),
+                timers.counter("hikaricp.connections.timeout", poolName()).orElse(0.0), pool.getTotalConnections()));
+        if (serverLimit.status() == ServerConnectionLimit.Status.NOT_READ
+                && readingServerLimit.compareAndSet(false, true)) {
+            Thread reader = new Thread(this::readServerLimit, "springtune-server-limit-" + poolName());
+            reader.setDaemon(true);
+            reader.start();
+        }
+    }
+
+    /**
+     * Reads the server's connection limit once (only when a budget is configured), with one connection borrowed from
+     * the pool like any other request. It runs on its own short-lived thread so the sampler never waits behind
+     * threads queuing for a saturated pool; it opens no connection outside the pool. The limit cannot change without
+     * a server restart; a failed read is retried after the next tick.
+     */
+    private void readServerLimit() {
+        try (java.sql.Connection connection = dataSource.getConnection()) {
+            serverLimit = ServerConnectionLimit.read(connection);
+        } catch (java.sql.SQLException | RuntimeException ex) {
+            serverLimit = ServerConnectionLimit.notRead("reading it failed: " + ex.getMessage());
+        } finally {
+            readingServerLimit.set(false);
+        }
     }
 
     @Override

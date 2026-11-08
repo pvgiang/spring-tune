@@ -12,6 +12,9 @@ tag vX.Y.Z ──► release job ──► GitHub Release
                                                                      │ live on Central (10-30 min)
                                                                      ▼
                                      Actions › Gradle Plugin Portal › Run workflow ──► plugins.gradle.org
+                                                                     │
+                                                                     ▼
+                                     Actions › Post-release smoke › Run workflow (clean Maven + Gradle builds)
 ```
 
 ## Every release
@@ -26,7 +29,70 @@ tag vX.Y.Z ──► release job ──► GitHub Release
    *Actions → Gradle Plugin Portal → Run workflow* with `X.Y.Z`. It refuses to run before the engine is on Central,
    because the plugin resolves the engine from the user's repositories at check time.
 
+5. Run *Actions → Post-release smoke → Run workflow* with `X.Y.Z` ([below](#post-release-smoke)). The release is
+   done when it is green.
+
 Central releases cannot be deleted or overwritten. A broken release is fixed with a new version.
+
+## Releasing 0.4.0
+
+0.4.0 is the **first release on Maven Central** (0.3.0 was GitHub-only: the Central job was skipped because the
+secrets were missing). Before starting, the [one-time setup](#one-time-setup-a-human-has-to-do-these) must be done,
+all five Central secrets and both Plugin Portal secrets must be set, and `docs/releases/v0.4.0.md` must have no
+`TODO(verify)` left.
+
+1. **Release.** On `main` with the version bump merged: *Actions → Release → Run workflow*, version `0.4.0` (or push
+   the tag `v0.4.0`). Check that the run log does **not** show the notice "Maven Central secrets not set": if it
+   does, the release is GitHub-only again; stop and fix the secrets before releasing 0.4.1.
+2. **Publish on Central.** The *Publish to Maven Central* job uploads with stage `UPLOAD`. On
+   [central.sonatype.com → Publishing → Deployments](https://central.sonatype.com/publishing/deployments), check the
+   deployment is *Validated* and lists every published module (parent, model, check-engine, check-cli, maven-plugin,
+   gradle-plugin, gradle-plugin marker, spring-boot-autoconfigure, spring-boot-starter, limiter), then press
+   **Publish**. After this first manual check, set the repository variable `CENTRAL_STAGE=FULL`.
+3. **Plugin Portal.** When
+   `https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-engine/0.4.0/` exists (10–30
+   min after Publish), run *Actions → Gradle Plugin Portal → Run workflow* with `0.4.0`. The first version of the
+   plugin is reviewed by hand by the Portal team, which can take days; the `central` half of the Gradle smoke does not
+   depend on it.
+4. **Smoke.** Run *Actions → Post-release smoke → Run workflow* with `0.4.0`. If the Portal review is still pending,
+   the `portal` jobs wait 30 minutes and fail; rerun them once the plugin is approved.
+
+## Post-release smoke
+
+[`.github/workflows/post-release-smoke.yml`](../.github/workflows/post-release-smoke.yml) (`workflow_dispatch` with
+the version, also `workflow_call`). Run it after every release, once the Plugin Portal workflow has run. It does not
+build SpringTune: it builds two user projects that only know the version number.
+
+| Job | What it does | What it proves |
+|---|---|---|
+| `maven-smoke` | [`scripts/smoke/maven-smoke.sh`](../scripts/smoke/maven-smoke.sh) on Java 17, empty `-Dmaven.repo.local` under `$RUNNER_TEMP`, empty settings. The fixture [`scripts/smoke/maven`](../scripts/smoke/maven) depends on `springtune-spring-boot-starter` and `springtune-limiter`, binds `springtune-maven-plugin:check` and has a risky `connection-timeout: 0` | Starter, limiter and plugin resolve from Central with their whole dependency trees (POM metadata, parent, BOM imports); a `@SpringBootTest` boots the app, `/hello` passes through the limiter and `/actuator/tuning` lists the Hikari pool; the check writes SARIF and Markdown with ST-HIKARI-001 and, with the default `failOn=ERROR`, fails the build; `springtune-check-cli:<version>:all` downloads, prints the version and exits 1 on the same finding |
+| `gradle-smoke` | [`scripts/smoke/gradle-smoke.sh`](../scripts/smoke/gradle-smoke.sh), matrix Gradle 8.14.3 and 9.8.2 × plugin from `portal` (`gradlePluginPortal()` only) or `central` (`mavenCentral()` only), fresh `GRADLE_USER_HOME`, no `mavenLocal()`. The fixture [`scripts/smoke/gradle`](../scripts/smoke/gradle) applies `id("io.github.winkytek.springtune")` | The plugin resolves by id from each source; the engine, starter and limiter resolve from Central; `springtuneCheck` runs with the configuration cache, reports ST-HIKARI-001 and fails the build on it |
+
+Before building, each job polls Central (and the Portal, for `portal`) every minute, up to 30 minutes, until every
+file it needs is visible; a lookup that fails during propagation is never cached in the fresh repository. The builds
+themselves are never retried, so a red job is a real problem with the release, not propagation lag.
+
+What it does not prove: Spring Boot 3.5 users (the fixture uses Boot 4.1.2), Java 21+ consumers, signature
+verification by consumers, or the GitHub Action (`action.yml`).
+
+### Rehearse it locally against a staged repository
+
+The fixtures take the version and an optional staging repository, searched before Central:
+
+```bash
+STAGE=$PWD/target/smoke-stage
+VERSION=$(mvn -q help:evaluate -Dexpression=project.version -DforceStdout)    # a SNAPSHOT is fine
+mvn -B -ntp deploy -DskipTests -Dinvoker.skip -DaltDeploymentRepository=staging::file:$STAGE
+scripts/smoke/maven-smoke.sh "$VERSION" "file://$STAGE"
+GRADLE=/opt/gradle/bin/gradle scripts/smoke/gradle-smoke.sh "$VERSION" staging "file://$STAGE"
+```
+
+`staging` takes the plugin from the staged repository only; `portal` and `central` need a released version. Plain
+`deploy` (without `-Prelease`) stages only SpringTune's own artifacts; everything else still comes from Central.
+Each script works in a new temp directory (or `SMOKE_WORK`) and leaves the repository untouched.
+
+If Central answers `429 Too Many Requests` (seen from rate-limited sandboxes, rarely from GitHub runners), the build
+fails with that cause in the log; rerun the job.
 
 ## What the `release` Maven profile does
 

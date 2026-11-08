@@ -156,10 +156,11 @@ final class ChangeController {
     private ChangeResponse apply(ChangeRequest request, String who, Instant now) {
         Optional<WritableKnob> knob = knob(request.knobId());
         Optional<KnobFacts> facts = knob.map(k -> new KnobFacts(k.knobId(), k.kind(), k.current(), k.configuredValue(),
-                cooldownUntil(k.knobId()), baselineStart(k.knobId(), now) != null));
+                cooldownUntil(k.knobId()), baselineStart(k.knobId(), now) != null, k.serverLimit().get()));
         ApplyGuard.State state = new ApplyGuard.State(properties.getMode(), settings.isEnabled(), frozen, inFlight != null);
         List<Recommendation> fresh = recommender.apply(now);
-        Decision decision = ApplyGuard.checkApply(request, state, facts, fresh, budgetCap, settings, now);
+        Decision decision = ApplyGuard.checkApply(request, state, facts, fresh, budgetCap,
+                properties.getBudget().getDatabaseMaxConnections(), settings, now);
         if (!decision.approved()) {
             return refuse(request, new Caller(who, true), decision.refusal(), now);
         }

@@ -7,7 +7,7 @@
 
     <groupId>io.github.winkytek.springtune</groupId>
     <artifactId>springtune-parent</artifactId>
-    <version>0.3.0-SNAPSHOT</version>
+    <version>0.4.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>SpringTune</name>
@@ -56,6 +56,7 @@
         <module>springtune-spring-boot-autoconfigure</module>
         <module>springtune-spring-boot-starter</module>
         <module>springtune-limiter</module>
+        <module>springtune-loadtests</module>
         <module>springtune-samples/broken-config</module>
     </modules>
 
@@ -416,6 +417,18 @@
                     </plugin>
                 </plugins>
             </build>
+        </profile>
+        <!--
+          JMH overhead benchmarks (docs/benchmarks.md). Never installed or deployed; JMH (GPLv2 + Classpath Exception)
+          is a development-time tool only. Normal and release builds never include the module.
+            mvn -B -ntp -Pbenchmarks package -DskipTests -Dinvoker.skip -pl springtune-benchmarks -am
+            java -jar springtune-benchmarks/target/benchmarks.jar -prof gc
+        -->
+        <profile>
+            <id>benchmarks</id>
+            <modules>
+                <module>springtune-benchmarks</module>
+            </modules>
         </profile>
     </profiles>
 </project>
