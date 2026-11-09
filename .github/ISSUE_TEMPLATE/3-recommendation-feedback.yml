@@ -77,7 +77,7 @@ body:
     attributes:
       label: The recommendation as shown
       description: >-
-        The entry from GET /actuator/tuning/report (0.4.2+; it contains no host, pool or bean names).
+        The entry from GET /actuator/tuning/report (0.4.2+; built only from rule IDs, numbers, enum values and pseudonyms such as hikari#1 — read it before pasting).
         On 0.4.1 or older, the entry from GET /actuator/tuning with names you consider sensitive replaced.
       render: json
   - type: input
