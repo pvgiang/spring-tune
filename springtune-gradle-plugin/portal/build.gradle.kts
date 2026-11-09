@@ -8,7 +8,7 @@
 // repositories, so springtune-check-engine:<version> must already be on Maven Central when this is published.
 plugins {
     `java-gradle-plugin`
-    id("com.gradle.plugin-publish") version "2.1.1"
+    id("com.gradle.plugin-publish") version "2.2.1"
 }
 
 val springtuneVersion = providers.gradleProperty("springtuneVersion").orNull
