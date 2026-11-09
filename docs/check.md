@@ -2,10 +2,10 @@
 
 ## CLI
 
-Get the runnable jar (Java 17+) from the [v0.4.0 release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.0)
-(`springtune-cli-0.4.0.jar`; verify it against the release's `SHA256SUMS`, see the [README](../README.md#quick-start))
-or from Maven Central as `io.github.winkytek.springtune:springtune-check-cli:0.4.0:all`. Run it as
-`java -jar springtune-cli-0.4.0.jar check ...`.
+Get the runnable jar (Java 17+) from Maven Central as `io.github.winkytek.springtune:springtune-check-cli:0.4.0:all`
+(verify it against Central's `.sha256`, see the [README](../README.md#quick-start)); the same jar is attached to the
+[v0.4.0 release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.0) as `springtune-cli-0.4.0.jar`. Run it as
+`java -jar springtune-check-cli-0.4.0-all.jar check ...`.
 
 ```
 springtune check [ROOT] [-m DIR]... [-p PROFILE[,PROFILE]] [-c springtune.yml]

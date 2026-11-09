@@ -1,8 +1,10 @@
 # spring-tune
 
-Spring Boot config safety and self-tuning.
+A CI check for risky Spring Boot configuration, plus read-only runtime advice.
 
-Catch the Spring Boot configuration that will take you down before production does. Then let it tune itself when you're ready.
+Catch the Spring Boot configuration that will take you down before production does: pool exhaustion, hung threads
+and retry storms, reported on the exact line in your pull request. At runtime, the starter explains what it would
+change and why, without changing anything; applying a change is an experimental, opt-in mode.
 
 SpringTune has two parts that share one model and one set of rule IDs, plus an opt-in limiter:
 
@@ -44,22 +46,24 @@ jobs:
 
 The same workflow with comments: [examples/github-workflow.yml](examples/github-workflow.yml).
 
-**CLI** (any build tool, Java 17+), from the [GitHub release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.0):
+**CLI** (any build tool, Java 17+), from Maven Central (`io.github.winkytek.springtune:springtune-check-cli:0.4.0:all`),
+checked against Central's SHA-256:
 
 <!-- snippet:cli -->
 ```bash
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.4.0/springtune-cli-0.4.0.jar
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.4.0/SHA256SUMS
-grep ' springtune-cli-0.4.0.jar$' SHA256SUMS | sha256sum -c -     # macOS: shasum -a 256 -c -
-java -jar springtune-cli-0.4.0.jar check path/to/repo --profile prod
+base=https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0
+curl -fsSLO $base/springtune-check-cli-0.4.0-all.jar
+echo "$(curl -fsSL $base/springtune-check-cli-0.4.0-all.jar.sha256)  springtune-check-cli-0.4.0-all.jar" \
+  | sha256sum -c -                                   # macOS: shasum -a 256 -c -
+java -jar springtune-check-cli-0.4.0-all.jar check path/to/repo --profile prod
 # exit 0 = clean, 1 = findings at/above --fail-on (default ERROR), 2 = usage/config error
 ```
 
-The same jar is on Maven Central as `io.github.winkytek.springtune:springtune-check-cli:0.4.0:all`
-([direct link](https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0/springtune-check-cli-0.4.0-all.jar)).
+The same jar (identical SHA-256) is attached to the [v0.4.0 GitHub release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.0)
+as `springtune-cli-0.4.0.jar`, listed in the release's `SHA256SUMS`.
 
 **Maven plugin and runtime starter** (Maven Central from 0.4.0, no extra repository; 0.3.0 was a GitHub release
-only, and 0.1.0 used the groupId `io.github.winky.springtune`):
+only, and 0.1.0 used an older groupId, see the [0.3.0 notes](docs/releases/v0.3.0.md)):
 
 <!-- snippet:maven-plugin -->
 ```xml
@@ -120,8 +124,9 @@ We ran `springtune check` over 20 well-known open-source Spring Boot projects (S
 Apache DolphinScheduler, Apache ShenYu, ThingsBoard, JeecgBoot, RuoYi, mall and more: 282 modules) and
 reviewed every finding by hand.
 
-- **45 of 45** HikariCP services we could evaluate wait **up to 30 s** for a connection when the pool runs
-  dry, and **none** detects connection leaks. On Spring Boot's defaults (200 threads, 10 connections), a
+- **All 45** HikariCP modules we could evaluate wait longer than 5 s for a connection when the pool runs
+  dry (44 up to **30 s**: 38 on the unset default, 6 with `30000` written out; 1 waits 10 s), and **none**
+  detects connection leaks ([0.4.0 re-run](docs/corpus/2026-11-09-0.4.0-rerun.md)). On Spring Boot's defaults (200 threads, 10 connections), a
   database that slows from 30 ms to 3 s per query blocks all 200 request threads in about **4 seconds**,
   health checks included.
 - The Spring PetClinic microservices gateway calls other services with **no HTTP timeout at all**:
@@ -149,8 +154,8 @@ results: [corpus report](docs/corpus/2026-11-corpus-report.md).
 **Try it on your own repo now.** It's static only, so nothing is built and nothing leaves your machine:
 
 ```bash
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.4.0/springtune-cli-0.4.0.jar
-java -jar springtune-cli-0.4.0.jar check . --profile prod
+curl -fsSLO https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0/springtune-check-cli-0.4.0-all.jar
+java -jar springtune-check-cli-0.4.0-all.jar check . --profile prod
 ```
 
 Found something, or a false positive? [Open an issue](https://github.com/pvgiang/spring-tune/issues/new/choose)

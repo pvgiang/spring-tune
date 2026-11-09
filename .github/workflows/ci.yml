@@ -141,12 +141,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download the released CLI jar and SHA256SUMS
+        # Through the REST API with the workflow token, as the Action does: works while the repository is private.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p "$RUNNER_TEMP/release"
           cd "$RUNNER_TEMP/release"
-          base="https://github.com/pvgiang/spring-tune/releases/download/v$VERSION"
-          curl -fsSL --retry 3 -O "$base/springtune-cli-$VERSION.jar"
-          curl -fsSL --retry 3 -O "$base/SHA256SUMS"
+          for name in "springtune-cli-$VERSION.jar" SHA256SUMS; do
+            id="$(gh api "repos/pvgiang/spring-tune/releases/tags/v$VERSION" --jq ".assets[] | select(.name == \"$name\") | .id")"
+            test -n "$id"
+            gh api -H "Accept: application/octet-stream" "repos/pvgiang/spring-tune/releases/assets/$id" > "$name"
+          done
+          ls -l
       - name: The real jar verifies; tampered jars and bad checksum files are rejected
         run: >
           scripts/action/test-verify-sha256.sh

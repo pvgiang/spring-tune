@@ -13,7 +13,7 @@
 #                   settings.gradle.kts declares no plugin repository (Gradle's default, the Plugin Portal); then
 #                   scripts/smoke/gradle-smoke.sh.
 #   gradle-central  the same, with only mavenCentral() in pluginManagement.repositories, the README's fallback.
-#   cli             snippet:cli runs as written (download, sha256sum -c, check), on the Maven fixture instead of
+#   cli             snippet:cli runs as written (download from Central, sha256sum -c, check), on the Maven fixture instead of
 #                   path/to/repo; it must verify the jar and exit 1 on ST-HIKARI-001.
 #
 # The SpringTune version is read from the snippets, which must all name the same one. Environment: SMOKE_WORK
@@ -29,15 +29,22 @@ WORK="$(cd "$WORK" && pwd)"
 
 snippet() { python3 -I "$HERE/readme-snippet.py" "$README" "$1"; }
 
-# One version across the install snippets, so a half-updated README fails here.
+# One version across the install snippets, so a half-updated README fails here. Each snippet must name one.
+ver() {  # ver SNIPPET SED_EXPRESSION
+  local v
+  v="$(snippet "$1" | sed -n "$2" | sort -u)"
+  [ "$(printf '%s\n' "$v" | grep -c .)" -eq 1 ] \
+    || { echo "::error file=README.md::snippet:$1 should name exactly one SpringTune version, found '$(echo $v)'" >&2; exit 1; }
+  echo "$v"
+}
 versions="$(
-  { snippet maven-plugin | sed -n 's:.*<version>\(.*\)</version>.*:\1:p'
-    snippet maven-starter | sed -n 's:.*<version>\(.*\)</version>.*:\1:p'
-    snippet gradle-plugin | sed -n 's:.*id("io.github.winkytek.springtune") version "\([^"]*\)".*:\1:p'
-    snippet cli | sed -n 's:.*springtune-cli-\([0-9][^/]*\)\.jar$:\1:p'
+  { ver maven-plugin 's:.*<version>\(.*\)</version>.*:\1:p'
+    ver maven-starter 's:.*<version>\(.*\)</version>.*:\1:p'
+    ver gradle-plugin 's:.*id("io.github.winkytek.springtune") version "\([^"]*\)".*:\1:p'
+    ver cli 's:.*springtune-\(check-\)\{0,1\}cli-\([0-9][0-9.]*[0-9]\)\(-all\)\{0,1\}\.jar.*:\2:p'
   } | sort -u
 )"
-[ "$(printf '%s\n' "$versions" | grep -c .)" -eq 1 ] \
+[ -n "$versions" ] && [ "$(printf '%s\n' "$versions" | grep -c .)" -eq 1 ] \
   || { echo "::error file=README.md::install snippets name different versions: $(echo $versions)"; exit 1; }
 VERSION="$versions"
 echo "README install snippets: SpringTune $VERSION, mode $MODE, work directory $WORK"
@@ -113,8 +120,8 @@ EOF
     status=$?
     set -e
     cat "$WORK/cli/out.txt"
-    grep -q "springtune-cli-$VERSION.jar: OK" "$WORK/cli/out.txt" \
-      || { echo "::error::snippet:cli did not verify the jar against SHA256SUMS"; exit 1; }
+    grep -Eq "springtune-(check-)?cli-$VERSION(-all)?\.jar: OK" "$WORK/cli/out.txt" \
+      || { echo "::error::snippet:cli did not verify the jar's SHA-256"; exit 1; }
     grep -q "SpringTune $VERSION" "$WORK/cli/out.txt" || { echo "::error::CLI did not report version $VERSION"; exit 1; }
     grep -q "ST-HIKARI-001" "$WORK/cli/out.txt" || { echo "::error::CLI did not report ST-HIKARI-001"; exit 1; }
     [ "$status" -eq 1 ] || { echo "::error::snippet:cli exit code $status, expected 1 (blocking finding)"; exit 1; }

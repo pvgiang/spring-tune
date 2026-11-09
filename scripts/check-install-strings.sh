@@ -4,7 +4,8 @@
 #   scripts/check-install-strings.sh [REPO_ROOT]
 #
 # Scans README.md, action.yml, docs/** and examples/**, except the historical records docs/releases/ (release
-# notes), docs/delivery/ (briefs) and docs/corpus/ (raw corpus results, which name the version they ran). Also
+# notes), docs/delivery/ (briefs), docs/corpus/ (raw corpus results, which name the version they ran) and
+# docs/adoption/ (measurement logs, which name each release's assets and download counts). Also
 # checks that the Action's default CLI version is the one the README's Action snippet pins.
 # Run by the "Docs: install strings" job in .github/workflows/ci.yml.
 set -euo pipefail
@@ -26,7 +27,7 @@ files=()
 while IFS= read -r f; do files+=("$f"); done < <(
   { echo README.md; echo action.yml; find docs examples -type f \( -name '*.md' -o -name '*.yml' -o -name '*.yaml' \
       -o -name '*.xml' -o -name '*.kts' -o -name '*.gradle' -o -name '*.properties' \); } \
-    | grep -Ev '^docs/(releases|delivery|corpus)/' | sort -u
+    | grep -Ev '^docs/(releases|delivery|corpus|adoption)/' | sort -u
 )
 
 status=0

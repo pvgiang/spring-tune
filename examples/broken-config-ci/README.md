@@ -14,10 +14,10 @@ appear as code-scanning alerts on the lines below.
 Locally (Java 17+, nothing is built or executed, nothing leaves your machine):
 
 ```bash
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.4.0/springtune-cli-0.4.0.jar
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.4.0/SHA256SUMS
-grep ' springtune-cli-0.4.0.jar$' SHA256SUMS | sha256sum -c -
-java -jar springtune-cli-0.4.0.jar check .
+base=https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0
+curl -fsSLO $base/springtune-check-cli-0.4.0-all.jar
+echo "$(curl -fsSL $base/springtune-check-cli-0.4.0-all.jar.sha256)  springtune-check-cli-0.4.0-all.jar" | sha256sum -c -
+java -jar springtune-check-cli-0.4.0-all.jar check .
 ```
 
 Output (SpringTune 0.4.0, exit code 1):

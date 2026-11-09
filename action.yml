@@ -29,6 +29,9 @@ inputs:
   jar:
     description: "Use this CLI jar instead of downloading one (for testing unreleased builds). A local jar is not checksum-verified."
     default: ""
+  token:
+    description: "Token for downloading the release assets through the GitHub REST API (read access is enough). Default: the workflow's token. Empty: plain curl, which needs the repository to be public."
+    default: ${{ github.token }}
 
 outputs:
   sarif:
@@ -56,6 +59,7 @@ runs:
         ST_OUTPUT: ${{ inputs.output }}
         ST_CONFIG: ${{ inputs.config }}
         ST_JAR: ${{ inputs.jar }}
+        ST_TOKEN: ${{ inputs.token }}
         ST_VERIFY: ${{ github.action_path }}/scripts/action/verify-sha256.sh
       run: |
         set -euo pipefail
@@ -68,10 +72,29 @@ runs:
           dir="$RUNNER_TEMP/springtune-cli-$version"
           mkdir -p "$dir"
           jar="$dir/$name"
-          curl -fsSL --retry 3 -o "$jar" "$base/$name" \
-            || stop "Could not download $base/$name (is $version a SpringTune release?)"
-          curl -fsSL --retry 3 -o "$dir/SHA256SUMS" "$base/SHA256SUMS" \
-            || stop "Could not download $base/SHA256SUMS; refusing to run an unverified jar"
+          rm -f "$jar" "$dir/SHA256SUMS"
+          if [ -n "$ST_TOKEN" ] && command -v gh > /dev/null 2>&1; then
+            # Through the REST API with a token: also works while the repository is private, and avoids the
+            # anonymous rate limit.
+            export GH_TOKEN="$ST_TOKEN"
+            assets="$(gh api "repos/pvgiang/spring-tune/releases/tags/v$version" --jq '.assets[] | "\(.id) \(.name)"')" \
+              || stop "Could not read release v$version of pvgiang/spring-tune (is $version a SpringTune release?)"
+            asset() { awk -v n="$1" '$2 == n { print $1 }' <<< "$assets"; }
+            [ -n "$(asset "$name")" ] || stop "Release v$version has no $name"
+            [ -n "$(asset SHA256SUMS)" ] || stop "Release v$version has no SHA256SUMS; refusing to run an unverified jar"
+            gh api -H "Accept: application/octet-stream" "repos/pvgiang/spring-tune/releases/assets/$(asset "$name")" > "$jar" \
+              || stop "Could not download $name from release v$version"
+            gh api -H "Accept: application/octet-stream" "repos/pvgiang/spring-tune/releases/assets/$(asset SHA256SUMS)" > "$dir/SHA256SUMS" \
+              || stop "Could not download SHA256SUMS from release v$version"
+            unset GH_TOKEN
+          else
+            curl -fsSL --retry 3 -o "$jar" "$base/$name" \
+              || stop "Could not download $base/$name (is $version a SpringTune release?)"
+            curl -fsSL --retry 3 -o "$dir/SHA256SUMS" "$base/SHA256SUMS" \
+              || stop "Could not download $base/SHA256SUMS; refusing to run an unverified jar"
+          fi
+          [ -s "$dir/SHA256SUMS" ] || stop "Release v$version has no SHA256SUMS; refusing to run an unverified jar"
+          [ -s "$jar" ] || stop "Release v$version has no $name"
           # Only the jar's line is checked. Any failure here stops the step before the jar runs.
           bash "$ST_VERIFY" "$jar" "$dir/SHA256SUMS" "$name" \
             || stop "Checksum verification of $name against $base/SHA256SUMS failed (see above); not running it"

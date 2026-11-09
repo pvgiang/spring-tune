@@ -28,19 +28,19 @@ jobs:
           category: springtune
 ```
 
-Action inputs: `path`, `version`, `profile`, `fail-on`, `format`, `output`, `config`, `jar`. Outputs: `sarif`,
+Action inputs: `path`, `version`, `profile`, `fail-on`, `format`, `output`, `config`, `jar`, `token`. Outputs: `sarif`,
 `exit-code`. The Markdown report is added to the job summary. A copy-paste version of this workflow is
 [examples/github-workflow.yml](../examples/github-workflow.yml), and [examples/broken-config-ci](../examples/broken-config-ci)
 is a project it fails on.
 
-**Verified download.** The Action downloads `springtune-cli-<version>.jar` and the release's `SHA256SUMS`, and checks
+**Verified download.** The Action downloads `springtune-cli-<version>.jar` and the release's `SHA256SUMS` (through
+the GitHub REST API with the workflow's token, input `token`; set it to `""` for plain `curl`), and checks
 the jar's line with `sha256sum -c` ([`scripts/action/verify-sha256.sh`](../scripts/action/verify-sha256.sh)) before
 running it. A mismatch, or a missing `SHA256SUMS` or jar line, stops the step with exit code 2 and the jar never
 runs. A jar passed through the `jar` input (your own build) is not verified. This verification is in `action.yml`
 on `main` and ships with the next tag: the `v0.4.0` tag's Action downloads the jar over HTTPS without checking it.
-To get the check before then, pin the Action to a commit of `main`
-(`uses: pvgiang/spring-tune@<commit-sha>`) or verify the jar yourself, as the [README](../README.md#quick-start)
-shows for the CLI.
+To get the check before then, pin the Action to a full commit SHA of `main` instead of the tag, or
+verify the jar yourself, as the [README](../README.md#quick-start) shows for the CLI.
 
 Findings then appear as code scanning alerts on the exact `file:line`. Suppressed findings are uploaded with
 `suppressions[].justification`, so the reason stays visible. `partialFingerprints` keep alerts stable when
