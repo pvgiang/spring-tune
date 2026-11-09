@@ -236,7 +236,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The v0.4.0 tag's Action downloads with anonymous curl, which gets 404 while the repository is private.
+      - name: Check that the release is downloadable anonymously
+        id: visibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          private="$(gh api repos/pvgiang/spring-tune --jq .private)"
+          echo "public=$([ "$private" = false ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          [ "$private" = false ] || echo "::notice::Repository is private: skipping the published-Action check until it is public"
       - name: Run the published Action on the demo (must fail with exit code 1)
+        if: steps.visibility.outputs.public == 'true'
         id: published
         continue-on-error: true
         uses: pvgiang/spring-tune@v0.4.0
@@ -245,6 +255,7 @@ jobs:
           path: examples/broken-config-ci
           output: published-reports
       - name: Expect exit code 1 and the documented findings, written by CLI 0.4.0
+        if: steps.visibility.outputs.public == 'true'
         env:
           EXIT_CODE: ${{ steps.published.outputs.exit-code }}
           SARIF: ${{ steps.published.outputs.sarif }}
