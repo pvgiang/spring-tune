@@ -1,5 +1,7 @@
 # Runtime starter (`springtune-spring-boot-starter`)
 
+> Trying it in staging and willing to tell us what it recommended? See [design partners](design-partners.md).
+
 Trust ladder levels 1–3:
 
 | Level | `springtune.mode` | What happens |
@@ -35,6 +37,125 @@ Every recommendation carries its evidence and a confidence level.
 
 The **budget cap** uses the same `ConnectionBudget` formula as CI rule ST-HIKARI-004:
 `floor(database-max-connections × safety-factor / max-replicas)`.
+
+## Evaluation status: is an empty `recommendations[]` healthy? (after 0.4.1)
+
+> Arrives in the release after 0.4.1. On 0.4.1 and earlier the snapshot has no `evaluations` field.
+
+`GET /actuator/tuning` lists, next to `recommendations`, an **`evaluations`** entry for every rule of every
+component, computed at each sampler tick **in the same pass that decides the recommendation** (one function returns
+both, so they cannot disagree). Shape (values from `RuleEvaluationTest` scenarios, component id illustrative):
+
+| `status` | Meaning | Extra fields |
+|---|---|---|
+| `COLLECTING` | The retained samples do not cover the rule's window yet; no decision is made on partial evidence | `seenSamples` / `minSamples` (3), `seenSeconds` / `neededSeconds` (window minus one sampling interval) |
+| `NO_SIGNAL` | A meter the rule needs is missing, so it can never fire. Today only `ST-REC-HIKARI-001`, which needs the HikariCP Micrometer timers (add `spring-boot-starter-actuator`; a step-only registry such as Datadog counts as missing, see [Caveats](#caveats)) | `missingMeters`: `hikaricp.connections.acquire` and/or `hikaricp.connections.usage` |
+| `QUIET` | Evaluated over a covered window, nothing to recommend | `supersededBy`: the rule that fired instead for this pool (e.g. 001 is QUIET with `supersededBy: ST-REC-HIKARI-002` when 002 says "do not raise"), else `null` |
+| `RECOMMENDING` | This rule produced the component's current entry in `recommendations` (HOLD included) | |
+
+```json
+"evaluations": [
+  { "component": "hikari:orders-pool", "ruleId": "ST-REC-HIKARI-001", "status": "QUIET", "seenSamples": null,
+    "minSamples": null, "seenSeconds": null, "neededSeconds": null, "missingMeters": null, "supersededBy": null },
+  { "component": "hikari:orders-pool", "ruleId": "ST-REC-HIKARI-003", "status": "COLLECTING", "seenSamples": 31,
+    "minSamples": 3, "seenSeconds": 310, "neededSeconds": 86390, "missingMeters": null, "supersededBy": null } ]
+```
+
+**What a first user sees, with the defaults** (`springtune.sampling.interval=10s`, `springtune.hikari.window=5m`,
+`springtune.executor.window=5m`, `springtune.hikari.low-utilization-window=24h`), counted from the first sample of
+each component (a Hikari pool is sampled only once it has started, i.e. after its first connection; an executor once
+it is initialized):
+
+| When | `evaluations` | `recommendations` |
+|---|---|---|
+| Hour 0, before the first tick (10 s) | `[]` | `[]` |
+| First tick to ~5 min | every rule `COLLECTING`; 001, 002, 004 and `ST-REC-EXEC-001` need 290 s, 003 needs 86 390 s | `[]` |
+| After 5 min | 001, 002, 004, EXEC-001: `QUIET`, `RECOMMENDING` or (001 without hold-time timers) `NO_SIGNAL`; 003 still `COLLECTING` | entries from the 5-minute rules only |
+| After 24 h | 003 also `QUIET` or `RECOMMENDING` | may include a 003 DECREASE |
+
+A restart starts again from hour 0 (samples are kept in memory only). In `observe` mode nothing is evaluated and
+`evaluations` stays `[]`.
+
+## Shareable report: `GET /actuator/tuning/report` (after 0.4.1)
+
+> Arrives in the release after 0.4.1. On 0.4.1, paste the relevant entry of plain `GET /actuator/tuning` into the
+> feedback form and replace names yourself.
+
+A read operation on the same `tuning` endpoint (same exposure, same security as `GET /actuator/tuning`; any other
+path below it is 404). It returns **strictly less** than the snapshot, built only from allowlisted values; nothing is
+scrubbed afterwards:
+
+- copied: enum names, numbers, instants, rule ids matching `ST-REC-[A-Z]+-\d{3}`, setting names from a fixed list
+  (`maximumPoolSize`, `minimumIdle`, `connectionTimeout`, `idleTimeout`, `maxLifetime`, `leakDetectionThreshold`,
+  `corePoolSize`, `maxPoolSize`, `queueCapacity`), the two HikariCP meter names, upper-case refusal codes, and evidence
+  entries whose key is one of the rules' own evidence keys **and** whose value is a number with an optional unit
+  (`80%`, `40 ms`, `5m`, `3 of 10`);
+- never copied: component ids (pool and bean names), knob ids and sources, signals, recommendation `reason` and
+  `relatedRuleIds`, non-numeric evidence, apply plans, the apply block's `frozenReason`, `requiredRole`, guardrails and
+  knobs, and from the audit `who`, `why`, `reasons`, `evidence` and the capacity line. The report lists these
+  categories in `omitted`.
+- **Pseudonyms**: components are `<kind>#<n>` (`hikari#1`, `executor#2`), numbered per kind in the order of their
+  component id (sorted), within this process; a knob is `hikari#1.maximumPoolSize`. The mapping is not in the report;
+  the numbering stays stable while the set of components does not change (normally the life of the process).
+- Each recommendation carries a `feedbackUrl`: the [recommendation feedback form](https://github.com/pvgiang/spring-tune/issues/new?template=3-recommendation-feedback.yml)
+  with the title, `version`, `boot`, `recommended` and `payload` (that entry as JSON) pre-filled, at most 8 000
+  characters.
+
+Proven by `TuningReportAdviseWebTest` and `TuningReportApplyWebTest` (real web apps with Spring Security, serialized by
+the actuator's own JSON mapper on Boot 4.1 and 3.5): with a pool named `orders-db.prod.internal`, an executor bean
+named `jdbc:postgresql://10.1.2.3:5432/orders`, principal `alice@corp.example`, reason `ACME-123 deploy`, an
+evidence key containing the pool name and a pgjdbc-style exception text in every free-text field, none of these
+strings (and no `jdbc:`, IPv4 address, `@` or `.internal`) appears in the report or in a URL-decoded `feedbackUrl`;
+every string leaf matches the report grammar. This is a check of what SpringTune copies; read the report before you
+paste it.
+
+Output of `TuningReportAdviseWebTest` (the hostile fixture; Spring Boot 4.1.2; the payload part of the URL elided):
+
+```json
+{
+  "format": "springtune-report/1", "springtuneVersion": "0.4.2-SNAPSHOT", "springBootVersion": "4.1.2",
+  "javaVersion": 21, "mode": "ADVISE", "generatedAt": "2026-11-09T10:00:00Z",
+  "budget": { "databaseMaxConnections": 100, "maxReplicas": 6, "safetyFactor": 0.8, "perInstanceCap": 13 },
+  "components": [
+    { "ref": "executor#1", "kind": "executor", "samples": 31, "knobs": { "maxPoolSize": 4 } },
+    { "ref": "hikari#1", "kind": "hikari", "samples": 31, "knobs": { "maximumPoolSize": 10, "minimumIdle": 10 } } ],
+  "evaluations": [
+    { "component": "hikari#1", "ruleId": "ST-REC-HIKARI-001", "status": "RECOMMENDING", "seenSamples": null,
+      "minSamples": null, "seenSeconds": null, "neededSeconds": null, "missingMeters": null, "supersededBy": null },
+    { "component": "hikari#1", "ruleId": "ST-REC-HIKARI-002", "status": "QUIET", "seenSamples": null,
+      "minSamples": null, "seenSeconds": null, "neededSeconds": null, "missingMeters": null,
+      "supersededBy": "ST-REC-HIKARI-001" },
+    { "component": "hikari#1", "ruleId": "ST-REC-HIKARI-003", "status": "COLLECTING", "seenSamples": 31,
+      "minSamples": 3, "seenSeconds": 310, "neededSeconds": 86390, "missingMeters": null, "supersededBy": null },
+    { "component": "executor#1", "ruleId": "ST-REC-EXEC-001", "status": "NO_SIGNAL", "seenSamples": null,
+      "minSamples": null, "seenSeconds": null, "neededSeconds": null,
+      "missingMeters": [ "hikaricp.connections.usage" ], "supersededBy": null } ],
+  "recommendations": [ {
+    "ruleId": "ST-REC-HIKARI-001", "knob": "hikari#1.maximumPoolSize", "action": "INCREASE",
+    "currentValue": 10, "recommendedValue": 13, "confidence": "HIGH",
+    "evidence": { "window": "5m", "samples": "31", "samplesWithWaitingThreads": "100%",
+                  "meanConnectionHoldTime": "40 ms", "peakActiveConnections": "3 of 10", "budgetCap": "13" },
+    "createdAt": "2026-11-09T10:00:00Z",
+    "feedbackUrl": "https://github.com/pvgiang/spring-tune/issues/new?template=3-recommendation-feedback.yml&title=%5Brecommendation%5D%20ST-REC-HIKARI-001%3A%20INCREASE%2010%20to%2013&version=0.4.2-SNAPSHOT&boot=4.1.2&recommended=13&payload=%7B%22ruleId%22%3A%22ST-REC-HIKARI-001%22…" } ],
+  "verdicts": [
+    { "ref": "change-2", "at": "2026-11-09T10:00:00Z", "action": "apply", "ruleId": "ST-REC-HIKARI-001",
+      "knob": "hikari#1.maximumPoolSize", "before": { "maximumPoolSize": 10, "minimumIdle": 10 },
+      "after": { "maximumPoolSize": 13, "minimumIdle": 13 }, "outcome": "CONFIRMED", "verdict": "OK", "code": null,
+      "capacityObtained": false, "finishedAt": "2026-11-09T10:05:30Z" },
+    { "ref": null, "at": "2026-11-09T10:00:00Z", "action": null, "ruleId": null, "knob": null, "before": {},
+      "after": {}, "outcome": "REFUSED", "verdict": null, "code": "NO_CURRENT_RECOMMENDATION",
+      "capacityObtained": null, "finishedAt": "2026-11-09T10:00:00Z" } ],
+  "omitted": [ "componentIds", "knobIds", "knobSources", "signals", "recommendation.reason",
+    "recommendation.relatedRuleIds", "recommendation.evidence.nonNumeric", "applyPlans", "apply.frozenReason",
+    "apply.requiredRole", "apply.guardrails", "apply.knobs", "audit.who", "audit.why", "audit.reasons",
+    "audit.evidence", "audit.capacity" ]
+}
+```
+
+In that fixture the evidence entries keyed by the pool name, with an exception text or an IP address as value, or
+with a non-numeric value (`unavailable`) were dropped; so was a recommendation whose rule id embedded the pool name, a
+component of an unknown kind and every field of the forged second audit entry except its enums. `verdicts` is `[]`
+outside apply mode.
 
 ## Apply plans (advise and apply mode)
 
@@ -294,6 +415,7 @@ Expose with `management.endpoints.web.exposure.include=tuning`, then `GET /actua
       "reason": "Do not raise the pool. Threads wait for connections because each connection is held for 900 ms ...",
       "evidence": { "samplesWithWaitingThreads": "100%", "meanConnectionHoldTime": "900 ms", ... },
       "confidence": "HIGH", "relatedRuleIds": ["ST-TX-001", "ST-HIKARI-002"] } ],
+  "evaluations": [ { "component": "hikari:orders-pool", "ruleId": "ST-REC-HIKARI-002", "status": "RECOMMENDING", ... } ],
   "applyPlans": [ ],
   "apply": null
 }
@@ -304,6 +426,8 @@ Expose with `management.endpoints.web.exposure.include=tuning`, then `GET /actua
 | Check | Test |
 |---|---|
 | Rules on synthetic signals (raise, cap, above cap, slow holds, missing metrics, lower, coverage) | `AdvisorTest` |
+| Evaluation statuses: fresh pool `COLLECTING` with samples and seconds seen vs needed (13 samples, 120 of 290 s); no sample yet; healthy pool after 5 min `QUIET` with 003 still `COLLECTING`, after 24 h `QUIET` on every rule; missing usage timer `NO_SIGNAL` naming `hikaricp.connections.usage` (synthetic and on a real H2 pool); precedence as `QUIET` + `supersededBy`; executor `COLLECTING` then `QUIET`; snapshot lists the latest tick. Property test (4 000 seeded random windows over every rule): `RECOMMENDING` exactly for the rule of the recommendation present, at most one per pool, same recommendation as before statuses existed, every rule and every status reached | `RuleEvaluationTest` |
+| `GET /actuator/tuning/report`: served next to the apply write operation and in advise mode, behind Spring Security (401 without credentials), 404 for any other selector; trap (hostile pool, bean, principal, reason, evidence key, exception texts: none survives, also not in the URL-decoded `feedbackUrl`); schema (every key and string leaf in the report grammar); pseudonym order; version fallback; evidence grammar | `TuningReportAdviseWebTest`, `TuningReportApplyWebTest`, `ApplySecurityWebTest`, `TuningReportTest` |
 | Conditions: disabled, no Hikari on the classpath, endpoint needs exposure, invalid mode rejected, half-configured budget rejected, **apply without Spring Security fails startup** (`FilteredClassLoader`), write extension only in apply mode, step registries not read as cumulative | `SpringTuneAutoConfigurationTest` |
 | Every guard refusal (mode, disabled, frozen, in flight, unknown knob, cooldown, no/HOLD recommendation, compare-and-set, no budget, above cap, step, growth, baseline) and caller checks | `ApplyGuardTest` |
 | Verification rules R1–R3, R6, minimums, 2× throughput → INCONCLUSIVE, HTTP evidence only | `VerificationRuleTest` |

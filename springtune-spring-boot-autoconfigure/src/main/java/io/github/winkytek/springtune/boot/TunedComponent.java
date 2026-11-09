@@ -28,6 +28,24 @@ public interface TunedComponent {
 
     List<Recommendation> recommend(Instant now);
 
+    /**
+     * The recommendations at {@code now} together with each rule's {@link RuleEvaluation status}, from one pass.
+     * Components that report statuses override this and implement {@link #recommend} as
+     * {@code evaluate(now).recommendations()}, so the two cannot disagree. The default reports no statuses.
+     */
+    default Evaluation evaluate(Instant now) {
+        return new Evaluation(List.of(), recommend(now));
+    }
+
+    /** One evaluation pass: per-rule statuses and the recommendations they produced. */
+    record Evaluation(List<RuleEvaluation> rules, List<Recommendation> recommendations) {
+
+        public Evaluation {
+            rules = List.copyOf(rules);
+            recommendations = List.copyOf(recommendations);
+        }
+    }
+
     /** How to apply {@code recommendation} if it concerns one of this component's knobs. */
     default Optional<ApplyPlan> applyPlan(Recommendation recommendation) {
         return Optional.empty();

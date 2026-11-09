@@ -91,4 +91,24 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <!-- Only the version file is filtered (GET /actuator/tuning/report names the starter version). -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>io/github/winkytek/springtune/boot/springtune-starter-version.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>io/github/winkytek/springtune/boot/springtune-starter-version.properties</include>
+                </includes>
+            </resource>
+        </resources>
+    </build>
 </project>

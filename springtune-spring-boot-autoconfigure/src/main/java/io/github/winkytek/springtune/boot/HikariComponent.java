@@ -308,12 +308,20 @@ final class HikariComponent implements TunedComponent {
 
     @Override
     public List<Recommendation> recommend(Instant now) {
+        return evaluate(now).recommendations();
+    }
+
+    /** Recommendation and per-rule statuses from one {@link HikariAdvisor#evaluate} pass. */
+    @Override
+    public Evaluation evaluate(Instant now) {
         SpringTuneProperties.Hikari settings = properties.getHikari();
         Duration tolerance = properties.getSampling().getInterval();
         int current = dataSource.getHikariConfigMXBean().getMaximumPoolSize();
-        return HikariAdvisor.advise(knobId("maximumPoolSize"), current,
-                samples.covering(now, settings.getWindow(), tolerance),
-                samples.covering(now, settings.getLowUtilizationWindow(), tolerance),
-                budgetCap, settings, now).map(List::of).orElse(List.of());
+        List<String> missingMeters = HikariAdvisor.HOLD_TIME_METERS.stream()
+                .filter(meter -> timers.read(meter, poolName()).isEmpty()).toList();
+        return HikariAdvisor.evaluate(id(), knobId("maximumPoolSize"), current,
+                samples.coverage(now, settings.getWindow(), tolerance),
+                samples.coverage(now, settings.getLowUtilizationWindow(), tolerance),
+                budgetCap, settings, now, missingMeters);
     }
 }
