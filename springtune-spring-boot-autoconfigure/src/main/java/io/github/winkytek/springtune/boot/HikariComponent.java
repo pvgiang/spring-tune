@@ -122,8 +122,15 @@ final class HikariComponent implements TunedComponent {
             }
             CompletableFuture<ServerConnectionLimit> next = new CompletableFuture<>();
             if (reading.compareAndSet(current, next)) {
-                Thread reader = new Thread(() -> next.complete(readServerLimit()),
-                        "springtune-server-limit-" + poolName());
+                Thread reader = new Thread(() -> {
+                    try {
+                        next.complete(readServerLimit());
+                    } catch (Throwable ex) {
+                        // Never leave a read that cannot complete: every later apply would join it and time out.
+                        next.completeExceptionally(ex);
+                        throw ex;
+                    }
+                }, "springtune-server-limit-" + poolName());
                 reader.setDaemon(true);
                 reader.start();
                 return next;
