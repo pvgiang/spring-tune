@@ -109,7 +109,10 @@ strings (and no `jdbc:`, IPv4 address, `@` or `.internal`) appears in the report
 every string leaf matches the report grammar. This is a check of what SpringTune copies; read the report before you
 paste it.
 
-Output of `TuningReportAdviseWebTest` (the hostile fixture; Spring Boot 4.1.2; the payload part of the URL elided):
+Output of `TuningReportAdviseWebTest` (the hostile fixture; Spring Boot 4.1.2; the payload part of the URL elided).
+The fixture is a hand-built snapshot, not a running service: its `evaluations` and audit are forged to exercise every
+field, so it shows what a real service never does (an executor `NO_SIGNAL` naming a HikariCP meter, no
+`ST-REC-HIKARI-004` entry, `verdicts` in advise mode):
 
 ```json
 {
