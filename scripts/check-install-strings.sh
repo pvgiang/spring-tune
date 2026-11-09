@@ -32,6 +32,12 @@ STALE=(
   '0.4.0</springtune.version>'
   'version "0.4.0"'
   'version: "0.4.0"'
+  "version '0.4.0'"
+  'releases/download/v0.4.0/'
+  'springtune-maven-plugin:0.4.0'
+  'springtune-gradle-plugin:0.4.0'
+  'springtune-spring-boot-starter:0.4.0'
+  'springtune-limiter:0.4.0'
 )
 
 files=()
