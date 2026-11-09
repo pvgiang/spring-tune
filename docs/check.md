@@ -2,10 +2,10 @@
 
 ## CLI
 
-Get the runnable jar (Java 17+) from Maven Central as `io.github.winkytek.springtune:springtune-check-cli:0.4.0:all`
-(verify it against Central's `.sha256`, see the [README](../README.md#quick-start)); the same jar is attached to the
-[v0.4.0 release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.0) as `springtune-cli-0.4.0.jar`. Run it as
-`java -jar springtune-check-cli-0.4.0-all.jar check ...`.
+Get the runnable jar (Java 17+) from Maven Central as `io.github.winkytek.springtune:springtune-check-cli:0.4.1:all`
+(verify it against Central's `.sha256`, see the [README](../README.md#quick-start)); the CLI is also attached to the
+[v0.4.1 release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.1) as `springtune-cli-0.4.1.jar`, listed in
+its `SHA256SUMS`. Run it as `java -jar springtune-check-cli-0.4.1-all.jar check ...`.
 
 ```
 springtune check [ROOT] [-m DIR]... [-p PROFILE[,PROFILE]] [-c springtune.yml]
@@ -45,7 +45,7 @@ depends on it.
 plugins {
     java
     id("org.springframework.boot") version "3.5.16"
-    id("io.github.winkytek.springtune") version "0.4.0"
+    id("io.github.winkytek.springtune") version "0.4.1"
 }
 
 repositories {
@@ -60,8 +60,8 @@ springtune {                       // all optional
 ```
 
 **Where the plugin comes from.** The plugin and its marker are published to Maven Central. They are not listed on
-the Gradle Plugin Portal yet (the listing follows 0.4.0), but the Portal serves Maven Central artifacts, so
-`plugins { id("io.github.winkytek.springtune") version "0.4.0" }` resolves with Gradle's default plugin repository
+the Gradle Plugin Portal yet (the listing is a pending release step), but the Portal serves Maven Central artifacts, so
+`plugins { id("io.github.winkytek.springtune") version "0.4.1" }` resolves with Gradle's default plugin repository
 (the post-release smoke proves both routes on Gradle 8.14 and 9.8). Until the Plugin Portal listing, add
 `mavenCentral()` to `pluginManagement.repositories` if your build doesn't use `gradlePluginPortal()`:
 

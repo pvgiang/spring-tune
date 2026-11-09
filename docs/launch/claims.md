@@ -11,6 +11,9 @@ Two CLI versions appear below:
 - **0.4.0**: the released CLI (SHA-256 `cea94c6a…3d30`), used for the 2026-11-09 re-run at the same commits.
   The re-run is identical finding for finding, so every corpus number holds for both.
 
+The install snippets use **0.4.1**, the current release. It has no rule changes ([v0.4.1 notes](../releases/v0.4.1.md)),
+so the corpus was not re-run with it and the corpus numbers keep the version that produced them (0.4.0).
+
 ## Corpus numbers
 
 | Claim (as worded in the content) | Used in | Source | Section / line | CLI |
@@ -52,7 +55,10 @@ Two CLI versions appear below:
 |---|---|---|---|
 | 0.4.0 on Maven Central, groupId `io.github.winkytek.springtune` | post, variants | [v0.4.0 release notes](../releases/v0.4.0.md); post-release smoke run [42563268215](https://github.com/pvgiang/spring-tune/actions/runs/42563268215) (success, 2026-11-09, `dd8fa86`) | Install |
 | CLI SHA-256 `cea94c6a6756e9681277c17183b2a8217752e2d0e40bbd652444dc9a690ef307`, same bytes on Central and the GitHub release | post | [re-run](../corpus/2026-11-09-0.4.0-rerun.md); v0.4.0 release asset `SHA256SUMS` | What was run, L17–L18 |
-| 13 rules | post, HN | [`docs/rules/`](../rules/) (13 rule pages besides README); `java -jar springtune-check-cli-0.4.0-all.jar rules` lists 13 | |
+| 13 rules | post, HN | [`docs/rules/`](../rules/) (13 rule pages besides README); the `rules` command of the 0.4.0 CLI lists 13, and so does the 0.4.1 CLI from the v0.4.1 GitHub release (run 2026-11-09) | |
+| 0.4.1: the current release; the Action at `@v0.4.1` verifies the jar against `SHA256SUMS`, and its `action.yml` defaults to CLI 0.4.0, so the snippets pass `version: "0.4.1"` | post, variants | [v0.4.1 release notes](../releases/v0.4.1.md) | GitHub Action |
+| 0.4.1 on Maven Central | post, variants | **open**: on 2026-11-09 the deployment is uploaded but not published (`springtune-check-cli-0.4.1.pom` on repo1.maven.org returns 404). Do not post before it returns 200 ([checklist](checklist.md)) | |
+| CLI SHA-256 `3f3726f752ae7605ee0687ac9a1f2158585928bc593cb90b95d45e4b140b599e` (post's CLI snippet) | post | v0.4.1 GitHub release asset `SHA256SUMS`, line `springtune-cli-0.4.1.jar` (downloaded through the API 2026-11-09; the jar prints `SpringTune 0.4.1`) | **open**: that Central's `springtune-check-cli-0.4.1-all.jar` has the same bytes, as 0.4.0's did; checked after Central publishes ([checklist](checklist.md)) |
 | Apply mode: 5 of 6 pre-registered bars met; bar 1 (a design partner in production) not met | post, variants, template | [iteration-4 brief §2](../delivery/iteration-4-brief.md#2-pre-registered-bar-for-leaving-experimental-posre-recorded-before-any-load-test-code) | L17 (the six bars), L22, L89 ("bars 2–6 are met, bar 1 … is not"); v0.4.0 notes L51–L53 |
 | Nobody runs it in production that we know of | post, variants | iteration-4 brief L22 ("cannot be met with zero users"); [gates](../adoption/gates.md) baseline (0 stars, 0 issues, 0 downloads) | |
 | Three replicas raising at once within budget; failing database refuses apply | post | v0.4.0 notes, "Apply mode, proven on a real PostgreSQL" | L62 (bar 2), "Failing database (bar 3)" |
@@ -68,7 +74,8 @@ Run on 2026-11-09 in a clean sandbox against Maven Central, with empty local rep
 | Maven plugin 0.4.0 (Spring Boot 3.5.16 project with a JDBC starter and `new RestTemplate()`) | `mvn verify -Dspringtune.failOn=WARNING` | exit 1: ST-HTTP-001, ST-HIKARI-001, ST-HIKARI-002 (3 at WARNING) |
 | Gradle plugin 0.4.0 by id, `repositories { mavenCentral() }`, Gradle 8.14.3 | `gradle springtuneCheck` with `failOn.set("WARNING")` | exit 1: the same 3 findings |
 | CLI from Central | `sha256sum` against the value above; `java -jar … --version` | `SpringTune 0.4.0`; checksum matches the release `SHA256SUMS` |
-| GitHub Action `pvgiang/spring-tune@v0.4.0` with `version: "0.4.0"` | not executable in this sandbox | **open**: the checklist requires the demo job green |
+| GitHub Action, as the drafts show it now (`@v0.4.1` tag, `version` input `0.4.1`) | not executable in this sandbox | **open**: the checklist requires the `demo` and `published-action` jobs green on `main` |
+| 0.4.1 CLI from the v0.4.1 GitHub release on `examples/broken-config-ci` (2026-11-09) | `check examples/broken-config-ci`; `assert-sarif.py --tool-version 0.4.1 --exact` | exit 1; the same 5 findings at the same lines as with 0.4.0 (the demo README's output) |
 
 These sandbox runs are evidence for this table, not committed CI. The committed proof is the README-snippet CI job
 and the demo job (see the [checklist](checklist.md)). Durations were not measured, so the content does not say

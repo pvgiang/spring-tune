@@ -1,7 +1,7 @@
 # broken-config-ci: see SpringTune fail a build
 
 A small Spring Boot 4.1 service (`orders-service`) with four configuration mistakes that cause real outages. It is
-standalone: its `pom.xml` uses Spring Boot's parent and SpringTune 0.4.0 from Maven Central, nothing from this
+standalone: its `pom.xml` uses Spring Boot's parent and SpringTune 0.4.1 from Maven Central, nothing from this
 repository's build. The SpringTune check fails on it, on purpose. Each fix below is one small commit, and after all
 four the check passes.
 
@@ -15,16 +15,16 @@ download the CLI in another repository's workflow: the release URLs return 404. 
 Locally (Java 17+, nothing is built or executed, nothing leaves your machine):
 
 ```bash
-base=https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0
-curl -fsSLO $base/springtune-check-cli-0.4.0-all.jar
-echo "$(curl -fsSL $base/springtune-check-cli-0.4.0-all.jar.sha256)  springtune-check-cli-0.4.0-all.jar" | sha256sum -c -
-java -jar springtune-check-cli-0.4.0-all.jar check .
+base=https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.1
+curl -fsSLO $base/springtune-check-cli-0.4.1-all.jar
+echo "$(curl -fsSL $base/springtune-check-cli-0.4.1-all.jar.sha256)  springtune-check-cli-0.4.1-all.jar" | sha256sum -c -
+java -jar springtune-check-cli-0.4.1-all.jar check .
 ```
 
-Output (SpringTune 0.4.0, exit code 1):
+Output (SpringTune 0.4.1, exit code 1):
 
 ```
-SpringTune 0.4.0: 1 module(s), 5 finding(s) (0 error, 4 warning, 1 info), 0 suppressed
+SpringTune 0.4.1: 1 module(s), 5 finding(s) (0 error, 4 warning, 1 info), 0 suppressed
 
 WARNING ST-HTTP-001  src/main/java/com/example/orders/InventoryClient.java:10:39
 WARNING ST-HIKARI-002  src/main/resources/application.yml:1

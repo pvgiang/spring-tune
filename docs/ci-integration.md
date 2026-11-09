@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pvgiang/spring-tune@v0.4.0      # downloads the released CLI, needs no build
+      - uses: pvgiang/spring-tune@v0.4.1      # downloads the released CLI, needs no build
         id: springtune
         with:
-          version: "0.4.0"                     # keep equal to the tag: the v0.4.0 tag defaults to CLI 0.1.0
+          version: "0.4.1"                     # pass it: the v0.4.1 tag defaults to CLI 0.4.0
           profile: prod                        # optional
           fail-on: ERROR                       # optional (default: springtune.yml failOn, else ERROR)
       - uses: github/codeql-action/upload-sarif@v3
@@ -38,10 +38,10 @@ the GitHub REST API with the workflow's token, input `token`; set it to `""`, or
 the release, and it falls back to anonymous `curl` over HTTPS, which needs this repository to be public; the token
 is never passed to the CLI), and checks the jar's line with `sha256sum -c` ([`scripts/action/verify-sha256.sh`](../scripts/action/verify-sha256.sh)) before
 running it. A mismatch, a missing `SHA256SUMS` or jar line, or a `version` that is not a release number (such as
-`0.4.0`) stops the step with exit code 2 and the jar never runs. A jar passed through the `jar` input (your own build) is not verified. This verification is in `action.yml`
-on `main` and ships with the next tag: the `v0.4.0` tag's Action downloads the jar over HTTPS without checking it.
-To get the check before then, pin the Action to a full commit SHA of `main` instead of the tag, or
-verify the jar yourself, as the [README](../README.md#quick-start) shows for the CLI.
+`0.4.1`) stops the step with exit code 2 and the jar never runs. A jar passed through the `jar` input (your own build) is not verified. The verification
+ships from the `v0.4.1` tag on. That tag's `action.yml` defaults to CLI 0.4.0 (the 0.4.1 jar did not exist when it
+was written; see the [v0.4.1 notes](releases/v0.4.1.md)), so pass `version: "0.4.1"` as above. The `v0.4.0` tag's
+Action defaults to CLI 0.1.0 and downloads the jar without checking it: move to `@v0.4.1`.
 
 Findings then appear as code scanning alerts on the exact `file:line`. Suppressed findings are uploaded with
 `suppressions[].justification`, so the reason stays visible. `partialFingerprints` keep alerts stable when
