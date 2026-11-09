@@ -11,6 +11,9 @@ Two CLI versions appear below:
 - **0.4.0**: the released CLI (SHA-256 `cea94c6a…3d30`), used for the 2026-11-09 re-run at the same commits.
   The re-run is identical finding for finding, so every corpus number holds for both.
 
+The install snippets use **0.4.1**, the current release. It has no rule changes ([v0.4.1 notes](../releases/v0.4.1.md)),
+so the corpus was not re-run with it and the corpus numbers keep the version that produced them (0.4.0).
+
 ## Corpus numbers
 
 | Claim (as worded in the content) | Used in | Source | Section / line | CLI |
@@ -31,9 +34,39 @@ Two CLI versions appear below:
 | PetClinic gateway `ApiGatewayApplication.java:55:16`, GenAI `AIDataProvider.java:37:27` | deep dive 2 | raw JSON `results/2026-11-09-0.4.0/spring-petclinic__spring-petclinic-microservices.json`; re-run spot checks | "What was reviewed" | 0.4.0 |
 | 7 executors with unbounded queues in 5 repositories | post, r/java | corpus report | Precision per rule, L71 | dev build, 0.4.0 |
 | JeecgBoot `Executors.newFixedThreadPool(10)` for AI chat streams | post, r/java | corpus report; [case study](../case-study/what-we-found-in-20-spring-boot-projects.md) | Notable true positives, L80; case study §3 | dev build |
-| 70 modules in 16 repositories with no transaction or query timeout | post, template | corpus report | Precision per rule, L69 | dev build, 0.4.0 |
+| 70 modules in 16 repositories with no transaction or query timeout | post, template, deep dive 3 | corpus report; re-run | Precision per rule, L69; re-run diff table, L54 | dev build, 0.4.0 |
+| ST-TX-001: 1 false positive, `demo-codegen` in `xkcoding/spring-boot-demo` (own JDBC connections, no Spring-managed DataSource) | deep dive 3 | corpus report; re-run | Precision per rule, L69 (notes); re-run spot checks, L113–L114 | dev build (review), 0.4.0 (unchanged) |
+| ST-TX-001 is INFO; all 70 are INFO | deep dive 3 | [rule page](../rules/ST-TX-001.md); raw JSON (`severity` of every ST-TX-001 finding) | | 0.4.0 |
+| 42 of the 70 in two tutorial collections (ityouknow 25, xkcoding 17) | deep dive 3 | raw JSON `results/2026-11-09-0.4.0/{ityouknow__spring-boot-examples,xkcoding__spring-boot-demo}.json` (ST-TX-001 per file; command below) | | 0.4.0 |
+| Other 28 in 14 repositories: FTGO 7, DolphinScheduler 5, mall 4, JeecgBoot 2, 10 repositories with 1 each | deep dive 3 | raw JSON in `results/2026-11-09-0.4.0/` (ST-TX-001 per file; command below) | | 0.4.0 |
+| 54 of the 70 modules use HikariCP (43 also flagged by ST-HIKARI-001, 11 pool built in code); 16 without HikariCP detected | deep dive 3 | raw JSON: `modules[].technologies` contains `hikari`, ST-HIKARI-001 findings per module, and the "builds its own DataSource" *not evaluated* diagnostic (command below); the 11 match the re-run breakdown L81 | | 0.4.0 |
+| 43 of the 45 ST-HIKARI-001 modules also have ST-TX-001 | deep dive 3 | raw JSON (modules with both findings; command below) | | 0.4.0 |
+| 45 modules *not evaluated* by missing-property rules (config outside the repository or relocated in code) | deep dive 3 | re-run; raw JSON `notEvaluated[]` with code `UNSUPPORTED` ("Local config is incomplete": 16 Config Server, 16 `spring.config.name`/`location` in code, 7 remote `spring.config.import`, 6 Nacos) | Diff, L62 (45 `UNSUPPORTED`) | 0.4.0 |
+| Spring PetClinic `application.properties` sets no transaction or query timeout (JPA) | deep dive 3 | raw JSON `results/2026-11-09-0.4.0/spring-projects__spring-petclinic.json` (ST-TX-001 at `src/main/resources/application.properties:1`); file at the pinned commit `500158f7` (`shas.tsv`), linked in the text | | 0.4.0 |
 | Pinned commits of 2026-11-03; re-run 2026-11-09 identical | post, r/java | re-run; `results/2026-11-03/shas.tsv` = `results/2026-11-09-0.4.0/shas.tsv` | What was run, L21; diff, L58 | 0.4.0 |
 | DolphinScheduler API server `hikari` block without timeout or leak detection | post, deep dive 1 | case study (pinned permalink `282d956cbc`) | §1 | dev build; text output re-checked on 0.4.0 (re-run spot checks) |
+
+Deep dive 3's per-repository and HikariCP counts, from the raw JSON (Python 3, repository root):
+
+```bash
+python3 -I - docs/corpus/results/2026-11-09-0.4.0 <<'PY'
+import collections, json, pathlib, sys
+per_repo, hikari, both_h1, code_built, h1_total = collections.Counter(), 0, 0, 0, 0
+for f in sorted(pathlib.Path(sys.argv[1]).glob("*.json")):
+    r = json.loads(f.read_text()); fs = [x for x in r["findings"] if not x["suppressed"]]
+    tx = {x["module"] for x in fs if x["ruleId"] == "ST-TX-001"}
+    h1 = {x["module"] for x in fs if x["ruleId"] == "ST-HIKARI-001"}
+    own = {d["module"] for d in r["notEvaluated"] if "builds its own DataSource" in d["message"]}
+    per_repo[f.stem] += len(tx); h1_total += len(h1); both_h1 += len(tx & h1)
+    hikari += sum(1 for m in r["modules"] if m["path"] in tx and "hikari" in m["technologies"])
+    code_built += len(tx & own)
+print(sum(per_repo.values()), "findings,", sum(1 for v in per_repo.values() if v), "repos;", +per_repo)
+print("HikariCP:", hikari, "| also ST-HIKARI-001:", both_h1, "of", h1_total, "| pool built in code:", code_built)
+PY
+```
+
+Output on 2026-11-09: 70 findings in 16 repositories (ityouknow 25, xkcoding 17, FTGO 7, DolphinScheduler 5,
+mall 4, JeecgBoot 2, ten with 1); HikariCP 54, also ST-HIKARI-001 43 of 45, pool built in code 11.
 
 ## Illustrative arithmetic (labeled as such in the content)
 
@@ -43,6 +76,8 @@ Two CLI versions appear below:
 | 30 ms → 3 s: ~330/s → ~3/s served; ~47 threads blocked per second; all 200 in ~4 s | post, HN, deep dive 1 | case study §1 table, L48–L51, and its footnote L219 ("illustrative, Little's law") | not a measurement |
 | Deep dive 1 timeline (~10 s health check, ~30 s restart) | deep dive 1 | composite, labeled in the text | not a measurement |
 | Deep dive 2 timeline (100 req/s, a third to the dead pod, 200 threads in ~6 s) | deep dive 2 | composite, labeled in the text; 200 / (100 / 3) = 6 | not a measurement |
+| Deep dive 3 timeline (export from 2 s to ~4 min, 10 exports hold all 10 connections, 30 s waits) | deep dive 3 | composite, labeled in the text; pool size and `connectionTimeout` are the Spring Boot/HikariCP defaults above | not a measurement |
+| Spring Boot sets no transaction or query timeout by default; `jakarta.persistence.query.timeout` is in milliseconds; `@Transactional(timeout)` in seconds | deep dive 3 | Spring Boot (`spring.transaction.default-timeout`, `spring.jdbc.template.query-timeout` have no default), JPA specification (query timeout hint in ms), Spring `@Transactional` Javadoc (seconds) | external fact |
 | Linux TCP keepalive off unless enabled; default idle time 2 hours | deep dive 2 | Linux `tcp(7)`: `tcp_keepalive_time` default 7200 s | external fact |
 | HikariCP: `0` means wait forever; values below 250 ms reset to 30 s with a warning | deep dive 1 | [ST-HIKARI-001](../rules/ST-HIKARI-001.md) (0 = infinite); HikariCP `HikariConfig.setConnectionTimeout` | external fact (HikariCP source) |
 
@@ -52,7 +87,10 @@ Two CLI versions appear below:
 |---|---|---|---|
 | 0.4.0 on Maven Central, groupId `io.github.winkytek.springtune` | post, variants | [v0.4.0 release notes](../releases/v0.4.0.md); post-release smoke run [42563268215](https://github.com/pvgiang/spring-tune/actions/runs/42563268215) (success, 2026-11-09, `dd8fa86`) | Install |
 | CLI SHA-256 `cea94c6a6756e9681277c17183b2a8217752e2d0e40bbd652444dc9a690ef307`, same bytes on Central and the GitHub release | post | [re-run](../corpus/2026-11-09-0.4.0-rerun.md); v0.4.0 release asset `SHA256SUMS` | What was run, L17–L18 |
-| 13 rules | post, HN | [`docs/rules/`](../rules/) (13 rule pages besides README); `java -jar springtune-check-cli-0.4.0-all.jar rules` lists 13 | |
+| 13 rules | post, HN | [`docs/rules/`](../rules/) (13 rule pages besides README); the `rules` command of the 0.4.0 CLI lists 13, and so does the 0.4.1 CLI from the v0.4.1 GitHub release (run 2026-11-09) | |
+| 0.4.1: the current release; the Action at `@v0.4.1` verifies the jar against `SHA256SUMS`, and its `action.yml` defaults to CLI 0.4.0, so the snippets pass `version: "0.4.1"` | post, variants | [v0.4.1 release notes](../releases/v0.4.1.md) | GitHub Action |
+| 0.4.1 on Maven Central | post, variants | **open**: on 2026-11-09 the deployment is uploaded but not published (`springtune-check-cli-0.4.1.pom` on repo1.maven.org returns 404). Do not post before it returns 200 ([checklist](checklist.md)) | |
+| CLI SHA-256 `3f3726f752ae7605ee0687ac9a1f2158585928bc593cb90b95d45e4b140b599e` (post's CLI snippet) | post | v0.4.1 GitHub release asset `SHA256SUMS`, line `springtune-cli-0.4.1.jar` (downloaded through the API 2026-11-09; the jar prints `SpringTune 0.4.1`) | **open**: that Central's `springtune-check-cli-0.4.1-all.jar` has the same bytes, as 0.4.0's did; checked after Central publishes ([checklist](checklist.md)) |
 | Apply mode: 5 of 6 pre-registered bars met; bar 1 (a design partner in production) not met | post, variants, template | [iteration-4 brief §2](../delivery/iteration-4-brief.md#2-pre-registered-bar-for-leaving-experimental-posre-recorded-before-any-load-test-code) | L17 (the six bars), L22, L89 ("bars 2–6 are met, bar 1 … is not"); v0.4.0 notes L51–L53 |
 | Nobody runs it in production that we know of | post, variants | iteration-4 brief L22 ("cannot be met with zero users"); [gates](../adoption/gates.md) baseline (0 stars, 0 issues, 0 downloads) | |
 | Three replicas raising at once within budget; failing database refuses apply | post | v0.4.0 notes, "Apply mode, proven on a real PostgreSQL" | L62 (bar 2), "Failing database (bar 3)" |
@@ -68,7 +106,8 @@ Run on 2026-11-09 in a clean sandbox against Maven Central, with empty local rep
 | Maven plugin 0.4.0 (Spring Boot 3.5.16 project with a JDBC starter and `new RestTemplate()`) | `mvn verify -Dspringtune.failOn=WARNING` | exit 1: ST-HTTP-001, ST-HIKARI-001, ST-HIKARI-002 (3 at WARNING) |
 | Gradle plugin 0.4.0 by id, `repositories { mavenCentral() }`, Gradle 8.14.3 | `gradle springtuneCheck` with `failOn.set("WARNING")` | exit 1: the same 3 findings |
 | CLI from Central | `sha256sum` against the value above; `java -jar … --version` | `SpringTune 0.4.0`; checksum matches the release `SHA256SUMS` |
-| GitHub Action `pvgiang/spring-tune@v0.4.0` with `version: "0.4.0"` | not executable in this sandbox | **open**: the checklist requires the demo job green |
+| GitHub Action, as the drafts show it now (`@v0.4.1` tag, `version` input `0.4.1`) | not executable in this sandbox | **open**: the checklist requires the `demo` and `published-action` jobs green on `main` |
+| 0.4.1 CLI from the v0.4.1 GitHub release on `examples/broken-config-ci` (2026-11-09) | `check examples/broken-config-ci`; `assert-sarif.py --tool-version 0.4.1 --exact` | exit 1; the same 5 findings at the same lines as with 0.4.0 (the demo README's output) |
 
 These sandbox runs are evidence for this table, not committed CI. The committed proof is the README-snippet CI job
 and the demo job (see the [checklist](checklist.md)). Durations were not measured, so the content does not say

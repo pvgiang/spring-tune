@@ -120,7 +120,7 @@ suppress:
 The [broken-config demo](../../examples/broken-config-ci/) is a small Spring Boot project with this exact mistake
 (and an HTTP client without timeouts). Its workflow runs the SpringTune Action and turns the findings into a red
 check with line-level annotations. To run the check on your own project, add the Maven plugin or Gradle plugin at
-0.4.0 ([launch post](../launch/launch-post.md#try-it-on-your-repository-040)) and set `failOn` to `WARNING`.
+0.4.1 ([launch post](../launch/launch-post.md#try-it-on-your-repository-041)) and set `failOn` to `WARNING`.
 
 ## Related rules
 

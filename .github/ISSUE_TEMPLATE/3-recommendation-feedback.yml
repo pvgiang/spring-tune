@@ -7,7 +7,8 @@ body:
     attributes:
       value: |
         SpringTune collects no telemetry, so this form is how we learn whether recommendations are trusted.
-        One issue per recommendation, please; keep the ID in the title. Remove hostnames and anything confidential.
+        One issue per recommendation, please; keep the ID in the title. This issue is public: anything you type
+        or paste outside the `/actuator/tuning/report` entry, check for hostnames and anything confidential first.
   - type: dropdown
     id: rec
     attributes:
@@ -16,10 +17,25 @@ body:
         - ST-REC-HIKARI-001
         - ST-REC-HIKARI-002
         - ST-REC-HIKARI-003
+        - ST-REC-HIKARI-004
         - ST-REC-EXEC-001
         - Other (name it below)
     validations:
       required: true
+  - type: input
+    id: recommended
+    attributes:
+      label: Recommended value
+      description: The setting and the value SpringTune recommended.
+      placeholder: "maximumPoolSize 10 -> 14"
+    validations:
+      required: true
+  - type: input
+    id: applied
+    attributes:
+      label: Value you applied (if different)
+      description: Leave empty if you applied the recommended value or did not apply anything.
+      placeholder: "maximumPoolSize 12"
   - type: dropdown
     id: outcome
     attributes:
@@ -40,6 +56,15 @@ body:
         - Committed the property and redeployed
         - Guarded apply (springtune apply mode)
         - Not applied
+  - type: dropdown
+    id: reverted
+    attributes:
+      label: Reverted later?
+      options:
+        - "No"
+        - "Yes, within a day"
+        - "Yes, later"
+        - "Too early to say"
   - type: textarea
     id: why
     attributes:
@@ -51,13 +76,33 @@ body:
     id: payload
     attributes:
       label: The recommendation as shown
-      description: The entry from GET /actuator/tuning (recommendations[]), with names you consider sensitive replaced.
+      description: >-
+        The entry from GET /actuator/tuning/report (0.4.2+; it contains no host, pool or bean names).
+        On 0.4.1 or older, the entry from GET /actuator/tuning with names you consider sensitive replaced.
       render: json
   - type: input
     id: version
     attributes:
       label: SpringTune version
-      placeholder: "0.3.0"
+      placeholder: "0.4.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: SpringTune mode
+      description: The value of springtune.mode where the recommendation was shown.
+      options:
+        - observe
+        - advise
+        - apply
+    validations:
+      required: true
+  - type: input
+    id: boot
+    attributes:
+      label: Spring Boot version
+      placeholder: "3.5.16"
     validations:
       required: true
   - type: dropdown
@@ -69,3 +114,8 @@ body:
         - "2-5"
         - "6-20"
         - "More than 20"
+  - type: input
+    id: team
+    attributes:
+      label: Team or organization (optional; counts teams, not people)
+      description: Any stable name or pseudonym, so several reports from one team count once. Leave empty to stay anonymous.

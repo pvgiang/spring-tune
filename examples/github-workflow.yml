@@ -14,11 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pvgiang/spring-tune@v0.4.0
+      - uses: pvgiang/spring-tune@v0.4.1
         id: springtune
         with:
-          # The CLI release to run. Keep it equal to the tag above: the v0.4.0 tag's own default is still 0.1.0.
-          version: "0.4.0"
+          # The CLI release to run. Pass it: the v0.4.1 tag's own default is still CLI 0.4.0.
+          version: "0.4.1"
           # profile: prod          # optional: Spring profile(s) to analyze
           # fail-on: WARNING       # optional: default springtune.yml failOn, else ERROR
       - uses: github/codeql-action/upload-sarif@v3

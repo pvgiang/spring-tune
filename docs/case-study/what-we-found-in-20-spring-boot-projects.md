@@ -192,9 +192,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pvgiang/spring-tune@v0.4.0
+      - uses: pvgiang/spring-tune@v0.4.1
         id: springtune
-        with: { version: "0.4.0" }   # the CLI to run; the v0.4.0 tag defaults to 0.1.0
+        with: { version: "0.4.1" }   # the CLI to run; the v0.4.1 tag defaults to 0.4.0
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
         with: { sarif_file: "${{ steps.springtune.outputs.sarif }}" }
@@ -203,8 +203,8 @@ jobs:
 **Or locally, right now:**
 
 ```bash
-curl -fsSLO https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0/springtune-check-cli-0.4.0-all.jar
-java -jar springtune-check-cli-0.4.0-all.jar check . --profile prod
+curl -fsSLO https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.1/springtune-check-cli-0.4.1-all.jar
+java -jar springtune-check-cli-0.4.1-all.jar check . --profile prod
 ```
 
 - **Static only:** nothing is built or executed, and nothing leaves your machine.

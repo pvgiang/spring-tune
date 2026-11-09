@@ -57,13 +57,14 @@ The numbers above come from a run at pinned commits from 2026-11-03, re-run with
 longer [case study](https://github.com/pvgiang/spring-tune/blob/main/docs/case-study/what-we-found-in-20-spring-boot-projects.md)
 with the code and the fixes.
 
-## Try it on your repository (0.4.0)
+## Try it on your repository (0.4.1)
 
 It is static only: nothing is built or executed, and nothing leaves the machine. The default threshold is ERROR,
 and the ERROR rules need your database limits, so these snippets use `WARNING` to turn the findings above into a
 red check.
 
-**GitHub Action**, findings as code-scanning alerts on the exact line:
+***GitHub Action**, findings as code-scanning alerts on the exact line. It runs the CLI jar only if its SHA-256
+matches the release's `SHA256SUMS`:
 
 ```yaml
 # .github/workflows/springtune.yml
@@ -74,10 +75,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pvgiang/spring-tune@v0.4.0
+      - uses: pvgiang/spring-tune@v0.4.1
         id: springtune
         with:
-          version: "0.4.0"
+          version: "0.4.1"         # pass it: the v0.4.1 tag defaults to CLI 0.4.0
           fail-on: WARNING
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
@@ -91,7 +92,7 @@ jobs:
 <plugin>
   <groupId>io.github.winkytek.springtune</groupId>
   <artifactId>springtune-maven-plugin</artifactId>
-  <version>0.4.0</version>
+  <version>0.4.1</version>
   <executions><execution><goals><goal>check</goal></goals></execution></executions>
 </plugin>
 ```
@@ -100,7 +101,7 @@ jobs:
 
 ```kotlin
 plugins {
-    id("io.github.winkytek.springtune") version "0.4.0"
+    id("io.github.winkytek.springtune") version "0.4.1"
 }
 repositories { mavenCentral() }
 springtune { failOn.set("WARNING") }
@@ -109,9 +110,9 @@ springtune { failOn.set("WARNING") }
 **CLI** (Java 17+), from Maven Central, checksum first:
 
 ```bash
-curl -fsSLO https://repo1.maven.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0/springtune-check-cli-0.4.0-all.jar
-echo "cea94c6a6756e9681277c17183b2a8217752e2d0e40bbd652444dc9a690ef307  springtune-check-cli-0.4.0-all.jar" | sha256sum -c -
-java -jar springtune-check-cli-0.4.0-all.jar check . --fail-on WARNING
+curl -fsSLO https://repo1.maven.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.1/springtune-check-cli-0.4.1-all.jar
+echo "3f3726f752ae7605ee0687ac9a1f2158585928bc593cb90b95d45e4b140b599e  springtune-check-cli-0.4.1-all.jar" | sha256sum -c -
+java -jar springtune-check-cli-0.4.1-all.jar check . --fail-on WARNING
 ```
 
 Want to see it fail before touching your own repository? The

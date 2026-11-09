@@ -9,8 +9,8 @@ inputs:
     description: "Project root to analyze (report paths are relative to it; keep the repository root for SARIF)."
     default: "."
   version:
-    description: "SpringTune release to download, e.g. 0.4.0 (a release number only; anything else stops with exit code 2). The jar is verified against the release's SHA256SUMS before it runs."
-    default: "0.4.0"
+    description: "SpringTune release to download, e.g. 0.4.1 (a release number only; anything else stops with exit code 2). The jar is verified against the release's SHA256SUMS before it runs."
+    default: "0.4.1"
   profile:
     description: "Spring profile(s) to activate, comma-separated. Default: springtune.yml, else spring.profiles.active."
     default: ""
@@ -70,7 +70,7 @@ runs:
           # A release number only: the version goes into URLs and paths, and curl resolves "../" in a URL, so an
           # unchecked value could fetch the jar and its SHA256SUMS from another repository.
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] \
-            || stop "Invalid version '$ST_VERSION': expected a SpringTune release number such as 0.4.0"
+            || stop "Invalid version '$ST_VERSION': expected a SpringTune release number such as 0.4.1"
           base="https://github.com/pvgiang/spring-tune/releases/download/v$version"
           name="springtune-cli-$version.jar"
           dir="$RUNNER_TEMP/springtune-cli-$version"

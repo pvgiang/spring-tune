@@ -21,6 +21,17 @@ STALE=(
   '0.3.0</version>'
   'version "0.3.0"'
   'springtune-maven-repo-0.'
+  # 0.4.0 install strings (0.4.1 is current). Measurements made with the 0.4.0 CLI keep naming it in prose
+  # ("the 0.4.0 CLI", the 2026-11-09-0.4.0 re-run), which none of these patterns match.
+  '@v0.4.0'
+  'springtune-cli-0.4.0'
+  'springtune-check-cli-0.4.0'
+  'check-cli/0.4.0'
+  'check-cli:0.4.0'
+  '0.4.0</version>'
+  '0.4.0</springtune.version>'
+  'version "0.4.0"'
+  'version: "0.4.0"'
 )
 
 files=()

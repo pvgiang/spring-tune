@@ -18,12 +18,14 @@ SpringTune has two parts that share one model and one set of rule IDs, plus an o
 
 ## Quick start
 
-Everything below is SpringTune **0.4.0**, on Maven Central under groupId `io.github.winkytek.springtune`.
+Everything below is SpringTune **0.4.1**, groupId `io.github.winkytek.springtune` (no rule changes from 0.4.0, so
+check results are identical; [release notes](docs/releases/v0.4.1.md)). If Maven Central still answers 404 for
+0.4.1, its publication is pending: use 0.4.0, which is on Central with the same rules, until it appears.
 To see it fail on a real project first, open the demo: [examples/broken-config-ci](examples/broken-config-ci).
 
-**GitHub Action** (findings show up as code-scanning alerts on the exact line). It downloads the CLI from the
-GitHub release; the Action on `main` also checks the jar against the release's `SHA256SUMS` before running it,
-which ships with the next tag ([details](docs/ci-integration.md#github-actions-with-code-scanning-sarif)):
+***GitHub Action** (findings show up as code-scanning alerts on the exact line). It downloads the CLI jar from the
+GitHub release and runs it only if its SHA-256 matches the release's `SHA256SUMS`
+([details](docs/ci-integration.md#github-actions-with-code-scanning-sarif)):
 
 <!-- snippet:action -->
 ```yaml
@@ -35,10 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pvgiang/spring-tune@v0.4.0
+      - uses: pvgiang/spring-tune@v0.4.1
         id: springtune
         with:
-          version: "0.4.0"       # the CLI to run; keep it equal to the tag (the v0.4.0 tag defaults to 0.1.0)
+          version: "0.4.1"       # pass it: the v0.4.1 tag defaults to CLI 0.4.0 (docs/releases/v0.4.1.md)
           profile: prod          # optional
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
@@ -48,21 +50,21 @@ jobs:
 
 The same workflow with comments: [examples/github-workflow.yml](examples/github-workflow.yml).
 
-**CLI** (any build tool, Java 17+), from Maven Central (`io.github.winkytek.springtune:springtune-check-cli:0.4.0:all`),
+**CLI** (any build tool, Java 17+), from Maven Central (`io.github.winkytek.springtune:springtune-check-cli:0.4.1:all`),
 checked against Central's SHA-256:
 
 <!-- snippet:cli -->
 ```bash
-base=https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0
-curl -fsSLO $base/springtune-check-cli-0.4.0-all.jar
-echo "$(curl -fsSL $base/springtune-check-cli-0.4.0-all.jar.sha256)  springtune-check-cli-0.4.0-all.jar" \
+base=https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.1
+curl -fsSLO $base/springtune-check-cli-0.4.1-all.jar
+echo "$(curl -fsSL $base/springtune-check-cli-0.4.1-all.jar.sha256)  springtune-check-cli-0.4.1-all.jar" \
   | sha256sum -c -                                   # macOS: shasum -a 256 -c -
-java -jar springtune-check-cli-0.4.0-all.jar check path/to/repo --profile prod
+java -jar springtune-check-cli-0.4.1-all.jar check path/to/repo --profile prod
 # exit 0 = clean, 1 = findings at/above --fail-on (default ERROR), 2 = usage/config error
 ```
 
-The same jar (identical SHA-256) is attached to the [v0.4.0 GitHub release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.0)
-as `springtune-cli-0.4.0.jar`, listed in the release's `SHA256SUMS`.
+The CLI is also attached to the [v0.4.1 GitHub release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.1)
+as `springtune-cli-0.4.1.jar`, listed in the release's `SHA256SUMS` (the jar the Action runs).
 
 **Maven plugin and runtime starter** (Maven Central from 0.4.0, no extra repository; 0.3.0 was a GitHub release
 only, and 0.1.0 used an older groupId, see the [0.3.0 notes](docs/releases/v0.3.0.md)):
@@ -72,7 +74,7 @@ only, and 0.1.0 used an older groupId, see the [0.3.0 notes](docs/releases/v0.3.
 <plugin>
   <groupId>io.github.winkytek.springtune</groupId>
   <artifactId>springtune-maven-plugin</artifactId>
-  <version>0.4.0</version>
+  <version>0.4.1</version>
   <executions><execution><goals><goal>check</goal></goals></execution></executions>
 </plugin>
 ```
@@ -82,7 +84,7 @@ only, and 0.1.0 used an older groupId, see the [0.3.0 notes](docs/releases/v0.3.
 <dependency>
   <groupId>io.github.winkytek.springtune</groupId>
   <artifactId>springtune-spring-boot-starter</artifactId>
-  <version>0.4.0</version>
+  <version>0.4.1</version>
 </dependency>
 ```
 
@@ -109,7 +111,7 @@ apply, so dependencies declared through version catalogs and convention plugins 
 <!-- snippet:gradle-plugin -->
 ```kotlin
 plugins {
-    id("io.github.winkytek.springtune") version "0.4.0"   // ./gradlew check now runs springtuneCheck
+    id("io.github.winkytek.springtune") version "0.4.1"   // ./gradlew check now runs springtuneCheck
 }
 springtune { profiles.set(listOf("prod")) }            // optional; see docs/check.md#gradle-plugin
 ```
@@ -156,8 +158,8 @@ results: [corpus report](docs/corpus/2026-11-corpus-report.md).
 **Try it on your own repo now.** It's static only, so nothing is built and nothing leaves your machine:
 
 ```bash
-curl -fsSLO https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0/springtune-check-cli-0.4.0-all.jar
-java -jar springtune-check-cli-0.4.0-all.jar check . --profile prod
+curl -fsSLO https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.1/springtune-check-cli-0.4.1-all.jar
+java -jar springtune-check-cli-0.4.1-all.jar check . --profile prod
 ```
 
 Found something, or a false positive? [Open an issue](https://github.com/pvgiang/spring-tune/issues/new/choose)
@@ -202,7 +204,7 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 | `springtune-limiter` | Opt-in adaptive concurrency limiter (`Filter`/`WebFilter` over Netflix concurrency-limits), Micrometer metrics |
 | `springtune-samples/broken-config` | Runnable demo and end-to-end fixture |
 | `action.yml` | GitHub Action wrapping the CLI (verifies the downloaded jar against the release's `SHA256SUMS`) |
-| `examples/broken-config-ci` | Standalone demo on 0.4.0 from Central: the check fails on four findings, with the fix for each |
+| `examples/broken-config-ci` | Standalone demo on 0.4.1 from Central: the check fails on four findings, with the fix for each |
 
 ## Docs
 
@@ -214,6 +216,9 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 - [Rules](docs/rules/README.md)
 - [Case study: what we found in 20 popular Spring Boot projects](docs/case-study/what-we-found-in-20-spring-boot-projects.md)
 - [Corpus run: method, per-rule precision, raw results](docs/corpus/2026-11-corpus-report.md)
+- Rule deep dives: [connection acquire timeout (ST-HIKARI-001)](docs/deep-dives/ST-HIKARI-001-connection-timeout.md),
+  [HTTP clients without timeouts (ST-HTTP-001)](docs/deep-dives/ST-HTTP-001-http-client-timeouts.md),
+  [transactions and queries without a timeout (ST-TX-001)](docs/deep-dives/ST-TX-001-transaction-query-timeouts.md)
 - [Runtime starter](docs/starter.md)
 - [Load tests: apply mode against a real PostgreSQL](docs/loadtests.md)
 - [Adaptive limiter: when it helps, when it hurts, rollout, measurements](docs/limiter.md)
@@ -222,7 +227,7 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 - [Adoption gates: what we measure and how (no telemetry)](docs/adoption/gates.md)
 - [Releasing: Maven Central, Gradle Plugin Portal, one-time setup](docs/releasing.md)
 - [Release notes](docs/releases/)
-- [Roadmap (current release: 0.4.0)](docs/roadmap.md)
+- [Roadmap (current release: 0.4.1)](docs/roadmap.md)
 - [Business & implementation plan](docs/business-and-implementation-plan.md)
 - [Contributing](CONTRIBUTING.md) (build, tests, adding a rule, DCO sign-off) · [Security policy](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
 

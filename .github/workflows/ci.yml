@@ -137,7 +137,8 @@ jobs:
     name: "Action: checksum verification (real and tampered jar)"
     runs-on: ubuntu-latest
     env:
-      VERSION: "0.4.0"
+      # 0.4.1's SHA256SUMS also lists the SBOM, the Maven repository zip and LICENSE.txt: only the jar's line counts.
+      VERSION: "0.4.1"
     steps:
       - uses: actions/checkout@v4
       - name: Download the released CLI jar and SHA256SUMS
@@ -182,7 +183,7 @@ jobs:
             exit 1
           fi
           # --exact: a new or moved finding fails too, since the demo README lists every finding (ST-TX-001 is INFO).
-          python3 scripts/action/assert-sarif.py --tool-version 0.4.0 --exact "$SARIF" \
+          python3 scripts/action/assert-sarif.py --tool-version 0.4.1 --exact "$SARIF" \
             ST-HIKARI-001=src/main/resources/application.yml:9 \
             ST-HIKARI-002=src/main/resources/application.yml:1 \
             ST-TOMCAT-001=src/main/resources/application.yml:15 \
@@ -213,6 +214,22 @@ jobs:
         mode: [maven, gradle-portal, gradle-central, cli]
     steps:
       - uses: actions/checkout@v4
+      # First: is the version the README installs on Maven Central at all? A release is tagged on GitHub before its
+      # Central deployment is published (a human presses Publish), so after a version sweep this job is red until
+      # then. It fails with the reason and never skips or passes; a re-run after Publish turns it green.
+      - name: The README's SpringTune version is on Maven Central
+        run: |
+          set -euo pipefail
+          v="$(python3 -I scripts/smoke/readme-snippet.py README.md cli \
+            | sed -n 's:.*springtune-check-cli-\([0-9][0-9A-Za-z.-]*[0-9A-Za-z]\)-all\.jar.*:\1:p' | sort -u)"
+          [ "$(printf '%s\n' "$v" | grep -c .)" -eq 1 ] \
+            || { echo "::error file=README.md::snippet:cli should name exactly one SpringTune version, found '$(echo $v)'"; exit 1; }
+          url="https://repo1.maven.org/maven2/io/github/winkytek/springtune/springtune-check-cli/$v/springtune-check-cli-$v.pom"
+          if ! curl -fsI --proto '=https' --retry 3 "$url" > /dev/null; then
+            echo "::error::SpringTune $v is not on Maven Central yet: press Publish on central.sonatype.com (iteration-6 brief §3, H2), then re-run this job"
+            exit 1
+          fi
+          echo "SpringTune $v is on Maven Central: $url"
       # Java 17: the supported baseline. No build-tool cache: the point is a fresh local repository.
       - uses: actions/setup-java@v4
         with:
@@ -229,35 +246,26 @@ jobs:
         run: SMOKE_WORK="$RUNNER_TEMP/readme-$MODE" scripts/smoke/readme-snippets.sh "$MODE"
 
   # The published tag, used as the README shows it. `uses:` cannot be read from the README, so the version is
-  # repeated here; install-strings checks that the README pins the Action's default version.
+  # repeated here; install-strings checks that the README pins the Action's default version. Runs while the
+  # repository is private: the v0.4.1 Action downloads the release through the REST API with the workflow token
+  # (the v0.4.0 tag's Action used anonymous curl, which gets 404 on a private repository).
   published-action:
-    name: "README snippets: pvgiang/spring-tune@v0.4.0 on the demo"
+    name: "README snippets: pvgiang/spring-tune@v0.4.1 on the demo"
     if: >-
       github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The v0.4.0 tag's Action downloads with anonymous curl, which gets 404 while the repository is private.
-      - name: Check that the release is downloadable anonymously
-        id: visibility
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          private="$(gh api repos/pvgiang/spring-tune --jq .private)"
-          echo "public=$([ "$private" = false ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          [ "$private" = false ] || echo "::notice::Repository is private: skipping the published-Action check until it is public"
       - name: Run the published Action on the demo (must fail with exit code 1)
-        if: steps.visibility.outputs.public == 'true'
         id: published
         continue-on-error: true
-        uses: pvgiang/spring-tune@v0.4.0
+        uses: pvgiang/spring-tune@v0.4.1
         with:
-          version: "0.4.0"
+          version: "0.4.1"          # the v0.4.1 tag's own default is CLI 0.4.0 (docs/releases/v0.4.1.md)
           path: examples/broken-config-ci
           output: published-reports
-      - name: Expect exit code 1 and the documented findings, written by CLI 0.4.0
-        if: steps.visibility.outputs.public == 'true'
+      - name: Expect exit code 1 and the documented findings, written by CLI 0.4.1
         env:
           EXIT_CODE: ${{ steps.published.outputs.exit-code }}
           SARIF: ${{ steps.published.outputs.sarif }}
@@ -267,7 +275,7 @@ jobs:
             exit 1
           fi
           # --exact: a new or moved finding fails too, since the demo README lists every finding (ST-TX-001 is INFO).
-          python3 scripts/action/assert-sarif.py --tool-version 0.4.0 --exact "$SARIF" \
+          python3 scripts/action/assert-sarif.py --tool-version 0.4.1 --exact "$SARIF" \
             ST-HIKARI-001=src/main/resources/application.yml:9 \
             ST-HIKARI-002=src/main/resources/application.yml:1 \
             ST-TOMCAT-001=src/main/resources/application.yml:15 \

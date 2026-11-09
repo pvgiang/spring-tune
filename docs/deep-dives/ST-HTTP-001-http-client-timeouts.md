@@ -127,5 +127,5 @@ suppress:
 
 The [broken-config demo](../../examples/broken-config-ci/) includes a `new RestTemplate()` without timeouts. Its
 workflow runs the SpringTune Action and turns the finding into a red check annotated on the exact line. For your own
-project, add the Maven or Gradle plugin at 0.4.0 ([launch post](../launch/launch-post.md#try-it-on-your-repository-040))
+project, add the Maven or Gradle plugin at 0.4.1 ([launch post](../launch/launch-post.md#try-it-on-your-repository-041))
 and set `failOn` to `WARNING`.
