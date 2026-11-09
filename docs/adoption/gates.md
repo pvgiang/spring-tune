@@ -16,9 +16,15 @@ Snapshot: **2026-11-04**. Recount on the first working day of each month and app
 | | | GitHub Action users (public repos only) | `gh search code 'pvgiang/spring-tune' --extension yml --json repository --jq '[.[].repository.nameWithOwner] \| unique'` | | **0** known |
 | | Stars from company-affiliated accounts | GitHub stargazers with a `company` | `gh api --paginate repos/pvgiang/spring-tune/stargazers --jq '.[].login' \| while read u; do gh api users/$u --jq 'select(.company != null) \| [.login, .company] \| @tsv'; done` | | **0** stars in total |
 | | Rule requests arriving | Issue form *Rule request* | [`is:issue label:rule-request`](https://github.com/pvgiang/spring-tune/issues?q=is%3Aissue+label%3Arule-request) · `gh issue list --state all --label rule-request --json number --jq length` | at least 1 a month from outside the project | **0** |
-| **2. Recommendations are trusted** | Accept rate of ST-REC-* recommendations | Issue form *Recommendation feedback* (outcome dropdown), triaged into an `outcome-*` label | accepted = `label:rec-feedback label:outcome-applied,outcome-edited,outcome-accepted`; all = `label:rec-feedback -label:invalid`; rate = accepted / all. Before triage: [`label:rec-feedback "rec-applied"`](https://github.com/pvgiang/spring-tune/issues?q=is%3Aissue+label%3Arec-feedback+%22rec-applied%22) and likewise `rec-edited`, `rec-accepted`, `rec-rejected` | **≥ 30%**, judged only from **10+** reports by 3+ teams | **unknown** (0 reports) |
+| **2. Recommendations are trusted** | Accept rate of ST-REC-* recommendations | Issue form *Recommendation feedback* (outcome dropdown), triaged into an `outcome-*` label | accepted = `label:rec-feedback label:outcome-applied,outcome-edited,outcome-accepted`; all = `label:rec-feedback -label:invalid`; rate = accepted / all. Before triage: [`label:rec-feedback "rec-applied"`](https://github.com/pvgiang/spring-tune/issues?q=is%3Aissue+label%3Arec-feedback+%22rec-applied%22) and likewise `rec-edited`, `rec-accepted`, `rec-rejected`. Teams: the form's *Team* field (id `team`, added in iteration 6) names the team or organization of each report; count distinct values after merging spellings of one company by hand (see [teams](#what-counts-as-a-team)) | **≥ 30%**, judged only from **10+** reports by 3+ teams | **unknown** (0 reports) |
 | **3. Paid trigger** | Unprompted requests for fleet view, approvals, cross-service budget, audit | Issue form *Feature: fleet view / approvals / cross-service budget / audit* | teams = `gh issue list --state all --label paid-signal --json author --jq '[.[].author.login] \| unique \| length'` (then merge authors from the same company by hand); paid pilot = `label:paid-signal label:pilot-paid` (before triage: [`label:paid-signal "pilot-paid"`](https://github.com/pvgiang/spring-tune/issues?q=is%3Aissue+label%3Apaid-signal+%22pilot-paid%22)) | **3+ teams** ask, **1+** agrees to a paid pilot | **0** teams, **0** pilots |
 | **4. Autonomy is wanted** | Teams applying a recommendation without edits, repeatedly, on the same knob | *Recommendation feedback* with outcome *applied as recommended* | per recommendation: `label:rec-feedback label:outcome-applied "ST-REC-HIKARI-001" in:title` vs. `label:rec-feedback "ST-REC-HIKARI-001" in:title` | proposal: **10+** reports on one recommendation, **≥ 80%** applied as-is, by 3+ teams, none reverted | **unknown** (0 reports) |
+
+Programme signal (plan §17 DoD, not a §9 gate; it feeds gates 2 and 4, which need reports from 3+ teams):
+
+| Signal | Source | How to count it | Target | Today |
+|---|---|---|---|---|
+| Design partners identified (§17 DoD: 3–5) | [Design partners](../design-partners.md): teams that agreed to run the starter in advise mode in staging and report each recommendation | named teams that confirmed in writing (an issue or an email the maintainer can show); a team counts once however many people join | **3–5** | **0** |
 
 Quality signal that guards gate 1 (not a §9 gate, but a rule nobody trusts brings no pull):
 
@@ -147,9 +153,27 @@ to see which launch channel worked. [`scripts/gates/collect.sh`](../../scripts/g
 every other signal above that GitHub can give, in one JSON snapshot;
 [`gates-collect.yml`](../../.github/workflows/gates-collect.yml) runs it weekly (Monday 06:41 UTC, and *Actions →
 Gates collector → Run workflow*) and appends the snapshot to the orphan branch **`gates-data`**
-(`snapshots/<collected_at>.json` plus one line in `snapshots.jsonl`). The branch is created on the first run; the
-job's only write permission is `contents: write`, used for that one push (`HEAD:refs/heads/gates-data`). It never
+(`snapshots/<collected_at>.json` plus one line in `snapshots.jsonl`). The branch is created on the first run. It never
 touches `main`.
+
+The workflow has **two jobs**, so the personal access token and the write permission never meet in one job
+(iteration 6, [brief](../delivery/iteration-6-brief.md) row 10):
+
+| Job | Permissions | Secrets it sees | Does |
+|---|---|---|---|
+| `collect` | `contents: read`, `issues: read` | `GATES_TOKEN` if set (else `github.token`, read-only here) | runs `collect.sh`, writes the run summary, uploads the snapshot as the artifact `gates-snapshot` (`actions/upload-artifact` pinned by commit SHA, kept 7 days) |
+| `store` (`needs: collect`) | `contents: write` | `github.token` only | downloads `gates-snapshot`, **validates** it, then appends it to `gates-data` with the explicit refspec `HEAD:refs/heads/gates-data` |
+
+Validation in `store` (any failure stops the push): the file exists and is under 1 MB; it is a JSON object whose
+top-level keys are exactly the ones `collect.sh` writes (`schema`, `collected_at`, `repo`, `auth`, `repository`,
+`stargazers`, `issues`, `releases`, `action_users`, `traffic`, `not_collected`); `schema` is 1; `collected_at` is
+an ISO 8601 UTC instant (`YYYY-MM-DDTHH:MM:SSZ`, which also names the file); the six signal sections are objects
+and `not_collected` is an array. A compromised or buggy `collect` step can therefore only push a small, well-formed
+snapshot, never other files or refs; and a leaked write token in `store` cannot read traffic. Both jobs keep the
+`github.repository == 'pvgiang/spring-tune'` guard, so forks do nothing, and share the `gates-collect` concurrency
+group. Proven by reading the YAML and by actionlint 1.7.7 (clean); the validation was run locally against a real
+`collect.sh` snapshot and against broken ones (bad or missing `collected_at`, an extra key, an array, non-JSON,
+over 1 MB, a section of the wrong type), all refused. A real run on GitHub is human step H4.
 
 | Snapshot field | Source | Feeds |
 |---|---|---|

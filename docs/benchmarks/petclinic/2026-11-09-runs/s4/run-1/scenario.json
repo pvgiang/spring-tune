@@ -1,0 +1,11 @@
+{
+  "scenario": "S4",
+  "run": 1,
+  "rate_per_second": 5,
+  "seed": 64001,
+  "load_seconds": 450,
+  "poll_seconds": 30,
+  "app_args": "--springtune.hikari.low-utilization-window=5m",
+  "springtune_version": "0.4.0",
+  "lock_holder": null
+}

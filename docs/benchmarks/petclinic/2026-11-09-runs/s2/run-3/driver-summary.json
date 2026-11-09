@@ -1,0 +1,18 @@
+{
+  "seed": 62003,
+  "rate_per_second": 1200.0,
+  "duration_seconds": 450,
+  "max_in_flight": 2000,
+  "timeout_seconds": 30,
+  "started_at": "2026-11-09T14:59:00.532559268Z",
+  "ended_at": "2026-11-09T15:06:32.846720563Z",
+  "scheduled": 540375,
+  "sent": 363334,
+  "skipped_in_flight_cap": 177041,
+  "completed": 363334,
+  "unfinished_at_exit": 0,
+  "max_observed_in_flight": 2000,
+  "scheduled_by_kind": {"owner-details": 189105, "owner-search": 270717, "vets": 80553},
+  "responses_by_status": {"200": 272457, "302": 90877},
+  "errors_by_type": {}
+}
