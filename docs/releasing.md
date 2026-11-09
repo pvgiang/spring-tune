@@ -1,7 +1,7 @@
 # Releasing
 
 A release is one tag. [`.github/workflows/release.yml`](../.github/workflows/release.yml) builds and tests it,
-publishes the GitHub Release (CLI jar, Maven repository zip, checksums), and, **when the repository secrets below
+publishes the GitHub Release (CLI jar, Maven repository zip, [SBOM](#sboms), checksums), and, **when the repository secrets below
 exist**, deploys the same artifacts to Maven Central. Without the secrets the Central job is skipped and the
 release is GitHub-only, exactly as for 0.1.0. The Gradle Plugin Portal is a separate, manual workflow.
 
@@ -100,7 +100,7 @@ Normal builds never activate it; `mvn verify` is unchanged.
 
 | Step | Command (the workflow runs these) | Result |
 |---|---|---|
-| Stage | `mvn -B -ntp -Prelease deploy -DskipTests -Dinvoker.skip -DaltDeploymentRepository=staging::file:$PWD/target/staging-repo` | Every published module plus `-sources.jar` and `-javadoc.jar` in `target/staging-repo`. The starter has no code, so it gets placeholder jars (Central requires both for every jar). Samples and the Gradle plugin's test module are not deployed. |
+| Stage | `mvn -B -ntp -Prelease deploy -DskipTests -Dinvoker.skip -DaltDeploymentRepository=staging::file:$PWD/target/staging-repo` | Every published module plus `-sources.jar`, `-javadoc.jar` and `-cyclonedx.json` ([SBOMs](#sboms)) in `target/staging-repo`. The starter has no code, so it gets placeholder jars (Central requires both for every jar). Samples and the Gradle plugin's test module are not deployed. |
 | Deploy | `mvn -B -ntp -Prelease -N jreleaser:deploy` | [JReleaser](https://jreleaser.org) signs every file with the in-memory GPG key, adds checksums, checks Central's rules (POM metadata, sources, javadoc, signatures) and uploads one bundle to the Central Portal API. |
 
 POM metadata Central requires (name, description, url, licenses, developers, scm) is in the root POM. The modules
@@ -108,6 +108,30 @@ with flattened POMs (model, engine, Gradle plugin and marker) keep it (`flattenM
 from `springtune-parent`, which is published too, and repeat `<url>` because Central's POM check wants it in
 every POM. **A new published module** (for example `springtune-limiter`) needs a `<name>`, `<description>` and
 `<url>`, or the deploy step fails the POM check and names the file.
+
+### SBOMs
+
+The `release` profile runs [cyclonedx-maven-plugin](https://github.com/CycloneDX/cyclonedx-maven-plugin) 2.9.3
+(CycloneDX 1.6, JSON) in the `package` phase. Normal builds never run it.
+
+| File | Where it goes | Contents |
+|---|---|---|
+| `<artifactId>-<version>-cyclonedx.json` (classifier `cyclonedx`, type `json`), one per published module | Attached to the module, so it is staged, signed and checksummed by JReleaser and deployed to Central next to the jar | That module's compile and runtime dependencies (no test, provided or system scope) |
+| `target/springtune-<version>-sbom.cyclonedx.json`, one for the release | Not attached; `release.yml` copies it to the GitHub Release (and into `SHA256SUMS`) | All published modules and their dependencies, as one graph |
+
+Modules with `maven.deploy.skip` (samples, load tests, the Gradle plugin's test module, benchmarks) get no SBOM and
+are left out of the aggregate (`skipNotDeployed`). The Gradle plugin's SBOM lists no third-party components: the
+engine is `provided` and resolved at check time from the user's repositories. The Plugin Portal build
+(`springtune-gradle-plugin/portal`) publishes no SBOM.
+
+Check locally (no secrets needed):
+
+```bash
+mvn -B -ntp -Prelease -DskipTests -Dinvoker.skip package | grep 'attaching as .*-cyclonedx.json'
+jq '[.components[] | .group + ":" + .name + ":" + .version]' target/springtune-*-sbom.cyclonedx.json
+```
+
+The dry run below signs the `-cyclonedx.json` files with everything else; the Central bundle then contains them.
 
 ### Try it locally without secrets
 
@@ -117,7 +141,7 @@ mvn -B -ntp -q org.codehaus.mojo:versions-maven-plugin:2.21.0:set -DnewVersion=9
 mvn -B -ntp -q -Prelease deploy -DskipTests -Dinvoker.skip -DaltDeploymentRepository=staging::file:$PWD/target/staging-repo
 
 # 2. throwaway key and fake credentials, dry run: everything except the upload
-export GNUPGHOME=$(mktemp -d)
+export GNUPGHOME=$(mktemp -d)    # keep the path short: gpg-agent's socket path must stay under 108 characters
 gpg --batch --pinentry-mode loopback --passphrase test --quick-gen-key "Test <test@example.invalid>" rsa3072 sign 1d
 export JRELEASER_GPG_PUBLIC_KEY="$(gpg --armor --export)"
 export JRELEASER_GPG_SECRET_KEY="$(gpg --batch --pinentry-mode loopback --passphrase test --armor --export-secret-keys)"

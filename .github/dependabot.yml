@@ -1,0 +1,65 @@
+# Dependency updates: monthly, grouped, at most a few open PRs per ecosystem, never auto-merged
+# (iteration-5 brief, challenge 10). Every PR runs ci.yml like any other; a human merges it.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: "/"            # the reactor: root pom.xml and every module listed in it
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps"
+    groups:
+      spring-boot:
+        patterns:
+          - "org.springframework.boot*"
+          - "org.springframework*"
+      test-dependencies:
+        patterns:
+          - "org.junit*"
+          - "org.assertj*"
+          - "org.mockito*"
+          - "org.testcontainers*"
+          - "org.awaitility*"
+          - "org.postgresql*"
+      maven-plugins:
+        patterns:
+          - "org.apache.maven.plugins*"
+          - "org.codehaus.mojo*"
+          - "org.jreleaser*"
+          - "org.cyclonedx*"
+          - "org.apache.maven.plugin-tools*"
+      other:
+        patterns: ["*"]
+    ignore:
+      # A Spring Boot major is a product decision (compat matrix, docs, Boot 3.5 build), not a dependency bump.
+      - dependency-name: "org.springframework.boot*"
+        update-types: ["version-update:semver-major"]
+      # Compile-only APIs pinned on purpose to the oldest supported Gradle / Maven: newer ones would let the
+      # plugins call APIs that older Gradle 8.x / Maven 3.9.x users do not have.
+      - dependency-name: "dev.gradleplugins:gradle-api"
+      - dependency-name: "org.apache.maven:maven-plugin-api"
+      - dependency-name: "org.apache.maven:maven-core"
+
+  # The Plugin Portal build (com.gradle.plugin-publish); see docs/releasing.md#gradle-plugin-portal.
+  - package-ecosystem: gradle
+    directory: "/springtune-gradle-plugin/portal"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "deps"
+    groups:
+      gradle-portal:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"            # .github/workflows/*.yml and the composite action.yml at the root
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns: ["*"]

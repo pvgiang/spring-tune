@@ -1,0 +1,31 @@
+name: Content check
+
+# Launch content and deep dives: banned claims (production-ready, self-tuning, safe auto-apply, ...) and numbers
+# without a source. The rules live in scripts/content/check-claims.sh (iteration-5 brief, challenge 6).
+on:
+  pull_request:
+    paths:
+      - "docs/launch/**"
+      - "docs/deep-dives/**"
+      - "scripts/content/**"
+      - ".github/workflows/content-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  claims:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Check claims
+        run: |
+          if [ ! -f scripts/content/check-claims.sh ]; then
+            echo "::notice::scripts/content/check-claims.sh not found: content check skipped."
+            exit 0
+          fi
+          bash scripts/content/check-claims.sh

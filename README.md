@@ -195,6 +195,7 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 - [Release notes](docs/releases/)
 - [Roadmap after 0.3.0](docs/roadmap.md)
 - [Business & implementation plan](docs/business-and-implementation-plan.md)
+- [Contributing](CONTRIBUTING.md) (build, tests, adding a rule, DCO sign-off) · [Security policy](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
 
 ## License
 

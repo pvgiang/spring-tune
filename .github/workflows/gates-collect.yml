@@ -1,0 +1,85 @@
+name: Gates collector
+
+# Weekly snapshot of the adoption signals in docs/adoption/gates.md (stars with timestamps, issues by gate label,
+# release asset downloads, Action users, and, with a PAT, the 14-day GitHub traffic) appended to the orphan branch
+# `gates-data`. It never writes to main or any other branch. See docs/adoption/gates.md#collector.
+on:
+  schedule:
+    - cron: "41 6 * * 1"      # weekly, Monday 06:41 UTC: inside the 14-day traffic window with a week to spare
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gates-collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    if: github.repository == 'pvgiang/spring-tune'
+    permissions:
+      contents: write   # push to the gates-data branch only (explicit refspec below)
+      issues: read
+    steps:
+      - name: Checkout (scripts only)
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Collect
+        env:
+          REPO: ${{ github.repository }}
+          # GATES_TOKEN (fine-grained PAT, this repository, Administration: read + Issues/Metadata: read) unlocks
+          # traffic and code search across public repositories. Without it, GITHUB_TOKEN collects the rest.
+          GH_TOKEN: ${{ secrets.GATES_TOKEN || github.token }}
+          GATES_TOKEN: ${{ secrets.GATES_TOKEN }}
+        run: |
+          if [ -z "$GATES_TOKEN" ]; then
+            echo "::notice::GATES_TOKEN not set: traffic (views, clones, referrers, paths) is not collected and is lost after 14 days. See docs/adoption/gates.md#collector."
+          fi
+          scripts/gates/collect.sh "$RUNNER_TEMP/snapshot.json"
+          {
+            echo '## Gates snapshot'
+            echo '```json'
+            jq '{collected_at, auth, stars: .repository.stars, downloads: .releases.total_downloads,
+                 action_users: .action_users.count, traffic: (.traffic.reason // "collected"),
+                 unavailable: [to_entries[] | select(.value | type == "object" and .available == false) | .key]}' \
+              "$RUNNER_TEMP/snapshot.json"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Append to the gates-data branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          DATA="$RUNNER_TEMP/gates-data"
+          git init -q "$DATA"
+          cd "$DATA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          if git ls-remote --exit-code --heads origin gates-data >/dev/null; then
+            git fetch -q --depth 1 origin gates-data
+            git checkout -q -b gates-data FETCH_HEAD
+          else
+            echo "::notice::Creating the orphan branch gates-data"
+            git checkout -q --orphan gates-data
+            {
+              echo "# gates-data"
+              echo
+              echo "Written only by .github/workflows/gates-collect.yml; see docs/adoption/gates.md#collector on main."
+              echo "- snapshots/YYYY-MM-DDTHHMMSSZ.json: one full snapshot per run"
+              echo "- snapshots.jsonl: the same snapshots, one per line, oldest first"
+            } > README.md
+          fi
+          STAMP="$(jq -r '.collected_at' "$RUNNER_TEMP/snapshot.json" | tr -d ':')"
+          mkdir -p snapshots
+          cp "$RUNNER_TEMP/snapshot.json" "snapshots/$STAMP.json"
+          jq -c . "$RUNNER_TEMP/snapshot.json" >> snapshots.jsonl
+          git add -A
+          git commit -q -m "gates: snapshot $STAMP"
+          git push -q origin HEAD:refs/heads/gates-data
