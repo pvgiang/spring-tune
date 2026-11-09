@@ -172,6 +172,33 @@ class ApplyGuardTest {
                 Optional.of(unread), List.of(lower), Optional.of(13), 100, settings, NOW).approved()).isTrue();
     }
 
+    /** Iteration 6 row 8: a read skipped because the apply was judged a decrease never lets a raise through. */
+    @Test
+    void readSkippedForADecreaseRefusesAnyRaise() {
+        KnobFacts skipped = new KnobFacts(KNOB, WritableKnob.Kind.HIKARI, 10, 10, null, true,
+                ServerConnectionLimit.skippedForDecrease());
+        // Even with a budget that is consistent with any server, and a target within every limit.
+        Decision raise = ApplyGuard.checkApply(apply(10), ok, Optional.of(skipped),
+                List.of(rec(Action.INCREASE, 10, 11)), Optional.of(13), 13, settings, NOW);
+        assertThat(raise.approved()).isFalse();
+        assertThat(raise.refusal().code()).isEqualTo(Code.SERVER_LIMIT_UNKNOWN);
+        assertThat(raise.refusal().status()).isEqualTo(409);
+        assertThat(raise.refusal().message()).contains("not read for this apply").contains("10 -> 11");
+        // The decrease it was skipped for is approved.
+        Recommendation lower = new Recommendation("ST-REC-HIKARI-003", KNOB, Action.DECREASE, 10, 8, "x", Map.of(),
+                Confidence.MEDIUM, List.of(), NOW);
+        ChangeRequest lowerRequest = new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L, "idle");
+        assertThat(ApplyGuard.checkApply(lowerRequest, ok, Optional.of(skipped), List.of(lower), Optional.of(13), 13,
+                settings, NOW).approved()).isTrue();
+        // And the direction the controller uses to decide whether to read is the guard's own.
+        assertThat(ApplyGuard.raisesHikariPool(apply(10), skipped, List.of(rec(Action.INCREASE, 10, 11)))).isTrue();
+        assertThat(ApplyGuard.raisesHikariPool(lowerRequest, skipped, List.of(lower))).isFalse();
+        assertThat(ApplyGuard.raisesHikariPool(apply(10), skipped, List.of(rec(Action.HOLD, 10, 10)))).isFalse();
+        assertThat(ApplyGuard.raisesHikariPool(apply(10), skipped, List.of(lower))).as("other rule").isFalse();
+        assertThat(ApplyGuard.raisesHikariPool(apply(10), knob(9, 10), List.of(rec(Action.INCREASE, 9, 10))))
+                .as("target above the live value").isTrue();
+    }
+
     @Test
     void executorIncreaseNeedsNoBudget() {
         String knobId = "executor.app.corePoolSize";

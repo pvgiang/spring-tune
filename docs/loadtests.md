@@ -78,12 +78,37 @@ Every replica starts at 4/4 and is saturated, so each one is recommended 4 → 5
 | `budgetLargerThanTheServerIsRefused` | `database-max-connections=100` against a server that accepts 20: the cap is 26, so the INCREASE 4 → 5 is "within budget", but the apply plan says `server limit: PostgreSQL max_connections 23 - superuser_reserved_connections 3 - reserved_connections 0 = 20; database-max-connections 100 > 20: apply mode refuses to raise the pool (BUDGET_EXCEEDS_SERVER)` and the apply is **409 `BUDGET_EXCEEDS_SERVER`**. |
 | `databaseRefusingConnectionsIsNotAnswerWithALargerPool` | The failing database: the replica's role gets `CONNECTION LIMIT 2` and its 4 sessions are terminated. HikariCP re-opens 2, every further attempt is refused (`too many connections for role` in the log); threads wait while holds stay at 30 ms. **Before this iteration, `ST-REC-HIKARI-001` recommended INCREASE here**, the worst move (mutation M6 below shows it). Now `ST-REC-HIKARI-004` **HOLD** ("the pool could not open the connections it already has room for"), both applies refused, zero changes executed, and for a further 20 s no INCREASE appears. |
 
+### `ServerLimitHangLoadTest` (iteration 6, brief rows 8–9; iteration-5 review R3)
+
+The replica's pool reaches PostgreSQL through an in-JVM TCP relay (`TcpRelay`). Armed, the relay **stops
+forwarding** the first connection that sends the server-limit query: no answer, no error, both sockets left open,
+as on a half-open TCP connection (pgjdbc's default `socketTimeout=0` would wait for the kernel, ~15 min). The relay
+keeps reading what the client sends, so it sees the moment the pool closes that socket. `connectionTimeout=3000`,
+which is also the bound of the read (the pool's `connectionTimeout`, at most 30 s).
+
+| Test | Proves |
+|---|---|
+| `hungServerLimitReadIsRefusedWithinTheBoundReleasesItsConnectionAndTheNextRaiseSucceeds` | Saturated 4/4 pool, `ST-REC-HIKARI-001` INCREASE 4 → 5; the limit read's connection is frozen. The apply is **409 `SERVER_LIMIT_UNKNOWN`** and answered within bound + 5 s (a ceiling, not a measurement); the pool stays at 4. The read itself ends too: `setNetworkTimeout(3000)` on the borrowed connection makes pgjdbc's socket read fail (`An I/O error occurred while sending to the backend.`, SQLSTATE 08006), HikariCP **evicts** that connection (the relay sees it closed within bound + 5 s) and refills the pool to **4** connections; the apply plan records the failed re-read. After `resume()` the next apply re-reads the limit and is **200** "Applied 4 -> 5". |
+
+Measured (2026-11-09, PostgreSQL 16, two runs: alone, then in the full suite): the hung apply answered after
+3191 / 3256 ms; the frozen connection was closed by the pool 3006 / 3004 ms after its query; total connections back
+to 4; the raise after resume applied (200) both times.
+Mutation M9 below removes the network timeout.
+
+The other half of row 8 (a **decrease** never reads the limit, fail closed) is proven by unit tests, since a
+decrease needs a window of idle samples the suite does not wait for: `ChangeControllerTest`
+(`decreaseIsAppliedWithoutReadingTheServerLimitEvenWhenTheReadWouldNeverReturn`: a reader that never returns, 0
+reads, applied; `recommendationFlippingFromDecreaseToRaiseNeverRaisesWithoutAFreshLimit`) and `ApplyGuardTest`
+(`readSkippedForADecreaseRefusesAnyRaise`); `ServerLimitNetworkTimeoutTest` shows HikariCP restoring the pool's
+own network timeout when the connection is returned.
+
 ## Product changes found by these tests
 
 1. **`BUDGET_EXCEEDS_SERVER` (409)** (row 7). Before raising a Hikari pool, the configured
    `database-max-connections` is compared with the server's limit for application roles, read through the pool
    (since iteration 5: **re-read for every apply attempt**, bounded by `connectionTimeout`; a failed re-read refuses
-   the raise with `SERVER_LIMIT_UNKNOWN`)
+   the raise with `SERVER_LIMIT_UNKNOWN`; since iteration 6 only for an apply that raises the pool, with the same
+   bound as a network timeout on the read's connection)
    (`ServerConnectionLimit`: PostgreSQL `max_connections − superuser_reserved_connections − reserved_connections`,
    MySQL/MariaDB `@@max_connections`, any other database not checked, which the apply plan says). The read runs on a
    short-lived thread with one pooled connection, so the sampler never waits behind a saturated pool.
@@ -107,6 +132,9 @@ Findings documented, not changed:
   `capacityObtained=false` ("the pool never exceeded 4 connections; target 5, although threads waited for a
   connection (connection creation refused or failing?)"), the `POST`/snapshot JSON shows it and
   `springtune.changes{capacity_obtained="false"}` counts it; the surge test asserts it against `pg_stat_activity`.
+- **Iteration 6 (R3 follow-up):** a server-limit read that hangs no longer pins its connection: the read is
+  bounded by a network timeout on the borrowed connection (`ServerLimitHangLoadTest`), and a decrease no longer
+  reads the limit at all.
 - **Iteration 5 (R3)** is not exercised here: lowering `max_connections` needs a server restart, which the shared
   server of the suite cannot do per test. `ChangeControllerTest` and `ServerLimitRecheckTest` cover the re-read;
   `budgetLargerThanTheServerIsRefused` runs it against the real server (the refusal now comes from the per-apply
@@ -117,7 +145,8 @@ Findings documented, not changed:
 From three local passes of every suite (PostgreSQL 16.15, 4 vCPUs, all replicas in one JVM). Maxima of the 50 ms
 `pg_stat_activity` readings; "53300" is server-log lines plus client SQLSTATEs.
 
-All 36 test runs (12 tests × 3 passes) were green, with no retries. Iteration 5 (2026-11-09, PostgreSQL 16, one pass of all 12 tests, green): surge `max-replicas=3` again 5, 5, 5, 4 per replica, service max 19 (509 of 843 readings above 16), 14 refusal lines; replica-4 CONFIRMED with `capacityObtained=false`; every other CONFIRMED raise in the suite `capacityObtained=true` (15 of 15), and both REVERTED raises `true` too (they got their 5th connection; it made things slower).
+All 36 test runs (12 tests × 3 passes) were green, with no retries. Iteration 6 (2026-11-09, PostgreSQL 16, one
+pass): all **13** tests green (the 12 plus `ServerLimitHangLoadTest`), no retries. Iteration 5 (2026-11-09, PostgreSQL 16, one pass of all 12 tests, green): surge `max-replicas=3` again 5, 5, 5, 4 per replica, service max 19 (509 of 843 readings above 16), 14 refusal lines; replica-4 CONFIRMED with `capacityObtained=false`; every other CONFIRMED raise in the suite `capacityObtained=true` (15 of 15), and both REVERTED raises `true` too (they got their 5th connection; it made things slower).
 
 | Test | Per replica max | Service max (readings > 16) | All client backends max | 53300 (log / client) | Outcomes (all 3 passes) |
 |---|---|---|---|---|---|
@@ -159,6 +188,14 @@ is **not** meant to catch, to show where the unit tests carry the proof:
 |---|---|---|---|
 | M7 | `HikariPoolWriter.plan`: never moves `minimumIdle` (a fixed 4/4 pool becomes 5/4 dynamic) | **survives** (`PostgresApplyLoadTest`, `threeReplicasRaisingAtOnce...` green: HikariCP grows on demand anyway) | caught: `KnobWriterTest`, `HikariApplyIntegrationTest` |
 | M8 | `ChangeController`: in-flight flag always false (two changes at once) | not exercised (one knob per replica, no apply during VERIFYING) | caught: `ChangeControllerTest` (2 tests) |
+
+Iteration 6 (2026-11-09, PostgreSQL 16):
+
+| # | Mutation | Test | How it failed |
+|---|---|---|---|
+| M9 | `HikariComponent.readServerLimit`: no `setNetworkTimeout` on the borrowed connection (the 0.4.1 behaviour) | `ServerLimitHangLoadTest` | the apply was still refused (409 `SERVER_LIMIT_UNKNOWN`, the caller's wait is bounded anyway), but the frozen connection was **never released**: "the pool gives the frozen connection up" timed out; also caught by `ServerLimitNetworkTimeoutTest` (2 tests) |
+| M10 | `ApplyGuard`: no refusal for `SKIPPED_FOR_DECREASE` | load suite: not exercised | caught: `ApplyGuardTest.readSkippedForADecreaseRefusesAnyRaise`; together with M11, `ChangeControllerTest.recommendationFlippingFromDecreaseToRaise...` sees a raise applied without a read |
+| M11 | `ChangeController.apply`: re-evaluates the recommendations instead of using the evaluation the read decision was made on | not exercised | caught: `ChangeControllerTest` (2 tests); with the guard intact the flipped raise is refused `SERVER_LIMIT_UNKNOWN` (fail closed) |
 
 The surge test (`surgeReplicaNotCountedInMaxReplicasBreachesTheBudget`) is the standing negative control for the
 probe and `serverLogAndClientSeeTheServersLimit` for the log scan: both must observe a breach on every run.
