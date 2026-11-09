@@ -6,8 +6,10 @@ Boot modules) and read every finding by hand.
 
 **TL;DR**
 
-- **45 out of 45** HikariCP services we could fully evaluate make a request wait **up to 30 seconds** for a
-  database connection when the pool runs dry, and **none** of them would tell you about a connection leak.
+- **All 45** HikariCP services we could fully evaluate make a request wait longer than 5 seconds for a database
+  connection when the pool runs dry: 44 **up to 30 seconds** (38 on the unset default, 6 with `30000` written out)
+  and 1 for 10 seconds. **None** of them would tell you about a connection leak. (Counts from the
+  [0.4.0 re-run](../corpus/2026-11-09-0.4.0-rerun.md).)
 - Inter-service HTTP calls with **no timeout at all**, in the Spring PetClinic microservices reference
   architecture among others: one hung downstream service can freeze the caller.
 - **0.5% false positives** (1 in 199 findings). When the check cannot know something, it says so instead of
@@ -21,8 +23,9 @@ nothing tells you about them until production does.
 ## 1. The 30-second wait nobody chose
 
 **What we saw.** HikariCP's default `connectionTimeout` is 30,000 ms, and leak detection is off by default.
-We found HikariCP services in 12 of the 20 repositories. Every one we could evaluate kept both defaults:
-45 of 45. Here is Apache DolphinScheduler's API server
+We found HikariCP services in 12 of the 20 repositories. Of the 45 we could evaluate, 38 leave
+`connectionTimeout` unset, 6 set it to `30000` explicitly and 1 (`jeecg-cloud-xxljob` in JeecgBoot) sets `10000`;
+all 45 leave leak detection off ([0.4.0 re-run](../corpus/2026-11-09-0.4.0-rerun.md)). Here is Apache DolphinScheduler's API server
 ([`application.yaml#L49-L56`](https://github.com/apache/dolphinscheduler/blob/282d956cbc11215b30112e59a69780b238366f34/dolphinscheduler-api/src/main/resources/application.yaml#L49-L56)):
 
 ```yaml
@@ -189,8 +192,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pvgiang/spring-tune@v0.1.0
+      - uses: pvgiang/spring-tune@v0.4.0
         id: springtune
+        with: { version: "0.4.0" }   # the CLI to run; the v0.4.0 tag defaults to 0.1.0
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
         with: { sarif_file: "${{ steps.springtune.outputs.sarif }}" }
@@ -199,8 +203,8 @@ jobs:
 **Or locally, right now:**
 
 ```bash
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.1.0/springtune-cli-0.1.0.jar
-java -jar springtune-cli-0.1.0.jar check . --profile prod
+curl -fsSLO https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0/springtune-check-cli-0.4.0-all.jar
+java -jar springtune-check-cli-0.4.0-all.jar check . --profile prod
 ```
 
 - **Static only:** nothing is built or executed, and nothing leaves your machine.

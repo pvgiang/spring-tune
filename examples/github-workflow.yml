@@ -1,0 +1,28 @@
+# SpringTune check on every pull request. Copy this file to .github/workflows/springtune.yml in your repository.
+# Findings appear as code-scanning alerts on the exact line, and the Markdown report in the job summary.
+# Demo with the expected failures: https://github.com/pvgiang/spring-tune/tree/main/examples/broken-config-ci
+name: springtune
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  security-events: write          # upload-sarif
+jobs:
+  springtune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pvgiang/spring-tune@v0.4.0
+        id: springtune
+        with:
+          # The CLI release to run. Keep it equal to the tag above: the v0.4.0 tag's own default is still 0.1.0.
+          version: "0.4.0"
+          # profile: prod          # optional: Spring profile(s) to analyze
+          # fail-on: WARNING       # optional: default springtune.yml failOn, else ERROR
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()               # upload even when the check fails the job
+        with:
+          sarif_file: ${{ steps.springtune.outputs.sarif }}
+          category: springtune

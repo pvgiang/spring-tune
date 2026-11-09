@@ -9,8 +9,8 @@ inputs:
     description: "Project root to analyze (report paths are relative to it; keep the repository root for SARIF)."
     default: "."
   version:
-    description: "SpringTune release to download, e.g. 0.1.0."
-    default: "0.1.0"
+    description: "SpringTune release to download, e.g. 0.4.0. The jar is verified against the release's SHA256SUMS before it runs."
+    default: "0.4.0"
   profile:
     description: "Spring profile(s) to activate, comma-separated. Default: springtune.yml, else spring.profiles.active."
     default: ""
@@ -27,15 +27,18 @@ inputs:
     description: "Path to springtune.yml (default <path>/springtune.yml if present)."
     default: ""
   jar:
-    description: "Use this CLI jar instead of downloading one (for testing unreleased builds)."
+    description: "Use this CLI jar instead of downloading one (for testing unreleased builds). A local jar is not checksum-verified."
     default: ""
+  token:
+    description: "Token for downloading the release assets through the GitHub REST API (read access is enough). Default: the workflow's token. Empty: plain curl, which needs the repository to be public."
+    default: ${{ github.token }}
 
 outputs:
   sarif:
     description: "Path to the SARIF report."
     value: ${{ steps.run.outputs.sarif }}
   exit-code:
-    description: "0 = clean, 1 = findings at or above fail-on, 2 = usage or configuration error."
+    description: "0 = clean, 1 = findings at or above fail-on, 2 = usage or configuration error, or a failed download or checksum verification."
     value: ${{ steps.run.outputs.exit-code }}
 
 runs:
@@ -56,12 +59,47 @@ runs:
         ST_OUTPUT: ${{ inputs.output }}
         ST_CONFIG: ${{ inputs.config }}
         ST_JAR: ${{ inputs.jar }}
+        ST_TOKEN: ${{ inputs.token }}
+        ST_VERIFY: ${{ github.action_path }}/scripts/action/verify-sha256.sh
       run: |
         set -euo pipefail
+        stop() { echo "::error::$1"; echo "exit-code=2" >> "$GITHUB_OUTPUT"; exit 2; }
         jar="$ST_JAR"
         if [ -z "$jar" ]; then
-          jar="$RUNNER_TEMP/springtune-cli-$ST_VERSION.jar"
-          curl -fsSL -o "$jar" "https://github.com/pvgiang/spring-tune/releases/download/v$ST_VERSION/springtune-cli-$ST_VERSION.jar"
+          version="${ST_VERSION#v}"
+          base="https://github.com/pvgiang/spring-tune/releases/download/v$version"
+          name="springtune-cli-$version.jar"
+          dir="$RUNNER_TEMP/springtune-cli-$version"
+          mkdir -p "$dir"
+          jar="$dir/$name"
+          rm -f "$jar" "$dir/SHA256SUMS"
+          if [ -n "$ST_TOKEN" ] && command -v gh > /dev/null 2>&1; then
+            # Through the REST API with a token: also works while the repository is private, and avoids the
+            # anonymous rate limit.
+            export GH_TOKEN="$ST_TOKEN"
+            assets="$(gh api "repos/pvgiang/spring-tune/releases/tags/v$version" --jq '.assets[] | "\(.id) \(.name)"')" \
+              || stop "Could not read release v$version of pvgiang/spring-tune (is $version a SpringTune release?)"
+            asset() { awk -v n="$1" '$2 == n { print $1 }' <<< "$assets"; }
+            [ -n "$(asset "$name")" ] || stop "Release v$version has no $name"
+            [ -n "$(asset SHA256SUMS)" ] || stop "Release v$version has no SHA256SUMS; refusing to run an unverified jar"
+            gh api -H "Accept: application/octet-stream" "repos/pvgiang/spring-tune/releases/assets/$(asset "$name")" > "$jar" \
+              || stop "Could not download $name from release v$version"
+            gh api -H "Accept: application/octet-stream" "repos/pvgiang/spring-tune/releases/assets/$(asset SHA256SUMS)" > "$dir/SHA256SUMS" \
+              || stop "Could not download SHA256SUMS from release v$version"
+            unset GH_TOKEN
+          else
+            curl -fsSL --retry 3 -o "$jar" "$base/$name" \
+              || stop "Could not download $base/$name (is $version a SpringTune release?)"
+            curl -fsSL --retry 3 -o "$dir/SHA256SUMS" "$base/SHA256SUMS" \
+              || stop "Could not download $base/SHA256SUMS; refusing to run an unverified jar"
+          fi
+          [ -s "$dir/SHA256SUMS" ] || stop "Release v$version has no SHA256SUMS; refusing to run an unverified jar"
+          [ -s "$jar" ] || stop "Release v$version has no $name"
+          # Only the jar's line is checked. Any failure here stops the step before the jar runs.
+          bash "$ST_VERIFY" "$jar" "$dir/SHA256SUMS" "$name" \
+            || stop "Checksum verification of $name against $base/SHA256SUMS failed (see above); not running it"
+        else
+          echo "Using the local jar $jar (not checksum-verified)"
         fi
         args=(check "$ST_PATH" --format "$ST_FORMAT" --output "$ST_OUTPUT")
         [ -n "$ST_PROFILE" ] && args+=(--profile "$ST_PROFILE")
