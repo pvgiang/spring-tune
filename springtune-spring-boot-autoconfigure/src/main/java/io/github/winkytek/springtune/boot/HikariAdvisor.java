@@ -142,7 +142,7 @@ final class HikariAdvisor {
         return null;
     }
 
-    private static Recommendation saturated(String knobId, int current, List<HikariSample> window, double waiting,
+    static Recommendation saturated(String knobId, int current, List<HikariSample> window, double waiting,
             Optional<Integer> budgetCap, SpringTuneProperties.Hikari settings, Instant now) {
         HikariSample first = window.get(0);
         HikariSample last = window.get(window.size() - 1);
