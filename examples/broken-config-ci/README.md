@@ -12,7 +12,9 @@ repository that contains this project at its root, and open a pull request. The 
 appear as code-scanning alerts on the lines below. (While `pvgiang/spring-tune` is still private, the Action cannot
 download the CLI in another repository's workflow: the release URLs return 404. Use the local run below until then.)
 
-Locally (Java 17+, nothing is built or executed, nothing leaves your machine):
+Locally (Java 17+, nothing is built or executed, nothing leaves your machine). If Maven Central still answers 404
+for 0.4.1, its publication is pending: use 0.4.0 in these lines and in `pom.xml` until it appears (same rules, same
+five findings).
 
 ```bash
 base=https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.1
