@@ -18,8 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -44,7 +44,7 @@ jobs:
           java -jar springtune-benchmarks/target/benchmarks.jar $JMH_ARGS -foe true -rf json -rff jmh-result.json | tee jmh.txt
           { echo "## Results"; echo '```'; sed -n '/^Benchmark /,$p' jmh.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: jmh-results
