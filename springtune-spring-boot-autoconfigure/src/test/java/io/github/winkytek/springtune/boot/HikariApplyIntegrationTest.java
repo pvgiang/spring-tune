@@ -231,6 +231,12 @@ class HikariApplyIntegrationTest {
             assertThat(entry.evidence()).containsKeys("meanConnectionHoldTime", "meanAcquireTime",
                     "timeoutsPerAttempt", "acquireAttemptsPerSecond");
             assertThat(entry.finishedAt()).isNotNull();
+            // Measured on the sampler ticks (Hikari's fill can trail them on a loaded machine, see run()): recorded
+            // either way, and never more than the test itself saw.
+            assertThat(entry.capacityObtained()).as(entry.capacity()).isNotNull();
+            if (entry.capacityObtained()) {
+                assertThat(run.maxTotalConnections()).isEqualTo(3);
+            }
             assertThat(run.registry().get("springtune.changes").tag("outcome", "confirmed").counter().count())
                     .isEqualTo(1.0);
         } finally {

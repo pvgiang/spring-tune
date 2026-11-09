@@ -54,6 +54,7 @@ class PostgresApplyLoadTest {
 
             assertThat(entry.path("outcome").asText()).as(entry.toString()).isEqualTo("CONFIRMED");
             assertThat(entry.path("verdict").asText()).isEqualTo("OK");
+            assertThat(entry.path("capacityObtained").asText()).as(entry.path("capacity").asText()).isEqualTo("true");
             assertThat(replica.maximumPoolSize()).isEqualTo(5);
             assertThat(maxBefore).as("server-side sessions before the raise").isLessThanOrEqualTo(4);
             assertThat(probe.maxOf("replica-1")).as("server-side sessions never above the new maximum")

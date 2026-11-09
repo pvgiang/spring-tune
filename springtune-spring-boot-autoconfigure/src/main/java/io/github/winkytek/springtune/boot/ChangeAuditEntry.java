@@ -27,6 +27,12 @@ import java.util.Map;
  * @param evidence   baseline (B) vs verification (V) values of the knob's own signals; HTTP values are
  *                   evidence only and never trigger a revert
  * @param finishedAt when the outcome became final, or {@code null}
+ * @param capacityObtained for a raise that was verified: whether the component actually reached the new size during
+ *                   verification (Hikari: {@code getTotalConnections()} reached the new {@code maximumPoolSize};
+ *                   executor: the pool size reached the new core/max size). {@code null} when not applicable (a
+ *                   decrease, a refusal, nothing measured). Recorded only: it never changes the verdict and never
+ *                   triggers a revert
+ * @param capacity   one plain-language line explaining {@code capacityObtained}, or {@code null}
  */
 public record ChangeAuditEntry(
         String id,
@@ -43,7 +49,16 @@ public record ChangeAuditEntry(
         String code,
         List<String> reasons,
         Map<String, String> evidence,
-        Instant finishedAt) {
+        Instant finishedAt,
+        Boolean capacityObtained,
+        String capacity) {
+
+    public ChangeAuditEntry(String id, Instant at, String action, String who, String why, String ruleId, String knobId,
+            Map<String, Long> before, Map<String, Long> after, Outcome outcome, String verdict, String code,
+            List<String> reasons, Map<String, String> evidence, Instant finishedAt) {
+        this(id, at, action, who, why, ruleId, knobId, before, after, outcome, verdict, code, reasons, evidence,
+                finishedAt, null, null);
+    }
 
     public ChangeAuditEntry {
         before = Collections.unmodifiableMap(new LinkedHashMap<>(before));
@@ -54,9 +69,15 @@ public record ChangeAuditEntry(
 
     ChangeAuditEntry finish(Outcome outcome, String verdict, List<String> reasons, Map<String, String> evidence,
             Instant finishedAt) {
-        return new ChangeAuditEntry(id, at, action, who, why, ruleId, knobId, before, after, outcome, verdict, code,
-                reasons, evidence, finishedAt);
+        return finish(outcome, verdict, reasons, evidence, finishedAt, capacityObtained, capacity);
     }
+
+    ChangeAuditEntry finish(Outcome outcome, String verdict, List<String> reasons, Map<String, String> evidence,
+            Instant finishedAt, Boolean capacityObtained, String capacity) {
+        return new ChangeAuditEntry(id, at, action, who, why, ruleId, knobId, before, after, outcome, verdict, code,
+                reasons, evidence, finishedAt, capacityObtained, capacity);
+    }
+
 
     public enum Outcome {
         /** Applied, verification running. */

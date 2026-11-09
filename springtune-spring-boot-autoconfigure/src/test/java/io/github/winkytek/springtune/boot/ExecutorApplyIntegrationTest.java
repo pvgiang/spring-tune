@@ -262,8 +262,10 @@ class ExecutorApplyIntegrationTest {
         assertThat(entry.after()).containsExactly(Map.entry("maxPoolSize", 3L));
         assertThat(entry.reasons()).anyMatch(r -> r.startsWith("R6") && r.contains("not higher than before"));
         assertThat(entry.evidence()).containsKeys("completedTasksPerSecond", "rejectedTasks");
-        assertThat(run.registry().get("springtune.changes").tag("outcome", "confirmed").counter().count())
-                .isEqualTo(1.0);
+        // The full queue made the executor start its third thread: the new capacity was obtained.
+        assertThat(entry.capacityObtained()).as(entry.capacity()).isTrue();
+        assertThat(run.registry().get("springtune.changes").tag("outcome", "confirmed")
+                .tag("capacity_obtained", "true").counter().count()).isEqualTo(1.0);
         assertRejectionsCountedAndOriginalPolicyRan(run);
         System.out.println("confirmed: " + entry.evidence() + " submitted=" + run.submitted() + " rejected="
                 + run.rejectedSeenBySubmitter());
