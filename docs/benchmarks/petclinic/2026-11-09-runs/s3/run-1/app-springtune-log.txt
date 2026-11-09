@@ -1,0 +1,1 @@
+2026-11-09T15:07:38.295Z  INFO 21853 --- [io-18080-exec-2] i.g.w.springtune.boot.TuningService      : SpringTune advise mode: watching [executor:applicationTaskExecutor, hikari:HikariPool-1] (read-only)
