@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 class ServerLimitNetworkTimeoutTest {
 
     /** How the fake driver answers {@code setNetworkTimeout}. */
-    enum Driver { KEEPS, NOT_SUPPORTED, ABSTRACT_METHOD }
+    enum Driver { KEEPS, NOT_SUPPORTED, ABSTRACT_METHOD, GET_NOT_SUPPORTED }
 
     private final MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
     private final SpringTuneProperties properties = new SpringTuneProperties();
@@ -120,10 +120,31 @@ class ServerLimitNetworkTimeoutTest {
         }
     }
 
+    /**
+     * A driver that sets a network timeout but cannot report one: HikariCP then marks network timeouts unsupported
+     * for the pool (its probe is get-then-set) and never restores them on return, so a bound set by the limit read
+     * would stay on the pooled connection and cut every later application query at the bound.
+     */
+    @Test
+    void aBoundHikariCannotRestoreIsNotSetAndNeverLeaksIntoThePool() throws Exception {
+        AtomicInteger reads = new AtomicInteger();
+        HikariComponent component = component(Driver.GET_NOT_SUPPORTED, 1_500, connection -> {
+            reads.incrementAndGet();
+            return known();
+        });
+        int poolValue = physicalValue.get();
+        assertThat(component.recheckServerLimit().known()).isTrue();
+        assertThat(reads).hasValue(1);
+        assertThat(physicalValue).as("network timeout left on the pooled connection").hasValue(poolValue);
+    }
+
     @Test
     void anyOtherFailureToSetTheBoundIsAFailedRead() throws SQLException {
         Connection broken = (Connection) Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[] {Connection.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("getNetworkTimeout")) {
+                        return 0;
+                    }
                     if (method.getName().equals("setNetworkTimeout")) {
                         throw new SQLException("This connection has been closed.", "08003");
                     }
@@ -197,7 +218,7 @@ class ServerLimitNetworkTimeoutTest {
                     return null;
                 }
                 case "getNetworkTimeout" -> {
-                    if (driver == Driver.NOT_SUPPORTED) {
+                    if (driver == Driver.NOT_SUPPORTED || driver == Driver.GET_NOT_SUPPORTED) {
                         throw new SQLFeatureNotSupportedException("network timeouts are not supported");
                     }
                     if (driver == Driver.ABSTRACT_METHOD) {

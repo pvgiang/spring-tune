@@ -135,6 +135,10 @@ final class HikariComponent implements TunedComponent {
      */
     static boolean boundNetworkTimeout(Connection connection, long timeoutMs) throws SQLException {
         try {
+            // HikariCP restores a changed network timeout on return only when its own probe (get, then set) worked
+            // for this pool. A driver that cannot report the timeout fails that probe, so a bound set here would
+            // never be restored and would cut every later query on the pooled connection: do not set it then.
+            connection.getNetworkTimeout();
             connection.setNetworkTimeout(Runnable::run, (int) Math.min(timeoutMs, Integer.MAX_VALUE));
             return true;
         } catch (SQLFeatureNotSupportedException | AbstractMethodError ex) {
