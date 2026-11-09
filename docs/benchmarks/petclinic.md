@@ -101,12 +101,29 @@ and its end (minute 7.5). The polls were meant to be 30 s apart, but each poll's
 load, so the real interval stretched; runs have 2 to 4 evaluated polls, and 0 to 3 later polls taken after the load
 stopped (listed separately, not used for the verdict).
 
+**Deviations from the pre-registration** (found in review, after the runs; the text above is unchanged):
+
+- *Polls after the load.* The pre-registration says to poll "for 7.5 minutes of load; then stop" and to evaluate
+  "the polls from minute 6 on". `run.sh` takes a fixed 16 polls, so the stretched interval left 0 to 3 polls after
+  the load had stopped. The upper bound (end of the load) was added when evaluating. It changes verdicts: 5 of the 7
+  after-load polls of S2 and 1 of the 3 of S3 (run 3) carry no recommendation, because the window's share of waiting
+  samples fell as the idle samples came in. Counted literally, S2 would be a miss and S3 would still be a miss.
+- *Calibration polls.* The pre-registration asks for the share of polls "of the step's last 30 s"; `run.sh` takes
+  30 polls starting 10 s into the step, each one second plus the request's own time apart. Under load a poll took
+  about 2 s, so the polls ran past the end of the step: the 800 req/s driver exited 29.4 s before the 1,200 req/s
+  driver started, against 6.3–6.5 s between the unloaded steps (5 s pause plus JVM start), so about 23 s of its
+  polls, roughly half, sampled an idle pool. The 800 and 1,200 req/s shares below are diluted by this. The chosen
+  rate is not affected: no step from 100 to 800 req/s could reach 95% even counting only its in-load polls, and
+  1,200 req/s is the rule's fallback either way.
+- *Data directory.* PostgreSQL's data directories were under `PG_ROOT` (`/var/tmp/springtune-petclinic-pg`, so
+  the `postgres` user can write them), not in the work directory as the fixed inputs say.
+
 ### Summary
 
 | # | Predicted | Observed in evaluated polls (all 3 runs) | Verdict |
 |---|---|---|---|
 | S1 | no recommendation | none in 10 of 10 evaluated polls | **match** |
-| S2 | HIKARI-001 INCREASE 2 → 3 | **ST-REC-HIKARI-001 INCREASE 2 → 3**, MEDIUM, in 8 of 8 | **match** (with the CPU caveat below) |
+| S2 | HIKARI-001 INCREASE 2 → 3 | **ST-REC-HIKARI-001 INCREASE 2 → 3**, MEDIUM, in 8 of 8 | **match** (with the CPU caveat below; only with the end-of-load bound, see *Deviations*) |
 | S3 | HIKARI-002 HOLD, not INCREASE | **ST-REC-HIKARI-001 INCREASE 10 → 13**, MEDIUM, in 9 of 9 | **miss** |
 | S4 (compressed window, 5 m) | HIKARI-003 DECREASE 10 → 2 | **ST-REC-HIKARI-003 DECREASE 10 → 2**, MEDIUM, in 12 of 12 | **match** |
 
@@ -115,8 +132,8 @@ idle; PetClinic submits nothing to it).
 
 ### S1: starter defaults, pool 10, 50 req/s: quiet, as predicted
 
-Seeds 61001–61003. Every poll of every run: `recommendations: []`, `waitingThreads` 0 in every poll, `active` 0 or
-1 of 10. All requests answered (200 and 302 only, no errors, nothing skipped). In 0.4.0 an empty list at minute 7 is
+Seeds 61001–61003. Every poll of every run: `recommendations: []`, `waitingThreads` 0 in every poll, `active` 0 to
+2 of 10. All requests answered (200 and 302 only, no errors, nothing skipped). In 0.4.0 an empty list at minute 7 is
 indistinguishable from "still collecting" except by the clock; a first user sees exactly this, which is the case
 for the per-rule evaluation status of iteration-6 row 4.
 
@@ -124,17 +141,18 @@ for the per-rule evaluation status of iteration-6 row 4.
 
 **Calibration** (seed 62000, [`s2-calibration/`](petclinic/2026-11-09-runs/s2-calibration/)): share of 1-s polls
 with `hikaricp.connections.pending > 0` was 3% at 100 req/s, 13% at 200, 63% at 400, **20% at 800 and 23% at
-1,200**. No step reached 95%, so by the pre-registered rule S2 ran at **1,200 req/s**. The non-monotonic shape is
-itself a finding: from 800 req/s the driver hit its 2,000-in-flight cap (it skipped 12,545 of 31,889 scheduled
-requests at 800 and 26,898 of 47,730 at 1,200), i.e. the application as a whole, not the pool, was the limit, and
-requests queued before reaching the pool.
+1,200**. No step reached 95%, so by the pre-registered rule S2 ran at **1,200 req/s**. The drop after 400 req/s is
+not a clean finding: at 800 req/s roughly half of the polls were taken after the step's load had ended (see
+*Deviations* above), which by itself lowers the share. From 800 req/s the driver also hit its 2,000-in-flight cap
+(it skipped 12,545 of 31,889 scheduled requests at 800 and 26,898 of 47,730 at 1,200), so the application as a
+whole, not only the pool, was a limit; these data cannot separate the two effects.
 
 **Runs** (seeds 62001–62003): every evaluated poll carried
 
-> ST-REC-HIKARI-001 INCREASE 2 → 3, MEDIUM. Evidence: window 5m, 30–31 samples, `samplesWithWaitingThreads` 80–90%,
+> ST-REC-HIKARI-001 INCREASE 2 → 3, MEDIUM. Evidence: window 5m, 30–31 samples, `samplesWithWaitingThreads` 83–90%,
 > `maxWaitingThreads` 37–165, `meanConnectionHoldTime` 1 ms, `meanAcquireTime` 12–69 ms, budget not configured.
 
-`system.cpu.usage` was 87–96% in every poll under load, and the driver skipped 33–46% of scheduled requests at its
+`system.cpu.usage` was 87–97% in every poll under load, and the driver skipped 33–46% of scheduled requests at its
 in-flight cap in every run (no HTTP errors). So the rule fired on its own terms (threads waited in ≥ 80% of samples,
 connections came back in about 1 ms), but the machine's CPU was saturated at the same time, and nothing in
 SpringTune's signals distinguishes "the pool is the bottleneck" from "the pool is one of several bottlenecks on a
@@ -144,11 +162,13 @@ The pre-registered risk (CPU contention) materialized; the predicted rule and ac
 ### S3: database lock, pool 10, 50 req/s: HIKARI-001 INCREASE fired instead of "don't raise" (miss)
 
 Seeds 63001–63003; the lock holder ran for the whole of each run (its error log is empty; `active` was 10 of 10 and
-`waitingThreads` 52–99 in every poll under load, CPU 5–7%). Every evaluated poll carried
+`waitingThreads` 52–99 in every evaluated poll, up to 190 in the first minutes; CPU 6–7% in every evaluated poll,
+up to 22% in the first minutes). Every evaluated poll carried
 
 > ST-REC-HIKARI-001 INCREASE 10 → 13, MEDIUM: "connections were returned quickly (142 ms average hold), so the pool
-> size is the bottleneck". Evidence: `samplesWithWaitingThreads` 80–100%, `maxWaitingThreads` 100–190,
-> **`meanConnectionHoldTime` 140–146 ms**, **`meanAcquireTime` 762–1,111 ms**, threshold 500 ms.
+> size is the bottleneck". Evidence: `samplesWithWaitingThreads` 80–97%, `maxWaitingThreads` 100–125,
+> **`meanConnectionHoldTime` 141–146 ms**, **`meanAcquireTime` 762–778 ms**, threshold 500 ms. (The earlier
+> polls that already carried it, from minute 5, ranged to 100%, 190, 140 ms and 1,111 ms.)
 
 **This is the outcome the pre-registration said must not happen**: the database was the bottleneck (a table lock),
 and raising the pool to 13 would give the lock three more blocked connections. Why the rule missed:
@@ -157,8 +177,8 @@ and raising the pool to 13 would give the lock three more blocked connections. W
   roughly ten checkouts are held for up to 2.85 s, then in the 0.15-s gap the backlog of about 140 requests drains,
   each with one or more millisecond-long checkouts (queries that do not touch `owners` never block at all). The mean
   lands near 140 ms, under the 500 ms `slow-usage` threshold.
-- The slowness shows up where the rule does not look as a discriminator: acquire time (about 0.8–1.1 s) was 5–8×
-  the mean hold time. In S2, where the pool really was the narrow point, hold was 1 ms and acquire 12–69 ms.
+- The slowness shows up where the rule does not look as a discriminator: acquire time (about 0.76–0.78 s in the
+  evaluated polls, up to 1.1 s earlier) was about 5× the mean hold time (up to 8× earlier). In S2, where the pool really was the narrow point, hold was 1 ms and acquire 12–69 ms.
 - So HIKARI-002, as specified ("mean hold > 500 ms"), does not catch a lock convoy or any slowdown that hits a
   minority of checkouts hard. A candidate refinement (not implemented, not validated here): use a high percentile
   or the maximum of hold time from the `hikaricp.connections.usage` histogram, or hold back when a share of the
@@ -169,7 +189,7 @@ This miss is the most useful result of the run. It is published as is.
 ### S4: compressed window (`low-utilization-window=5m`), pool 10, 5 req/s: HIKARI-003 DECREASE, as predicted
 
 Seeds 64001–64003. Every evaluated poll carried ST-REC-HIKARI-003 DECREASE 10 → 2, MEDIUM, evidence window 5m,
-30–31 samples, `peakActiveConnections` 0 or 1 of 10, `threadsEverWaiting` no. It fires only because the window was
+30–31 samples, `peakActiveConnections` 0 of 10 (1 of 10 in two earlier polls of run 3), `threadsEverWaiting` no. It fires only because the window was
 compressed to 5 minutes; with the default 24 h it cannot fire in a run this short, and five quiet minutes say
 nothing about whether a real service should shrink its pool.
 
@@ -189,11 +209,12 @@ nothing about whether a real service should shrink its pool.
 ```bash
 # from the spring-tune repository root; needs git, mvn, JDK 17+, jq, curl, PostgreSQL 16 binaries, root or sudo
 export WORK=/tmp/springtune-petclinic PG_ROOT=/var/tmp/springtune-petclinic-pg   # PG_ROOT must be writable by postgres
+export OUT="$PWD/petclinic-runs"                   # default is a dated directory under docs/, one per UTC day
 scripts/petclinic/run.sh build                     # PetClinic @ 500158f7 + starter 0.4.0 from Maven Central
 scripts/petclinic/run.sh calibrate                 # seed 62000; writes s2-calibration/result.json
 export S2_RATE=1200                                # the calibration result on our machine; use yours
 for s in S1 S2 S3 S4; do for n in 1 2 3; do scripts/petclinic/run.sh run $s $n; done; done
-scripts/petclinic/evaluate.sh > summary.tsv
+scripts/petclinic/evaluate.sh "$OUT" > "$OUT/summary.tsv"   # without an argument it reads our 2026-11-09 runs
 ```
 
 Seeds are fixed per scenario and run (S1 6100n, S2 6200n, S3 6300n, S4 6400n, calibration 62000), so the request
