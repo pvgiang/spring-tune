@@ -81,6 +81,8 @@
         <springtune.staging.dir>${maven.multiModuleProjectDirectory}/target/staging-repo</springtune.staging.dir>
         <!-- UPLOAD: validate and stop, a human presses Publish on central.sonatype.com. FULL: publish automatically. -->
         <springtune.central.stage>UPLOAD</springtune.central.stage>
+        <!-- CycloneDX SBOMs, release profile only (docs/releasing.md#sboms). -->
+        <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
 
         <!-- Adaptive limit algorithms for springtune-limiter (Apache 2.0, one runtime dependency: slf4j-api). -->
         <concurrency-limits.version>0.5.4</concurrency-limits.version>
@@ -234,6 +236,11 @@
                     <artifactId>jreleaser-maven-plugin</artifactId>
                     <version>${jreleaser.version}</version>
                 </plugin>
+                <plugin>
+                    <groupId>org.cyclonedx</groupId>
+                    <artifactId>cyclonedx-maven-plugin</artifactId>
+                    <version>${cyclonedx-maven-plugin.version}</version>
+                </plugin>
                 <!--
                   Consumer POMs without parent or BOM imports, with explicit versions. Applied to the modules Gradle
                   resolves (the plugin, its marker and the engine): resolving them then needs only their own files
@@ -347,6 +354,9 @@
             2. mvn -Prelease -N jreleaser:deploy
                signs (GPG key from JRELEASER_GPG_* env), adds checksums, checks Central's rules and uploads the bundle
                (JRELEASER_MAVENCENTRAL_USERNAME/PASSWORD). Add -Djreleaser.dry.run=true to stop before uploading.
+          It also writes CycloneDX SBOMs: <artifactId>-<version>-cyclonedx.json per published module (attached, so it is
+          staged and deployed with the jars) and target/springtune-<version>-sbom.cyclonedx.json for the whole release
+          (not attached; release.yml puts it on the GitHub Release). Modules with maven.deploy.skip get no SBOM.
         -->
         <profile>
             <id>release</id>
@@ -380,6 +390,42 @@
                             <quiet>true</quiet>
                             <release>${maven.compiler.release}</release>
                         </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.cyclonedx</groupId>
+                        <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <configuration>
+                            <outputFormat>json</outputFormat>
+                            <!-- Runtime view: what a consumer gets (compile + runtime), not test or build tooling. -->
+                            <includeTestScope>false</includeTestScope>
+                            <includeProvidedScope>false</includeProvidedScope>
+                            <includeSystemScope>false</includeSystemScope>
+                            <!-- Samples, load tests, Gradle plugin tests and benchmarks are never published. -->
+                            <skipNotDeployed>true</skipNotDeployed>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>sbom-per-module</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>makeBom</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <!-- One SBOM for the whole release, for the GitHub Release; not attached (no extra
+                                     springtune-parent artifact on Central). -->
+                                <id>sbom-aggregate</id>
+                                <phase>package</phase>
+                                <inherited>false</inherited>
+                                <goals>
+                                    <goal>makeAggregateBom</goal>
+                                </goals>
+                                <configuration>
+                                    <outputName>springtune-${project.version}-sbom.cyclonedx</outputName>
+                                    <skipAttach>true</skipAttach>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                     <plugin>
                         <groupId>org.jreleaser</groupId>
