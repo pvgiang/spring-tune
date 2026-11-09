@@ -171,7 +171,7 @@ jobs:
         with:
           path: examples/broken-config-ci
           output: demo-reports
-      - name: Expect exit code 1 and the four documented findings with line locations
+      - name: Expect exit code 1 and exactly the documented findings with line locations
         env:
           EXIT_CODE: ${{ steps.demo.outputs.exit-code }}
           SARIF: ${{ steps.demo.outputs.sarif }}
@@ -181,11 +181,13 @@ jobs:
             echo "::error::demo exit code '$EXIT_CODE', expected 1 (see examples/broken-config-ci/README.md)"
             exit 1
           fi
-          python3 scripts/action/assert-sarif.py --tool-version 0.4.0 "$SARIF" \
+          # --exact: a new or moved finding fails too, since the demo README lists every finding (ST-TX-001 is INFO).
+          python3 scripts/action/assert-sarif.py --tool-version 0.4.0 --exact "$SARIF" \
             ST-HIKARI-001=src/main/resources/application.yml:9 \
             ST-HIKARI-002=src/main/resources/application.yml:1 \
             ST-TOMCAT-001=src/main/resources/application.yml:15 \
-            ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10
+            ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10 \
+            ST-TX-001=src/main/resources/application.yml:1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -264,8 +266,10 @@ jobs:
             echo "::error::published Action exit code '$EXIT_CODE', expected 1"
             exit 1
           fi
-          python3 scripts/action/assert-sarif.py --tool-version 0.4.0 "$SARIF" \
+          # --exact: a new or moved finding fails too, since the demo README lists every finding (ST-TX-001 is INFO).
+          python3 scripts/action/assert-sarif.py --tool-version 0.4.0 --exact "$SARIF" \
             ST-HIKARI-001=src/main/resources/application.yml:9 \
             ST-HIKARI-002=src/main/resources/application.yml:1 \
             ST-TOMCAT-001=src/main/resources/application.yml:15 \
-            ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10
+            ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10 \
+            ST-TX-001=src/main/resources/application.yml:1

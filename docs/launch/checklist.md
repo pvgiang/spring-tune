@@ -18,10 +18,12 @@ These were true when the drafts were written. Re-check each; none is optional.
 - **README and case study still say "45 of 45 … wait up to 30 s"**; precisely, 44 wait up to 30 s and 1 waits 10 s
   ([re-run, correction note](../corpus/2026-11-09-0.4.0-rerun.md#breakdown-used-by-the-launch-content)). The
   launch content is correct; the README and case study are linked from it and should match.
+  *Resolved on `claude/iteration-5-adoption`: both now say 44 up to 30 s, 1 waits 10 s.*
 - **The README tagline uses a word on the banned list** (row 6 of the iteration-5 brief). The check script only
   scans `docs/launch/` and `docs/deep-dives/`, but the README is the first page a reader sees from the post.
+  *Resolved on `claude/iteration-5-adoption`: `scripts/content/check-claims.sh README.md` finds no banned wording.*
 - **`examples/broken-config-ci/` does not exist on this branch yet** (built in parallel). The post and both deep
-  dives link it.
+  dives link it. *Resolved: it is on `claude/iteration-5-adoption`, with the CI demo job.*
 
 ## Release and install
 
