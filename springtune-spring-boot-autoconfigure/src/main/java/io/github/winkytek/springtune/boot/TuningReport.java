@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.springframework.boot.SpringBootVersion;
 
 /**
@@ -25,7 +26,7 @@ import org.springframework.boot.SpringBootVersion;
  * pasted into the recommendation feedback form.
  *
  * <p><b>Built from an allowlist, never scrubbed.</b> Only these values are copied from the snapshot: enum names,
- * numbers, instants, rule ids matching {@code ST-REC-[A-Z]+-\d{3}}, setting names from {@link #SETTINGS}, evidence
+ * numbers, instants, the rule ids SpringTune defines ({@link #RULES}), setting names from {@link #SETTINGS}, evidence
  * entries whose key is in {@link #EVIDENCE_KEYS} and whose value is a number with an optional unit, meter names from
  * a fixed set and refusal codes that are upper-case constants. Component ids (pool and bean names), knob ids,
  * signals, reasons, principals ({@code who}), the caller's {@code why}, exception messages and every other free
@@ -66,6 +67,12 @@ public record TuningReport(
     static final int MAX_URL_LENGTH = 8000;
 
     static final Pattern RULE_ID = Pattern.compile("^ST-REC-[A-Z]+-\\d{3}$");
+    /**
+     * The rule ids SpringTune defines. A rule id can be request text (an audited {@code POST /actuator/tuning} by
+     * any authenticated caller), so matching {@link #RULE_ID} is not enough: only these are copied.
+     */
+    static final Set<String> RULES = Set.copyOf(
+            Stream.concat(HikariAdvisor.RULES.stream(), Stream.of(ExecutorAdvisor.RULE)).toList());
     static final Pattern VERSION = Pattern.compile("^\\d{1,4}\\.\\d{1,4}\\.\\d{1,4}(-[A-Za-z0-9.]{1,32})?$");
     static final Pattern CHANGE_REF = Pattern.compile("^change-\\d{1,9}$");
     static final Pattern CODE = Pattern.compile("^[A-Z][A-Z0-9_]{0,63}$");
@@ -161,19 +168,19 @@ public record TuningReport(
         List<Evaluation> evaluations = new ArrayList<>();
         for (RuleEvaluation rule : snapshot.evaluations()) {
             String ref = refs.get(rule.component());
-            if (ref == null || !matches(RULE_ID, rule.ruleId()) || rule.status() == null) {
+            if (ref == null || !rule(rule.ruleId()) || rule.status() == null) {
                 continue;
             }
             List<String> meters = rule.missingMeters() == null ? null
                     : rule.missingMeters().stream().filter(meter -> in(METERS, meter)).toList();
             evaluations.add(new Evaluation(ref, rule.ruleId(), rule.status(), rule.seenSamples(), rule.minSamples(),
                     rule.seenSeconds(), rule.neededSeconds(), meters,
-                    matches(RULE_ID, rule.supersededBy()) ? rule.supersededBy() : null));
+                    rule(rule.supersededBy()) ? rule.supersededBy() : null));
         }
 
         List<Rec> recommendations = new ArrayList<>();
         for (Recommendation rec : snapshot.recommendations()) {
-            if (!matches(RULE_ID, rec.ruleId())) {
+            if (!rule(rec.ruleId())) {
                 continue;
             }
             Map<String, String> evidence = new LinkedHashMap<>();
@@ -194,7 +201,7 @@ public record TuningReport(
             for (ChangeAuditEntry entry : snapshot.apply().audit()) {
                 verdicts.add(new Verdict(matches(CHANGE_REF, entry.id()) ? entry.id() : null, entry.at(),
                         in(AUDIT_ACTIONS, entry.action()) ? entry.action() : null,
-                        matches(RULE_ID, entry.ruleId()) ? entry.ruleId() : null,
+                        rule(entry.ruleId()) ? entry.ruleId() : null,
                         entry.knobId() == null ? null : knobRefs.get(entry.knobId()), settings(entry.before()),
                         settings(entry.after()), entry.outcome(),
                         in(VERDICTS, entry.verdict()) ? entry.verdict() : null,
@@ -209,6 +216,10 @@ public record TuningReport(
                 budget == null ? null : new TuningSnapshot.Budget(budget.databaseMaxConnections(),
                         budget.maxReplicas(), budget.safetyFactor(), budget.perInstanceCap()),
                 components, evaluations, recommendations, verdicts, OMITTED);
+    }
+
+    private static boolean rule(String ruleId) {
+        return matches(RULE_ID, ruleId) && RULES.contains(ruleId);
     }
 
     private static String kind(String componentId) {

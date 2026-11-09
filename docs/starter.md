@@ -85,7 +85,7 @@ A read operation on the same `tuning` endpoint (same exposure, same security as 
 path below it is 404). It returns **strictly less** than the snapshot, built only from allowlisted values; nothing is
 scrubbed afterwards:
 
-- copied: enum names, numbers, instants, rule ids matching `ST-REC-[A-Z]+-\d{3}`, setting names from a fixed list
+- copied: enum names, numbers, instants, the rule ids SpringTune defines (`ST-REC-HIKARI-001` to `-004`, `ST-REC-EXEC-001`; a rule id posted in a request is copied only if it is one of these), setting names from a fixed list
   (`maximumPoolSize`, `minimumIdle`, `connectionTimeout`, `idleTimeout`, `maxLifetime`, `leakDetectionThreshold`,
   `corePoolSize`, `maxPoolSize`, `queueCapacity`), the two HikariCP meter names, upper-case refusal codes, and evidence
   entries whose key is one of the rules' own evidence keys **and** whose value is a number with an optional unit
@@ -109,7 +109,10 @@ strings (and no `jdbc:`, IPv4 address, `@` or `.internal`) appears in the report
 every string leaf matches the report grammar. This is a check of what SpringTune copies; read the report before you
 paste it.
 
-Output of `TuningReportAdviseWebTest` (the hostile fixture; Spring Boot 4.1.2; the payload part of the URL elided):
+Output of `TuningReportAdviseWebTest` (the hostile fixture; Spring Boot 4.1.2; the payload part of the URL elided).
+The fixture is a hand-built snapshot, not a running service: its `evaluations` and audit are forged to exercise every
+field, so it shows what a real service never does (an executor `NO_SIGNAL` naming a HikariCP meter, no
+`ST-REC-HIKARI-004` entry, `verdicts` in advise mode):
 
 ```json
 {

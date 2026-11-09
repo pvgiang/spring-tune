@@ -208,7 +208,7 @@ class RuleEvaluationTest {
             assertRecommendingMatches(evaluation, HikariAdvisor.RULES);
             assertThat(evaluation.recommendations()).hasSizeLessThanOrEqualTo(1);
             assertThat(evaluation.recommendations().stream().findFirst())
-                    .isEqualTo(HikariAdvisor.advise("k", 10, window, longWindow, cap, hikari, now));
+                    .isEqualTo(adviseBeforeStatuses("k", 10, window, longWindow, cap, hikari, now));
             evaluation.recommendations().forEach(rec -> fired.add(rec.ruleId()));
             evaluation.rules().forEach(rule -> seen.add(rule.status()));
         }
@@ -237,6 +237,42 @@ class RuleEvaluationTest {
         assertThat(fired).containsExactlyInAnyOrder(HikariAdvisor.RAISE, HikariAdvisor.HOLD_SLOW,
                 HikariAdvisor.HOLD_STARVED, HikariAdvisor.LOWER, ExecutorAdvisor.RULE);
         assertThat(seen).containsExactlyInAnyOrder(Status.values());
+    }
+
+    /**
+     * {@code HikariAdvisor.advise} as it was before statuses existed (0.4.1), kept here as the oracle:
+     * {@code advise} now delegates to {@code evaluate}, so comparing the two would be a tautology.
+     */
+    private static Optional<Recommendation> adviseBeforeStatuses(String knobId, int current,
+            List<HikariSample> window, List<HikariSample> longWindow, Optional<Integer> budgetCap,
+            SpringTuneProperties.Hikari settings, Instant now) {
+        if (!window.isEmpty()) {
+            double waiting = SampleWindow.ratio(window, s -> s.pending() > 0);
+            if (waiting >= settings.getSaturatedRatio()) {
+                return Optional.of(HikariAdvisor.saturated(knobId, current, window, waiting, budgetCap, settings, now));
+            }
+        }
+        if (!longWindow.isEmpty() && longWindow.stream().allMatch(s -> s.pending() == 0)) {
+            int peak = longWindow.stream().mapToInt(HikariSample::active).max().orElse(0);
+            if ((double) peak / current < settings.getLowUtilization()) {
+                int proposed = Math.max(2, peak * 2);
+                if (proposed < current) {
+                    Map<String, String> evidence = new java.util.LinkedHashMap<>();
+                    evidence.put("window", Format.duration(settings.getLowUtilizationWindow()));
+                    evidence.put("samples", String.valueOf(longWindow.size()));
+                    evidence.put("peakActiveConnections", peak + " of " + current);
+                    evidence.put("threadsEverWaiting", "no");
+                    return Optional.of(new Recommendation(HikariAdvisor.LOWER, knobId,
+                            Recommendation.Action.DECREASE, current, proposed,
+                            "Over the last " + Format.duration(settings.getLowUtilizationWindow()) + " at most " + peak
+                                    + " of " + current + " connections were in use and no thread ever waited."
+                                    + " Lowering the pool to " + proposed + " frees " + (current - proposed)
+                                    + " database connections per instance for other services.",
+                            evidence, Recommendation.Confidence.MEDIUM, List.of("ST-HIKARI-004"), now));
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     private static void assertRecommendingMatches(TunedComponent.Evaluation evaluation, List<String> rules) {
