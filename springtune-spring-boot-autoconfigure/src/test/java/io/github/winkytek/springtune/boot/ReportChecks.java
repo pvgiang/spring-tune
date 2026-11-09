@@ -21,7 +21,7 @@ final class ReportChecks {
     /** Substrings of the hostile fixtures; none may appear in a report. */
     static final List<String> FORBIDDEN = List.of("orders", "prod.internal", ".internal", "jdbc:", "postgresql",
             "10.1.2.3", "5432", "alice", "corp.example", "@", "ACME-123", "deploy", "db.prod.acme", "password",
-            "orders_svc", "refused", "authentication", "Connection to");
+            "orders_svc", "refused", "authentication", "Connection to", "ORDERSDB");
 
     private static final Pattern IPV4 = Pattern.compile("\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b");
 
@@ -29,7 +29,7 @@ final class ReportChecks {
     private static final List<Pattern> LEAVES = List.of(
             Pattern.compile("^[A-Z][A-Z_]*$"), // enum names and refusal codes
             Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z$"), // ISO instant
-            Pattern.compile("^ST-REC-[A-Z]+-\\d{3}$"), // rule id
+            Pattern.compile("^ST-REC-(HIKARI-00[1-4]|EXEC-001)$"), // rule id: only rules SpringTune defines
             Pattern.compile("^(hikari|executor)#\\d+(\\.[a-zA-Z]+)?$"), // pseudonym
             Pattern.compile("^(hikari|executor)$"), // kind
             Pattern.compile("^(apply|revert|freeze)$"), // audit action

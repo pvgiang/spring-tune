@@ -155,4 +155,23 @@ class TuningReportApplyWebTest {
         assertThat(send("GET", "/other", true, null).statusCode()).isEqualTo(404);
         assertThat(send("GET", "/" + POOL, true, null).statusCode()).isEqualTo(404);
     }
+
+    /**
+     * A rule id is request text: an authenticated caller (no required role needed, the refusal is audited) can post
+     * any string matching {@code ST-REC-[A-Z]+-\\d{3}}, e.g. one that embeds the pool name in upper case. Only the
+     * rule ids SpringTune itself defines may reach the report.
+     */
+    @Test
+    void ruleIdFromARequestBodyIsNotCopiedUnlessItIsAKnownRule() throws Exception {
+        HttpResponse<String> forged = send("POST", "", true, "{\"action\":\"apply\",\"ruleId\":\"ST-REC-ORDERSDB-001\","
+                + "\"knobId\":\"x\",\"expectedCurrent\":4,\"reason\":\"r\"}");
+        assertThat(forged.statusCode()).as(forged.body()).isIn(400, 409);
+        assertThat(send("GET", "", true, null).body()).as("the trap is armed").contains("ST-REC-ORDERSDB-001");
+
+        HttpResponse<String> report = send("GET", "/report", true, null);
+        assertThat(report.statusCode()).isEqualTo(200);
+        assertThat(report.body()).doesNotContain("ORDERSDB");
+        ReportChecks.assertNoHostileValue(report.body());
+        ReportChecks.assertSchema(report.body());
+    }
 }

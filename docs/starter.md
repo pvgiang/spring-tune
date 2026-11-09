@@ -85,7 +85,7 @@ A read operation on the same `tuning` endpoint (same exposure, same security as 
 path below it is 404). It returns **strictly less** than the snapshot, built only from allowlisted values; nothing is
 scrubbed afterwards:
 
-- copied: enum names, numbers, instants, rule ids matching `ST-REC-[A-Z]+-\d{3}`, setting names from a fixed list
+- copied: enum names, numbers, instants, the rule ids SpringTune defines (`ST-REC-HIKARI-001` to `-004`, `ST-REC-EXEC-001`; a rule id posted in a request is copied only if it is one of these), setting names from a fixed list
   (`maximumPoolSize`, `minimumIdle`, `connectionTimeout`, `idleTimeout`, `maxLifetime`, `leakDetectionThreshold`,
   `corePoolSize`, `maxPoolSize`, `queueCapacity`), the two HikariCP meter names, upper-case refusal codes, and evidence
   entries whose key is one of the rules' own evidence keys **and** whose value is a number with an optional unit
