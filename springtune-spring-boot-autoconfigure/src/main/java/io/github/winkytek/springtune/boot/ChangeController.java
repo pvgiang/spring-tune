@@ -55,7 +55,8 @@ import org.apache.commons.logging.LogFactory;
  *
  * <p>Before an apply of a Hikari knob, the database server's connection limit is re-read
  * ({@link WritableKnob#serverLimit()}) <b>outside</b> this object's lock, so a slow read (bounded by the pool's
- * {@code connectionTimeout}) never delays the sampler tick.
+ * {@code connectionTimeout}, at most 30 s, both for the wait and for the read's own network timeout) never delays
+ * the sampler tick. Only a raise reads it; a decrease is decided without a read.
  */
 final class ChangeController {
 
@@ -154,26 +155,36 @@ final class ChangeController {
     // ------------------------------------------------------------------ requests
 
     /**
-     * Not synchronized as a whole: for an authenticated apply of a Hikari knob the server's connection limit is
-     * re-read first, without holding the lock the sampler tick needs; the decision is then taken under the lock.
+     * Not synchronized as a whole: for an authenticated apply that raises a Hikari pool the server's connection limit
+     * is re-read first, without holding the lock the sampler tick needs; the decision is then taken under the lock.
+     * Any other apply (a decrease, or one a cheap guard refuses) is decided in one hold with no read.
      */
     ChangeResponse handle(ChangeRequest request, Caller caller) {
         Optional<Refusal> refusal = ApplyGuard.checkCaller(caller, settings.getRequiredRole())
                 .or(() -> ApplyGuard.checkRequest(request));
         if (refusal.isEmpty() && request.normalizedAction().equals("apply")) {
-            // Whether the limit must be read is decided under the same lock hold as the apply itself: a state that
+            // Whether the limit must be read is decided under the same lock hold as the apply itself, from the same
+            // knob facts and the same re-evaluated recommendations that the guard judges in that hold: a state that
             // changed after an earlier check (cooldown just over, apply re-enabled, pool started) can never let a
-            // raise through with no read at all. A read result, once taken, is judged with the state after it.
-            ServerConnectionLimit server = null;
-            while (true) {
-                synchronized (this) {
-                    Instant now = clock.instant();
-                    if (server != null || !needsServerLimit(request.knobId(), now)) {
-                        return apply(request, caller.name(), now,
-                                server != null ? server : ServerConnectionLimit.notApplicable());
-                    }
+            // raise through with no read at all (R1). A request that does not raise the pool (a decrease) is decided
+            // in that first hold without a read, carrying SKIPPED_FOR_DECREASE, which the guard refuses for any
+            // raise (fail closed). A raise reads outside the lock and is judged in a fresh hold with the state and
+            // recommendation after the read.
+            synchronized (this) {
+                Instant now = clock.instant();
+                Evaluation first = evaluate(request, now);
+                if (!needsServerLimit(request.knobId(), now)) {
+                    return apply(request, caller.name(), now, first, notReadFor(request.knobId(),
+                            "a cheap guard refuses this apply first"));
                 }
-                server = serverLimitFor(request.knobId());
+                if (!first.raises(request)) {
+                    return apply(request, caller.name(), now, first, ServerConnectionLimit.skippedForDecrease());
+                }
+            }
+            ServerConnectionLimit server = serverLimitFor(request.knobId());
+            synchronized (this) {
+                Instant now = clock.instant();
+                return apply(request, caller.name(), now, evaluate(request, now), server);
             }
         }
         synchronized (this) {
@@ -220,12 +231,44 @@ final class ChangeController {
                 && inFlight == null && (cooldown == null || !now.isBefore(cooldown));
     }
 
-    private ChangeResponse apply(ChangeRequest request, String who, Instant now, ServerConnectionLimit server) {
+    /**
+     * What one lock hold judges an apply with: the knob, its facts (live value read once) and the recommendations
+     * re-evaluated once. Both the "does it need the server limit" decision and the guard use this same object.
+     */
+    private record Evaluation(Optional<WritableKnob> knob, Optional<KnobFacts> facts, List<Recommendation> fresh) {
+
+        boolean raises(ChangeRequest request) {
+            return facts.isPresent() && ApplyGuard.raisesHikariPool(request, facts.get(), fresh);
+        }
+    }
+
+    /** Called with the lock held. */
+    private Evaluation evaluate(ChangeRequest request, Instant now) {
         Optional<WritableKnob> knob = knob(request.knobId());
         Optional<KnobFacts> facts = knob.map(k -> new KnobFacts(k.knobId(), k.kind(), k.current(), k.configuredValue(),
-                cooldownUntil(k.knobId()), baselineStart(k.knobId(), now) != null, server));
+                cooldownUntil(k.knobId()), baselineStart(k.knobId(), now) != null));
+        return new Evaluation(knob, facts, recommender.apply(now));
+    }
+
+    /**
+     * The limit an apply carries when it was not read: for a Hikari knob with a budget a status the guard refuses
+     * for any raise; otherwise not applicable (no budget: {@code NO_BUDGET}; not a pool: not checked).
+     */
+    private ServerConnectionLimit notReadFor(String knobId, String why) {
+        Optional<WritableKnob> knob = knob(knobId);
+        if (knob.isPresent() && knob.get().kind() == WritableKnob.Kind.HIKARI && budgetCap.isPresent()) {
+            return new ServerConnectionLimit(ServerConnectionLimit.Status.SKIPPED_FOR_DECREASE, null, null,
+                    "not read for this apply: " + why);
+        }
+        return ServerConnectionLimit.notApplicable();
+    }
+
+    private ChangeResponse apply(ChangeRequest request, String who, Instant now, Evaluation evaluation,
+            ServerConnectionLimit server) {
+        Optional<WritableKnob> knob = evaluation.knob();
+        Optional<KnobFacts> facts = evaluation.facts().map(f -> f.withServerLimit(server));
         ApplyGuard.State state = new ApplyGuard.State(properties.getMode(), settings.isEnabled(), frozen, inFlight != null);
-        List<Recommendation> fresh = recommender.apply(now);
+        List<Recommendation> fresh = evaluation.fresh();
         Decision decision = ApplyGuard.checkApply(request, state, facts, fresh, budgetCap,
                 properties.getBudget().getDatabaseMaxConnections(), settings, now);
         if (!decision.approved()) {
