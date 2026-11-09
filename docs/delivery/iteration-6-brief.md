@@ -79,14 +79,55 @@ Planner (PM/architect) proposed, PO/SRE skeptic attacked, the lead decided.
 
 The lead owns the poms (bump to 0.4.2-SNAPSHOT), `docs/releases/v0.4.2.md`, `docs/roadmap.md` and this brief.
 
-## 6. Review round
+## 6. Review round (adversarial reviewers; each defect proven by a failing test or reproduction before the fix)
 
-_Filled after the adversarial review._
+| # | Raised by | Finding | Decision |
+|---|---|---|---|
+| R1 | Report reviewer | **Leak:** any logged-in caller's refused `POST /actuator/tuning` is audited with its `ruleId` as sent; the report copied anything matching `ST-REC-[A-Z]+-\d{3}`, so `ST-REC-ORDERSDB-001` (a pool name in capitals) reached `verdicts[]`, past both the trap test (lower-case strings) and the schema check. | **Fixed:** only SpringTune's five rule IDs are copied, everywhere in the report; the test (`ruleIdFromARequestBodyIsNotCopiedUnlessItIsAKnownRule`) failed on the old code. |
+| R2 | Report reviewer | The property test compared `evaluate` with itself (`advise` delegates to it): a `>=`→`>` mutation in the saturation check passed. | **Fixed:** compares against a copy of the 0.4.1 `advise` logic; the mutation now fails. |
+| R3 | Report reviewer | `docs/starter.md` presented a hand-built hostile snapshot as real output; it contradicted the page (e.g. NO_SIGNAL on an executor). | **Fixed:** labelled as hand-built test data, with what a real service never shows. |
+| R4 | Report reviewer | Schema check ignores position (an upper-case word would pass in `mode`); pseudonym numbering of not-yet-started pools; WebFlux `/report` untested. | Not proven as leaks (every such field is an enum today). Follow-up. |
+| R5 | Apply reviewer | **The limit read's network timeout could stay on a pooled connection:** HikariCP restores it only if its own start-up probe (get, then set) succeeded; a driver that can set but not get the timeout left `connectionTimeout` on the connection for every later query. | **Fixed:** the bound is set only when `getNetworkTimeout()` works; new driver mode `GET_NOT_SUPPORTED`, test failed on the old code. Load suite 13/13 on PostgreSQL 16 after the fix. |
+| R6 | Apply reviewer | No path found that approves a Hikari raise without a fresh limit read (mutations: always-read, never-read, no early refusal, off-by-one in `raisesHikariPool`: all caught). A revert of a decrease raises without a read (since 0.4.0). | Accepted, documented in the 0.4.2 draft notes; whether a rollback may be blocked is a design question for the next iteration. |
+| R7 | Docs/CI reviewer | The Central check reported a 429/5xx as "not published, press Publish" (reproduced live: Central answered 429 for 0.4.0). | **Fixed:** 404 → "press Publish"; any other non-200 → "could not check, re-run"; never skips or passes. |
+| R8 | Docs/CI reviewer | Install guard missed Gradle starter coordinates, the Groovy plugin DSL, `maven-plugin:0.4.0:check` and `releases/download/v0.4.0/`. | **Fixed:** six patterns; a seeded copy now fails, the tree passes. |
+| R9 | Docs/CI reviewer | The demo README sent users to a 404 (0.4.1 from Central) with no fallback; stray `*` in README and launch post. | **Fixed.** |
+| R10 | Docs/CI reviewer | Re-counted every deep-dive #3 number from the raw 0.4.0 JSON with an independent script, and the rule-behaviour claims against `TransactionTimeoutRule`. | All match. |
+| R11 | Benchmark reviewer | **The poll window was narrowed after the runs and it changes a verdict:** the pre-registration evaluates polls "from minute 6 on"; 5 of 7 after-load S2 polls carry no recommendation. Counted literally, **S2 is a miss**. Calibration polls ran past the end of their step; the data directory differed from the fixed inputs. | **Disclosed** under "Deviations from the pre-registration" (the pre-registration text itself is unchanged since `3da677f`, verified by diff). Headline in README and `benchmarks.md` changed by the lead to "2 of 4 as registered, S2 only with a bound added afterwards, 1 miss". |
+| R12 | Benchmark reviewer | S1–S4 evidence ranges taken from all polls instead of the evaluated ones (e.g. S3 acquire 762–1,111 ms vs 762–778 ms); `evaluate.sh` in the reproduce block read our data, not the reader's. | **Fixed** in `petclinic.md`; `evaluate.sh` reproduces `summary.tsv` byte for byte. |
+| R13 | Implementer D | **S3 miss:** a lock on one table produced `ST-REC-HIKARI-001` INCREASE 10→13 instead of "don't raise": mean hold 141–146 ms (threshold 500 ms) because each cycle's blocked connections are averaged with many short checkouts. | **Published as a finding** and as a known limitation in the 0.4.2 draft. A percentile-based hold check is a candidate fix for the next iteration (not implemented, not validated). |
 
 ## 7. Scope
 
-_Filled after merge._
+| In | Out (where it goes) |
+|---|---|
+| Install lines to 0.4.1 (`@v0.4.1` + `version: "0.4.1"`), Action default 0.4.1, stale guard for 0.4.0 install strings, Central check before the README snippets, `published-action` on `@v0.4.1` without the private skip; version 0.4.2-SNAPSHOT | Central publication of 0.4.1 (H2) |
+| Per-rule `evaluations` (COLLECTING / NO_SIGNAL / QUIET / RECOMMENDING); allowlisted `GET /actuator/tuning/report` with `feedbackUrl` | A `jq` filter (row 3); WebFlux test of `/report` (R4) |
+| Feedback form: all five IDs, recommended/applied value, team, mode, Boot version, reverted; `docs/design-partners.md` | A design-partner issue form (row 6) |
+| Bounded limit read (`setNetworkTimeout`, only when restorable), no read for decreases with fail-closed `SKIPPED_FOR_DECREASE` | Limit read on revert (R6); HIKARI-002 percentile hold (R13) |
+| PetClinic benchmark, pre-registered, 12 runs, deviations disclosed | Latency numbers; a second (design-partner) service |
+| Gates collector split (read-only collect with the PAT, write-only store); design-partner row in gates.md | A real collector run (H4) |
+| Deep dive #3 (ST-TX-001), claims traced | Docs site (row 13) |
 
 ## 8. Acceptance criteria and evidence
 
-_Filled after merge._
+| ID | Criterion | Verification | Result |
+|---|---|---|---|
+| AC-6.1 | Every user-facing install line is 0.4.1; measurements keep 0.4.0; no claim that 0.4.1 is on Central | `check-install-strings.sh` (43 files), `check-claims.sh`; reviewer R7–R9 | ✅ locally. `readme-snippets` is **red until H2** (Central returns 404 for 0.4.1 on 2026-11-09), by design, with the "press Publish" message |
+| AC-6.2 | `@v0.4.1` runs on the demo in a private repository | `published-action` job (main only) | ⏳ only CI on main can prove it |
+| AC-6.3 | An empty `recommendations[]` is never ambiguous | `RuleEvaluationTest` (incl. 4,000-window property test against 0.4.1 logic) | ✅ |
+| AC-6.4 | The report copies no host, pool/bean name, principal, operator text or exception text; any free text fails CI | `TuningReportAdviseWebTest`, `TuningReportApplyWebTest` (trap + grammar, over HTTP, with Security), mutations (reason copied; free-text field; R1 request text) | ✅ on Boot 4.1.2 and 3.5.16 |
+| AC-6.5 | The form can measure gate 2 | form fields; `feedbackUrl` prefill ids exist in the form; outcome tokens unchanged | ✅ (GitHub's actual prefill is checked only once public) |
+| AC-6.6 | A hung limit read ends within its bound and releases its connection; decreases never wait; no raise without a fresh read | `ServerLimitHangLoadTest` on PostgreSQL 16 (refused after ~3.2 s, connection released ~3.0 s, pool back to 4, next raise 200); `ChangeControllerTest`, `ApplyGuardTest`, `ServerLimitNetworkTimeoutTest`; mutations M9–M11 and R6 | ✅ load suite **13/13** on PostgreSQL 16 (implementer and reviewer, separately) |
+| AC-6.7 | PAT never in a job with `contents: write`; snapshot validated before commit | YAML reading, actionlint (clean), validator run on a real and 8 broken snapshots | ✅ locally; real run is H4 |
+| AC-6.8 | PetClinic: pre-registered before any run, reproducible, no latency claim, misses published | git order (`3da677f` 11:23 UTC, first run 14:13 UTC), pinned SHA, seeds, `evaluate.sh` byte-identical, reviewer R11–R12 | ✅ with disclosed deviations: S1 and S4 match, S2 match only with a post-hoc bound, S3 miss |
+| AC-6.9 | Deep dive #3 with every number traced | `claims.md`; independent recount (R10) | ✅ |
+| AC-6.10 | Nothing regresses | `mvn -B -ntp clean verify -DskipITs` and `-Dspring-boot.version=3.5.16 -Dinvoker.skip -DskipITs` on the merged branch | ✅ both BUILD SUCCESS, 13 modules, autoconfigure 150 tests each; CI matrix (JDK 17/21/25) see the PR |
+
+## 9. Follow-ups for iteration 7
+
+1. HIKARI-002 misses a slowdown that hits a minority of connections (R13): evaluate a percentile or max hold check
+   against the S3 data before changing the rule.
+2. Revert of a decrease without a limit read (R6): decide whether rollback may be refused.
+3. Position-aware report schema check; WebFlux `/report` test; pseudonyms for not-yet-started pools (R4).
+4. After H1/H2: re-run `readme-snippets`, check the issue-form prefill from a real `feedbackUrl`, post deep dives.
