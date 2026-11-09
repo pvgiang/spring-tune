@@ -101,6 +101,44 @@ something, and enough users to ask whether they want it.
 | Date | Central downloads (engine, month) | Release asset downloads (all) | Stars (with company) | Rule requests | Rec. feedback (accepted / all) | Paid-signal teams / paid pilots | FP issues (confirmed) |
 |---|---|---|---|---|---|---|---|
 | 2026-11-04 | n/a (not published) | 0 | 0 (0) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
+| 2026-11-09 (release-day baseline, [detail](#release-day-baseline-2026-11-09)) | published, stats owner-only: **pending** (human copies) | 0 | 0 (0) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
+
+### Release-day baseline (2026-11-09)
+
+0.4.0 reached Maven Central on 2026-11-09. Values fetched with `gh api` on 2026-11-09 around 04:45 UTC, before any
+launch post. Everything below is zero, which is the point: launch effects are measured against this row.
+
+| Signal | Value | Query |
+|---|---|---|
+| Repository visibility | **private** (launch blocker: see the [launch checklist](../launch/checklist.md)) | `gh api repos/pvgiang/spring-tune --jq .visibility` |
+| Stars / forks / watchers | 0 / 0 / 0 | `gh api repos/pvgiang/spring-tune --jq '[.stargazers_count, .forks_count, .subscribers_count]'` |
+| Open issues | 0 (the 6 items the issues API returns are PRs #1–#6, all closed) | `gh api 'repos/pvgiang/spring-tune/issues?state=all' --jq '.[] \| [.number, .state, (.pull_request != null)]'` |
+| Issues by label (all states) | `rule-request` 0, `false-positive` 0, `rec-feedback` 0, `paid-signal` 0 | `gh api 'repos/pvgiang/spring-tune/issues?state=all&labels=<label>' --jq length` |
+| Release assets, v0.4.0 (2026-11-08) | `springtune-cli-0.4.0.jar` 0, `springtune-maven-repo-0.4.0.zip` 0, `SHA256SUMS` 0, `LICENSE.txt` 0 | `gh api repos/pvgiang/spring-tune/releases --jq '.[] \| .tag_name as $t \| .assets[] \| [$t, .name, .download_count]'` |
+| Release assets, v0.3.0 (2026-11-05) | `springtune-cli-0.3.0.jar` 0, `springtune-maven-repo-0.3.0.zip` 0, `SHA256SUMS` 0, `LICENSE.txt` 0 | same |
+| Release assets, v0.1.0 (2026-11-03) | `springtune-cli-0.1.0.jar` 0, `springtune-maven-repo-0.1.0.zip` 0, `SHA256SUMS` 0 | same |
+| Maven Central | published (`io.github.winkytek.springtune:*:0.4.0` resolves from repo1.maven.org); download stats owner-only: **pending** | human: central.sonatype.com → Namespaces → `io.github.winkytek` |
+| Gradle Plugin Portal | not listed; `plugins { id("io.github.winkytek.springtune") version "0.4.0" }` resolves because the Portal proxies Maven Central | post-release smoke run [42563268215](https://github.com/pvgiang/spring-tune/actions/runs/42563268215) |
+| GitHub Action users (code search) | 0 | `gh api 'search/code?q=%22pvgiang%2Fspring-tune%22+extension%3Ayml' --jq .total_count` |
+| Traffic (views, clones, referrers) | not readable with the session token (HTTP 403); needs the fine-grained PAT ([brief](../delivery/iteration-5-brief.md) row 12) | `gh api repos/pvgiang/spring-tune/traffic/views` |
+
+Note: right after this snapshot, the corpus re-run downloaded `springtune-cli-0.4.0.jar` and `SHA256SUMS` of
+v0.4.0 once each through the API (around 04:47 UTC). If those two counters read 1 later, that is this download,
+not a user.
+
+## Launch log
+
+One row per post. Fill *24 h* and *7 d* at those times after posting (score = upvotes or points; for dev.to,
+reactions). *Referrer delta* = views from that channel's domain in the traffic collector's referrers, 7 d after
+minus the day before. Stars and release downloads in the same window go in the last column so the channels can
+be compared.
+
+| Channel | URL | Posted at (UTC) | 24 h score / comments | 7 d score / comments | Referrer delta (7 d views) | Stars / downloads delta (7 d) | Notes |
+|---|---|---|---|---|---|---|---|
+| r/java | | | | | | | |
+| Show HN | | | | | | | |
+| dev.to | | | | | | | |
+| JUG / newsletter | | | | | | | |
 
 ## Collector
 
