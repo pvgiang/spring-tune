@@ -2,6 +2,11 @@
 
 ## CLI
 
+Get the runnable jar (Java 17+) from the [v0.4.0 release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.0)
+(`springtune-cli-0.4.0.jar`; verify it against the release's `SHA256SUMS`, see the [README](../README.md#quick-start))
+or from Maven Central as `io.github.winkytek.springtune:springtune-check-cli:0.4.0:all`. Run it as
+`java -jar springtune-cli-0.4.0.jar check ...`.
+
 ```
 springtune check [ROOT] [-m DIR]... [-p PROFILE[,PROFILE]] [-c springtune.yml]
                  [--fail-on ERROR|WARNING|INFO|NONE] [-f text,markdown,json,sarif] [-o DIR] [-q]
@@ -36,7 +41,7 @@ compatible). It registers `springtuneCheck` in every project it is applied to. W
 depends on it.
 
 ```kotlin
-// build.gradle.kts: the plugin comes from the Gradle Plugin Portal (from 0.4.0), the engine from Maven Central
+// build.gradle.kts: the plugin resolves through the Gradle Plugin Portal (see below), the engine from Maven Central
 plugins {
     java
     id("org.springframework.boot") version "3.5.16"
@@ -47,13 +52,26 @@ repositories {
     mavenCentral()                 // the plugin resolves the check engine here (see below)
 }
 
-// If the plugin is not on the Portal yet, add mavenCentral() to pluginManagement.repositories in
-// settings.gradle.kts: the plugin and its marker are also published to Maven Central.
-
 springtune {                       // all optional
     profiles.set(listOf("prod"))
     failOn.set("WARNING")          // ERROR, WARNING, INFO or NONE
     formats.set(listOf("markdown", "sarif", "json"))
+}
+```
+
+**Where the plugin comes from.** The plugin and its marker are published to Maven Central. They are not listed on
+the Gradle Plugin Portal yet (the listing follows 0.4.0), but the Portal serves Maven Central artifacts, so
+`plugins { id("io.github.winkytek.springtune") version "0.4.0" }` resolves with Gradle's default plugin repository
+(the post-release smoke proves both routes on Gradle 8.14 and 9.8). Until the Plugin Portal listing, add
+`mavenCentral()` to `pluginManagement.repositories` if your build doesn't use `gradlePluginPortal()`:
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()             // or your mirror of it
+        gradlePluginPortal()       // keep it if your other plugins need it
+    }
 }
 ```
 

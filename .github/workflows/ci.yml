@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, "claude/**"]
   pull_request:
+  workflow_dispatch:
+  schedule:
+    # Weekly: the demo and the README snippets depend on things outside this repository (the published release,
+    # Maven Central, the Plugin Portal), which can break without a commit here.
+    - cron: "23 4 * * 1"
 
 permissions:
   contents: read
@@ -119,3 +124,131 @@ jobs:
         with:
           name: springtune-reports
           path: springtune-reports/
+
+  install-strings:
+    name: "Docs: no stale install strings"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: README, docs and examples show the current release only
+        run: scripts/check-install-strings.sh
+
+  action-checksum:
+    name: "Action: checksum verification (real and tampered jar)"
+    runs-on: ubuntu-latest
+    env:
+      VERSION: "0.4.0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the released CLI jar and SHA256SUMS
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          cd "$RUNNER_TEMP/release"
+          base="https://github.com/pvgiang/spring-tune/releases/download/v$VERSION"
+          curl -fsSL --retry 3 -O "$base/springtune-cli-$VERSION.jar"
+          curl -fsSL --retry 3 -O "$base/SHA256SUMS"
+      - name: The real jar verifies; tampered jars and bad checksum files are rejected
+        run: >
+          scripts/action/test-verify-sha256.sh
+          "$RUNNER_TEMP/release/springtune-cli-$VERSION.jar" "$RUNNER_TEMP/release/SHA256SUMS"
+
+  demo:
+    name: "Demo: examples/broken-config-ci fails as documented"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The local Action with its defaults: downloads the released CLI, verifies it against SHA256SUMS, runs it.
+      - name: Run the Action on the demo (must fail with exit code 1)
+        id: demo
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/broken-config-ci
+          output: demo-reports
+      - name: Expect exit code 1 and the four documented findings with line locations
+        env:
+          EXIT_CODE: ${{ steps.demo.outputs.exit-code }}
+          SARIF: ${{ steps.demo.outputs.sarif }}
+        run: |
+          # 2 is a failed download or checksum, or a configuration error: a broken demo, not the expected red.
+          if [ "$EXIT_CODE" != "1" ]; then
+            echo "::error::demo exit code '$EXIT_CODE', expected 1 (see examples/broken-config-ci/README.md)"
+            exit 1
+          fi
+          python3 scripts/action/assert-sarif.py --tool-version 0.4.0 "$SARIF" \
+            ST-HIKARI-001=src/main/resources/application.yml:9 \
+            ST-HIKARI-002=src/main/resources/application.yml:1 \
+            ST-TOMCAT-001=src/main/resources/application.yml:15 \
+            ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-reports
+          path: demo-reports/
+          if-no-files-found: warn
+
+  # Executes the README's install snippets against Maven Central with empty local repositories. Not on every pull
+  # request: each run downloads a few hundred MB from Central with no cache (that is the point), Central answers
+  # bursts from shared runner IPs with 429, and a red check caused by a rate limit on an unrelated change teaches
+  # people to ignore red. The install-strings job runs on every pull request and catches the common drift (a stale
+  # version); this job proves the snippets still work after every merge to main, weekly, and on demand.
+  readme-snippets:
+    name: "README snippets: ${{ matrix.mode }} (Central, empty caches)"
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [maven, gradle-portal, gradle-central, cli]
+    steps:
+      - uses: actions/checkout@v4
+      # Java 17: the supported baseline. No build-tool cache: the point is a fresh local repository.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        if: startsWith(matrix.mode, 'gradle')
+        with:
+          gradle-version: "9.8.2"
+          cache-disabled: true
+      - name: Build the README snippets in a fresh project
+        env:
+          MODE: ${{ matrix.mode }}
+        run: SMOKE_WORK="$RUNNER_TEMP/readme-$MODE" scripts/smoke/readme-snippets.sh "$MODE"
+
+  # The published tag, used as the README shows it. `uses:` cannot be read from the README, so the version is
+  # repeated here; install-strings checks that the README pins the Action's default version.
+  published-action:
+    name: "README snippets: pvgiang/spring-tune@v0.4.0 on the demo"
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the published Action on the demo (must fail with exit code 1)
+        id: published
+        continue-on-error: true
+        uses: pvgiang/spring-tune@v0.4.0
+        with:
+          version: "0.4.0"
+          path: examples/broken-config-ci
+          output: published-reports
+      - name: Expect exit code 1 and the documented findings, written by CLI 0.4.0
+        env:
+          EXIT_CODE: ${{ steps.published.outputs.exit-code }}
+          SARIF: ${{ steps.published.outputs.sarif }}
+        run: |
+          if [ "$EXIT_CODE" != "1" ]; then
+            echo "::error::published Action exit code '$EXIT_CODE', expected 1"
+            exit 1
+          fi
+          python3 scripts/action/assert-sarif.py --tool-version 0.4.0 "$SARIF" \
+            ST-HIKARI-001=src/main/resources/application.yml:9 \
+            ST-HIKARI-002=src/main/resources/application.yml:1 \
+            ST-TOMCAT-001=src/main/resources/application.yml:15 \
+            ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10

@@ -1,0 +1,21 @@
+# Risky on purpose. Each line marked "SpringTune:" is a finding; README.md has the one-line fix for each.
+spring:
+  application:
+    name: orders-service
+  datasource:
+    url: jdbc:h2:mem:orders;DB_CLOSE_DELAY=-1
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000      # SpringTune: ST-HIKARI-001, threads wait 30 s for a connection
+      # SpringTune: ST-HIKARI-002, no leak-detection-threshold, so a leaked connection is never reported
+
+server:
+  tomcat:
+    threads:
+      max: 400                       # SpringTune: ST-TOMCAT-001, 400 threads share 10 connections
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,tuning
