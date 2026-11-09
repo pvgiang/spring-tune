@@ -63,7 +63,7 @@ It is static only: nothing is built or executed, and nothing leaves the machine.
 and the ERROR rules need your database limits, so these snippets use `WARNING` to turn the findings above into a
 red check.
 
-***GitHub Action**, findings as code-scanning alerts on the exact line. It runs the CLI jar only if its SHA-256
+**GitHub Action**, findings as code-scanning alerts on the exact line. It runs the CLI jar only if its SHA-256
 matches the release's `SHA256SUMS`:
 
 ```yaml

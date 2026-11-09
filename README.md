@@ -23,7 +23,7 @@ check results are identical; [release notes](docs/releases/v0.4.1.md)). If Maven
 0.4.1, its publication is pending: use 0.4.0, which is on Central with the same rules, until it appears.
 To see it fail on a real project first, open the demo: [examples/broken-config-ci](examples/broken-config-ci).
 
-***GitHub Action** (findings show up as code-scanning alerts on the exact line). It downloads the CLI jar from the
+**GitHub Action** (findings show up as code-scanning alerts on the exact line). It downloads the CLI jar from the
 GitHub release and runs it only if its SHA-256 matches the release's `SHA256SUMS`
 ([details](docs/ci-integration.md#github-actions-with-code-scanning-sarif)):
 

@@ -225,8 +225,13 @@ jobs:
           [ "$(printf '%s\n' "$v" | grep -c .)" -eq 1 ] \
             || { echo "::error file=README.md::snippet:cli should name exactly one SpringTune version, found '$(echo $v)'"; exit 1; }
           url="https://repo1.maven.org/maven2/io/github/winkytek/springtune/springtune-check-cli/$v/springtune-check-cli-$v.pom"
-          if ! curl -fsI --proto '=https' --retry 3 "$url" > /dev/null; then
+          # Only a 404 means "not published"; a 429 or 5xx (Central rate-limits shared runner IPs) is a failed check.
+          code="$(curl -sSI -o /dev/null -w '%{http_code}' --proto '=https' --retry 3 "$url" || true)"
+          if [ "$code" = 404 ]; then
             echo "::error::SpringTune $v is not on Maven Central yet: press Publish on central.sonatype.com (iteration-6 brief §3, H2), then re-run this job"
+            exit 1
+          elif [ "$code" != 200 ]; then
+            echo "::error::Could not check Maven Central for SpringTune $v (HTTP '$code' for $url): re-run this job"
             exit 1
           fi
           echo "SpringTune $v is on Maven Central: $url"
