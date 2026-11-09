@@ -78,6 +78,8 @@ jobs:
           (cd target/staging-repo && zip -qr ../../dist/springtune-maven-repo-$VERSION.zip .)
           rm target/staging-repo/LICENSE target/staging-repo/NOTICE
           cp LICENSE dist/LICENSE.txt
+          # CycloneDX SBOM of every published module (written by -Prelease in the staging step above).
+          cp target/springtune-$VERSION-sbom.cyclonedx.json dist/
           (cd dist && sha256sum * > SHA256SUMS)
           java -jar dist/springtune-cli-$VERSION.jar --version | grep -q "SpringTune $VERSION"
 

@@ -1,8 +1,12 @@
 # spring-tune
 
-Spring Boot config safety and self-tuning.
+A CI check for risky Spring Boot configuration, plus read-only runtime advice.
 
-Catch the Spring Boot configuration that will take you down before production does. Then let it tune itself when you're ready.
+Catch the Spring Boot configuration that will take you down before production does: pool exhaustion, hung threads
+and retry storms, reported on the exact line in your pull request. At runtime, the starter explains what it would
+change and why, without changing anything; applying a change is an experimental, opt-in mode (5 of its 6
+[pre-registered bars](docs/delivery/iteration-4-brief.md#2-pre-registered-bar-for-leaving-experimental-posre-recorded-before-any-load-test-code)
+are met; the missing one is a team running it in production).
 
 SpringTune has two parts that share one model and one set of rule IDs, plus an opt-in limiter:
 
@@ -14,8 +18,14 @@ SpringTune has two parts that share one model and one set of rule IDs, plus an o
 
 ## Quick start
 
-**GitHub Action** (findings show up as code-scanning alerts on the exact line):
+Everything below is SpringTune **0.4.0**, on Maven Central under groupId `io.github.winkytek.springtune`.
+To see it fail on a real project first, open the demo: [examples/broken-config-ci](examples/broken-config-ci).
 
+**GitHub Action** (findings show up as code-scanning alerts on the exact line). It downloads the CLI from the
+GitHub release; the Action on `main` also checks the jar against the release's `SHA256SUMS` before running it,
+which ships with the next tag ([details](docs/ci-integration.md#github-actions-with-code-scanning-sarif)):
+
+<!-- snippet:action -->
 ```yaml
 # .github/workflows/springtune.yml
 on: [pull_request]
@@ -25,9 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pvgiang/spring-tune@v0.1.0
+      - uses: pvgiang/spring-tune@v0.4.0
         id: springtune
         with:
+          version: "0.4.0"       # the CLI to run; keep it equal to the tag (the v0.4.0 tag defaults to 0.1.0)
           profile: prod          # optional
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
@@ -35,31 +46,43 @@ jobs:
           sarif_file: ${{ steps.springtune.outputs.sarif }}
 ```
 
-**CLI** (any build tool, Java 17+), from the [latest release](https://github.com/pvgiang/spring-tune/releases):
+The same workflow with comments: [examples/github-workflow.yml](examples/github-workflow.yml).
 
+**CLI** (any build tool, Java 17+), from Maven Central (`io.github.winkytek.springtune:springtune-check-cli:0.4.0:all`),
+checked against Central's SHA-256:
+
+<!-- snippet:cli -->
 ```bash
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.3.0/springtune-cli-0.3.0.jar
-java -jar springtune-cli-0.3.0.jar check path/to/repo --profile prod
+base=https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0
+curl -fsSLO $base/springtune-check-cli-0.4.0-all.jar
+echo "$(curl -fsSL $base/springtune-check-cli-0.4.0-all.jar.sha256)  springtune-check-cli-0.4.0-all.jar" \
+  | sha256sum -c -                                   # macOS: shasum -a 256 -c -
+java -jar springtune-check-cli-0.4.0-all.jar check path/to/repo --profile prod
 # exit 0 = clean, 1 = findings at/above --fail-on (default ERROR), 2 = usage/config error
 ```
 
-**Maven plugin and runtime starter** (`io.github.winkytek.springtune:*:0.3.0`, Maven Central from 0.3.0;
-0.1.0 was published as `io.github.winky.springtune` in a GitHub release zip only):
+The same jar (identical SHA-256) is attached to the [v0.4.0 GitHub release](https://github.com/pvgiang/spring-tune/releases/tag/v0.4.0)
+as `springtune-cli-0.4.0.jar`, listed in the release's `SHA256SUMS`.
 
+**Maven plugin and runtime starter** (Maven Central from 0.4.0, no extra repository; 0.3.0 was a GitHub release
+only, and 0.1.0 used an older groupId, see the [0.3.0 notes](docs/releases/v0.3.0.md)):
+
+<!-- snippet:maven-plugin -->
 ```xml
 <plugin>
   <groupId>io.github.winkytek.springtune</groupId>
   <artifactId>springtune-maven-plugin</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
   <executions><execution><goals><goal>check</goal></goals></execution></executions>
 </plugin>
 ```
 
+<!-- snippet:maven-starter -->
 ```xml
 <dependency>
   <groupId>io.github.winkytek.springtune</groupId>
   <artifactId>springtune-spring-boot-starter</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -80,18 +103,22 @@ enforcing.
 springtune.limiter.enabled: true     # shadow; add springtune.limiter.enforce: true after the rollout steps
 ```
 
-**Gradle plugin** (from 0.3.0; Gradle 8.5+, configuration cache compatible). The resolved runtime classpath
-decides which rules apply, so dependencies declared through version catalogs and convention plugins count:
+**Gradle plugin** (Gradle 8.5+, configuration cache compatible). The resolved runtime classpath decides which rules
+apply, so dependencies declared through version catalogs and convention plugins count:
 
+<!-- snippet:gradle-plugin -->
 ```kotlin
 plugins {
-    id("io.github.winkytek.springtune") version "0.3.0"   // ./gradlew check now runs springtuneCheck
+    id("io.github.winkytek.springtune") version "0.4.0"   // ./gradlew check now runs springtuneCheck
 }
 springtune { profiles.set(listOf("prod")) }            // optional; see docs/check.md#gradle-plugin
 ```
 
-Until it is on the Gradle Plugin Portal, add `mavenCentral()` to `pluginManagement.repositories`
-([setup](docs/check.md#gradle-plugin)).
+This works with Gradle's default plugin repository: the plugin is not listed on the Gradle Plugin Portal yet, but
+the Portal serves it from Maven Central. Until the Plugin Portal listing, add `mavenCentral()` to
+`pluginManagement.repositories` in `settings.gradle.kts` if your build doesn't use `gradlePluginPortal()` (for
+example, a corporate mirror only). The project itself needs `mavenCentral()` (or a mirror of it) in `repositories`,
+where the plugin resolves the check engine ([setup](docs/check.md#gradle-plugin)).
 
 ## Case study: what we found in 20 popular Spring Boot projects
 
@@ -99,8 +126,9 @@ We ran `springtune check` over 20 well-known open-source Spring Boot projects (S
 Apache DolphinScheduler, Apache ShenYu, ThingsBoard, JeecgBoot, RuoYi, mall and more: 282 modules) and
 reviewed every finding by hand.
 
-- **45 of 45** HikariCP services we could evaluate wait **up to 30 s** for a connection when the pool runs
-  dry, and **none** detects connection leaks. On Spring Boot's defaults (200 threads, 10 connections), a
+- **All 45** HikariCP modules we could evaluate wait longer than 5 s for a connection when the pool runs
+  dry (44 up to **30 s**: 38 on the unset default, 6 with `30000` written out; 1 waits 10 s), and **none**
+  detects connection leaks ([0.4.0 re-run](docs/corpus/2026-11-09-0.4.0-rerun.md)). On Spring Boot's defaults (200 threads, 10 connections), a
   database that slows from 30 ms to 3 s per query blocks all 200 request threads in about **4 seconds**,
   health checks included.
 - The Spring PetClinic microservices gateway calls other services with **no HTTP timeout at all**:
@@ -128,8 +156,8 @@ results: [corpus report](docs/corpus/2026-11-corpus-report.md).
 **Try it on your own repo now.** It's static only, so nothing is built and nothing leaves your machine:
 
 ```bash
-curl -fsSLO https://github.com/pvgiang/spring-tune/releases/download/v0.3.0/springtune-cli-0.3.0.jar
-java -jar springtune-cli-0.3.0.jar check . --profile prod
+curl -fsSLO https://repo.maven.apache.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.0/springtune-check-cli-0.4.0-all.jar
+java -jar springtune-check-cli-0.4.0-all.jar check . --profile prod
 ```
 
 Found something, or a false positive? [Open an issue](https://github.com/pvgiang/spring-tune/issues/new/choose)
@@ -173,7 +201,8 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 | `springtune-spring-boot-autoconfigure` / `-starter` | Runtime registry, sampler, recommendations, `/actuator/tuning` |
 | `springtune-limiter` | Opt-in adaptive concurrency limiter (`Filter`/`WebFilter` over Netflix concurrency-limits), Micrometer metrics |
 | `springtune-samples/broken-config` | Runnable demo and end-to-end fixture |
-| `action.yml` | GitHub Action wrapping the CLI |
+| `action.yml` | GitHub Action wrapping the CLI (verifies the downloaded jar against the release's `SHA256SUMS`) |
+| `examples/broken-config-ci` | Standalone demo on 0.4.0 from Central: the check fails on four findings, with the fix for each |
 
 ## Docs
 
@@ -193,8 +222,9 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
 - [Adoption gates: what we measure and how (no telemetry)](docs/adoption/gates.md)
 - [Releasing: Maven Central, Gradle Plugin Portal, one-time setup](docs/releasing.md)
 - [Release notes](docs/releases/)
-- [Roadmap after 0.3.0](docs/roadmap.md)
+- [Roadmap (current release: 0.4.0)](docs/roadmap.md)
 - [Business & implementation plan](docs/business-and-implementation-plan.md)
+- [Contributing](CONTRIBUTING.md) (build, tests, adding a rule, DCO sign-off) · [Security policy](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
 
 ## License
 

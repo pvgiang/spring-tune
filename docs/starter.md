@@ -62,6 +62,20 @@ Every INCREASE/DECREASE recommendation gets an entry in `applyPlans`:
 
 ## Apply mode (experimental)
 
+> **Known limits of apply mode.** Experimental and opt-in; no production user yet.
+>
+> - **A verdict judges "nothing got worse", not "capacity was obtained".** A raise can be CONFIRMED while the database
+>   refused the new connections. After 0.4.0 this is **visible, not hidden**: every verified raise records
+>   `capacityObtained` (`true`/`false`) with a one-line reason, in the audit entry, the `POST` response, the snapshot
+>   and the `springtune.changes{capacity_obtained}` tag. It still does **not** change the verdict or revert (a revert
+>   on connect failures would act during exactly the outage where it helps least); `ST-REC-HIKARI-004` holds further
+>   raises of that pool. Alert on `springtune.changes{capacity_obtained="false"}`.
+> - **The server limit is re-read once per apply attempt**, not watched continuously. A lowered `max_connections`
+>   is caught at the next apply (`BUDGET_EXCEEDS_SERVER`); if that re-read fails, the raise is refused
+>   (`SERVER_LIMIT_UNKNOWN`), never approved on a cached value. Between applies the plan shows the last value read
+>   and when.
+> - Ephemeral, per instance, one change in flight per process; see [Caveats](#caveats).
+
 ```yaml
 springtune:
   mode: apply
@@ -131,7 +145,8 @@ current state). Every request, including refusals, is audited with the caller's 
 | Compare-and-set: `expectedCurrent` and the recommendation's `currentValue` must equal the live value | `STALE_EXPECTED_CURRENT` (409) |
 | Optional `expectedTarget` must equal the fresh recommendation's value | `STALE_EXPECTED_TARGET` (409) |
 | Raising a Hikari pool needs `springtune.budget.*` and stays ≤ the per-instance cap | `NO_BUDGET`, `ABOVE_BUDGET_CAP` (400) |
-| Raising a Hikari pool: `database-max-connections` must not exceed what the **server** accepts from application roles (read once through the pool: PostgreSQL `max_connections − superuser_reserved_connections − reserved_connections`, MySQL/MariaDB `@@max_connections`; other databases are not checked and the apply plan says so) | `BUDGET_EXCEEDS_SERVER` (409) |
+| Raising a Hikari pool: `database-max-connections` must not exceed what the **server** accepts from application roles, **re-read for every apply attempt** through the pool (PostgreSQL `max_connections − superuser_reserved_connections − reserved_connections`, MySQL/MariaDB `@@max_connections`; other databases are not checked and the apply plan says so) | `BUDGET_EXCEEDS_SERVER` (409) |
+| Raising a Hikari pool: that re-read must succeed within the pool's `connectionTimeout` (at most 30 s). Fails closed: a failed or unanswered read refuses the raise and names the last known value and when it was read; a DECREASE is never refused for it | `SERVER_LIMIT_UNKNOWN` (409) |
 | Step: `abs(new − current) ≤ max(1, ceil(current × max-step))` | `STEP_LIMIT` (400) |
 | Growth: `new` within `[startup / max-growth-factor, startup × max-growth-factor]` | `GROWTH_LIMIT` (400) |
 | Counters cover the `baseline` window before the change | `BASELINE_NOT_COVERED` (409) |
@@ -157,6 +172,14 @@ If throughput (acquire attempts per second, or completed tasks per second) diffe
 or no rule is evaluated, the verdict is **INCONCLUSIVE**. HTTP mean latency and 5xx counts are recorded as evidence
 and **never** trigger a revert, so an unrelated downstream incident cannot revert (or shrink) a pool mid-spike.
 
+Recorded with every verdict, **never** a reason to revert:
+
+| Field | Value | Measured |
+|---|---|---|
+| `capacityObtained` (Hikari) | `true` when HikariCP's `getTotalConnections()` reached the new `maximumPoolSize` at any sampler tick from the apply to the verdict; `false` otherwise, with a reason such as `Capacity NOT obtained: the pool never exceeded 4 connections; target 5, although threads waited for a connection (connection creation refused or failing?)` or `...; no thread waited for a connection while it was smaller (no demand for more yet)` | each tick (`springtune.sampling.interval`), so a connection that opened and retired between two ticks is missed |
+| `capacityObtained` (executor) | the same with the executor's pool size against the new `corePoolSize`/`maxPoolSize` ("tasks were queued" as demand). Thread creation rarely fails, but the pool grows only on demand just like HikariCP, so the flag says whether the new size was used | each tick |
+| `capacityObtained` = `null` | a DECREASE (applied lazily: there is nothing to obtain), or a component that did not report its size | |
+
 ```
 IDLE --apply--> VERIFYING --OK------------------------> CONFIRMED  --cooldown-->            IDLE
                           --REGRESSED / INCONCLUSIVE--> REVERTED   --cooldown-after-revert--> IDLE
@@ -175,12 +198,14 @@ In apply mode `GET /actuator/tuning` has `"applySupported": true` and an `apply`
 `requiredRole`, the effective `guardrails`, every writable knob with its **configured** (startup) and **effective**
 (live) value, the `min`/`max`/`maxStep` the next change may use and its state (with `cooldownUntil`), and the
 `audit` list (newest first, `audit-size` entries): `who`, `why`, `ruleId`, `knobId`, `before`, `after`, `outcome`,
-`verdict`, `reasons` and `evidence` (B → V for each signal).
+`verdict`, `reasons`, `evidence` (B → V for each signal), `capacityObtained` and `capacity` (its reason line, also
+the last entry of `reasons`). The `POST` response's `change` is the same entry.
 
 Every audit entry is also logged on the logger **`springtune.audit`** (WARN for `REVERT_FAILED`) and published as a
-`SpringTuneChangeEvent` (listen to it to forward changes). The counter **`springtune.changes{outcome}`** counts final
-outcomes (`confirmed`, `reverted`, `kept_inconclusive`, `superseded`, `revert_failed`, `apply_failed`, `refused`,
-`frozen`).
+`SpringTuneChangeEvent` (listen to it to forward changes). The counter
+**`springtune.changes{outcome, capacity_obtained}`** counts final outcomes (`confirmed`, `reverted`,
+`kept_inconclusive`, `superseded`, `revert_failed`, `apply_failed`, `refused`, `frozen`) and whether a verified raise
+obtained its capacity (`true`, `false`, or `not_applicable` for decreases, refusals and freezes): at most 24 series.
 
 ### Caveats
 
@@ -198,10 +223,17 @@ outcomes (`confirmed`, `reverted`, `kept_inconclusive`, `superseded`, `revert_fa
 - **Other clients of the database.** `database-max-connections` is what *this service* may use. Other services,
   admin sessions, migrations and monitoring must fit in the headroom the safety factor leaves
   (`max − floor(max × safety-factor)`), or be subtracted from `database-max-connections`.
-- **Server limit check.** In apply mode with a budget, SpringTune reads the server's connection limit once, with one
-  connection borrowed from the pool like any other request, on a short-lived thread (the sampler never waits for
-  it). Until that read succeeds the check is skipped and the apply plan says "server limit not checked yet". It is
-  not re-read after a database restart with a different `max_connections`; restart the application then.
+- **Server limit check.** In apply mode with a budget, SpringTune reads the server's connection limit once after
+  the pool starts (for the apply plan) and **again for every apply attempt** of a Hikari knob, with one connection
+  borrowed from the pool like any other request, on a short-lived thread. The `POST` waits for it at most the pool's
+  `connectionTimeout` (capped at 30 s); the controller's lock is not held meanwhile, so the sampler tick never waits
+  for it. Requests refused anyway (unauthenticated, invalid, frozen, change in flight, cooldown) read nothing. If
+  the re-read fails or does not answer in time, the raise is refused with `SERVER_LIMIT_UNKNOWN`: SpringTune does
+  not approve a raise against a cached limit, because the cached value is exactly what an operator may have just
+  lowered, and refusing leaves the pool as it is. The plan keeps showing the last value read, `last checked at`
+  its time, and the failed re-read. Decision note: iteration 4 skipped the check until the first read succeeded;
+  the next release fails closed instead. The cost is that a pool so starved that one borrow times out cannot be raised
+  through apply mode until a connection is free; such a pool usually gets `ST-REC-HIKARI-004` HOLD anyway.
 - **Failing database.** When threads wait but the pool cannot open the connections it has room for (connections
   refused or failing), the recommendation is `ST-REC-HIKARI-004` HOLD, so apply is refused
   (`RECOMMENDATION_IS_HOLD`). A change already in flight is still judged by R1 (timeouts) and reverted.
@@ -286,8 +318,12 @@ Expose with `management.endpoints.web.exposure.include=tuning`, then `GET /actua
 | **Real HikariCP + H2 + Micrometer**, advise: 15 ms holds → INCREASE 2→3 (cap 13); budget cap 2 → HOLD; 700 ms holds → "do not raise" | `HikariContentionIntegrationTest` |
 | Real Boot app: `/actuator/tuning` content, POST rejected in advise mode | `BrokenConfigApplicationTest` |
 | Starved pool (failing database) → `ST-REC-HIKARI-004` HOLD; a few starved samples without timeouts (filling after a raise) still raise; timeouts with a full pool still raise | `AdvisorTest` |
-| `BUDGET_EXCEEDS_SERVER`: refused above the server's limit, allowed at it, not checked for unknown databases or before the limit was read, never for a DECREASE; plan line; H2 is unsupported | `ApplyGuardTest`, `ApplyPlansTest` |
-| **Real PostgreSQL**, real Boot replicas, open-loop load: raise confirmed, slow SQL held, regression reverted once without oscillation, 3 replicas raising at once within budget, short `maxLifetime`, one replica reverting while two raise, another service holding connections, surge pod (breach detected when not counted, none when counted), `BUDGET_EXCEEDS_SERVER` (100 vs 20), failing database (role `CONNECTION LIMIT`) not raised | `springtune-loadtests` ([docs/loadtests.md](loadtests.md)) |
+| `BUDGET_EXCEEDS_SERVER`: refused above the server's limit, allowed at it, not checked for unknown databases, never for a DECREASE; a failed re-read refuses a raise (`SERVER_LIMIT_UNKNOWN`, naming the last known value) but not a DECREASE; plan line; H2 is unsupported | `ApplyGuardTest`, `ApplyPlansTest` |
+| Server limit re-read per apply: re-read on every attempt and a limit lowered after the first read refuses the next raise (`BUDGET_EXCEEDS_SERVER`); a failed re-read → `SERVER_LIMIT_UNKNOWN` with "last known limit 10, read at ..."; requests refused for other reasons read nothing; the re-read runs outside the controller lock and a blocked read does not block `tick()` or the snapshot; races with the unlocked read (two applies both reading → one change; freeze, disable or a changed live value during the read → refused; a cooldown ending between checks never skips the read); a reader `Error` does not wedge later re-reads | `ChangeControllerTest`, `ServerLimitRecheckTest` |
+| Same on a real Hikari pool (H2, limit query stubbed): fresh value every call, cached value kept for the plan with `last checked at` after a failure, "never read successfully", a hanging read answered after `connectionTimeout` (250 ms) while `sample()` returns at once and a second apply joins the same read, H2 never re-read | `ServerLimitRecheckTest` |
+| `capacityObtained`: raise reaching its target → `true`; CONFIRMED with the pool stuck below the target while threads wait → `false` with "connection creation refused or failing?", verdict and value unchanged, no revert; no demand → `false` "no demand for more yet"; recorded on a REVERTED raise too; DECREASE or unreported → `null`; `springtune.changes{capacity_obtained}` tag; audit log line | `ChangeControllerTest` |
+| `capacityObtained` on real pools: Hikari 2 → 3 (H2) recorded; executor `maxPoolSize` 2 → 3 with a full queue → `true` and `springtune.changes{outcome=confirmed,capacity_obtained=true}` | `HikariApplyIntegrationTest`, `ExecutorApplyIntegrationTest` |
+| **Real PostgreSQL**, real Boot replicas, open-loop load: raise confirmed, slow SQL held, regression reverted once without oscillation, 3 replicas raising at once within budget, short `maxLifetime`, one replica reverting while two raise, another service holding connections, surge pod (breach detected when not counted, none when counted; the replica the server refused reports `capacityObtained=false`, every other one `true`, matching `pg_stat_activity`), `BUDGET_EXCEEDS_SERVER` (100 vs 20), failing database (role `CONNECTION LIMIT`) not raised | `springtune-loadtests` ([docs/loadtests.md](loadtests.md)) |
 
 The unit and H2 tests run on Spring Boot 4.1 and 3.5; the load suites on Spring Boot 4.1 only (PostgreSQL 16
 locally, `postgres:17-alpine` in CI). Not verified: production metric registries other than `SimpleMeterRegistry`,

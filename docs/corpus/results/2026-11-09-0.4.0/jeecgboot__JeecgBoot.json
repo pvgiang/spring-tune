@@ -1,0 +1,206 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.4.0",
+  "summary" : {
+    "error" : 0,
+    "warning" : 4,
+    "info" : 2,
+    "suppressed" : 0,
+    "notEvaluated" : 9
+  },
+  "modules" : [ {
+    "path" : "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "jeecg-boot/jeecg-module-system/jeecg-system-start",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-module-system/jeecg-system-start/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-cloud-gateway",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-cloud-gateway/src/main/resources/application.yml" ],
+    "technologies" : [ "openfeign" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-cloud-nacos",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-cloud-nacos/src/main/resources/application.properties" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-demo-cloud-start",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-demo-cloud-start/src/main/resources/application.yml" ],
+    "technologies" : [ "openfeign" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-system-cloud-start",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-system-cloud-start/src/main/resources/application.yml" ],
+    "technologies" : [ "openfeign" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-monitor",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-monitor/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-sentinel",
+    "springBootVersion" : "2.7.18",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-sentinel/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-account",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-account/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-order",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-order/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari", "openfeign" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-product",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-product/src/main/resources/application.yml" ],
+    "technologies" : [ "hikari" ]
+  }, {
+    "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob",
+    "springBootVersion" : "4.1.0",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob/src/main/resources/application.properties" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-ASYNC-002",
+    "severity" : "WARNING",
+    "module" : "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag",
+    "subject" : "AiragChatServiceImpl:Executors.newFixedThreadPool",
+    "location" : {
+      "path" : "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag/src/main/java/org/jeecg/modules/airag/app/service/impl/AiragChatServiceImpl.java",
+      "line" : 147,
+      "column" : 60
+    },
+    "message" : "Executors.newFixedThreadPool(...) creates a pool with an unbounded LinkedBlockingQueue.",
+    "why" : "Without a bound, a slow downstream turns into unlimited queued work (memory growth, unbounded latency, lost tasks on restart) or unlimited threads (CPU and memory exhaustion). Nothing pushes back on the caller.",
+    "fix" : "Build a ThreadPoolExecutor (or ThreadPoolTaskExecutor) with a bounded queue, a maximum thread count and a rejection policy.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-ASYNC-002",
+    "severity" : "WARNING",
+    "module" : "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag",
+    "subject" : "AiragKnowledgeDocServiceImpl:Executors.newFixedThreadPool",
+    "location" : {
+      "path" : "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag/src/main/java/org/jeecg/modules/airag/llm/service/impl/AiragKnowledgeDocServiceImpl.java",
+      "line" : 85,
+      "column" : 68
+    },
+    "message" : "Executors.newFixedThreadPool(...) creates a pool with an unbounded LinkedBlockingQueue.",
+    "why" : "Without a bound, a slow downstream turns into unlimited queued work (memory growth, unbounded latency, lost tasks on restart) or unlimited threads (CPU and memory exhaustion). Nothing pushes back on the caller.",
+    "fix" : "Build a ThreadPoolExecutor (or ThreadPoolTaskExecutor) with a bounded queue, a maximum thread count and a rejection policy.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "jeecg-boot/jeecg-boot-module/jeecg-boot-module-airag/src/main/resources/application.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob/src/main/resources/application.properties",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob/src/main/resources/application.properties",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob/src/main/resources/application.properties",
+      "line" : 37,
+      "column" : 45
+    },
+    "message" : "connectionTimeout is 10000 ms, above the 5000 ms threshold.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ {
+    "module" : "jeecg-boot/jeecg-module-system/jeecg-system-start",
+    "code" : "UNRESOLVED_VALUE",
+    "message" : "Active profile '${profile.name}' is only known at build or run time (e.g. Maven resource filtering); it was ignored. Pass the profile explicitly with --profile / springtune.profiles"
+  }, {
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-cloud-gateway",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Nacos, which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-demo-cloud-start",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Nacos, which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-system-cloud-start",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Nacos, which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-account",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Nacos, which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-order",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Nacos, which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-test/jeecg-cloud-test-seata/jeecg-cloud-test-seata-product",
+    "code" : "UNSUPPORTED",
+    "message" : "Local config is incomplete: configuration is loaded from Nacos, which the check cannot see; rules that report missing properties were not evaluated for this module"
+  }, {
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "jeecg-boot/jeecg-server-cloud/jeecg-visual/jeecg-cloud-xxljob",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  } ]
+}

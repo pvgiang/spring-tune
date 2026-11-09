@@ -1,4 +1,7 @@
-# Roadmap after 0.3.0
+# Roadmap
+
+> **Current release: 0.4.0** (2026-11-09), the first on Maven Central. The steps below were written after 0.3.0 and
+> keep their status notes; step 3, adoption, is the current work ([iteration-5 brief](delivery/iteration-5-brief.md)).
 
 Where SpringTune stands against the [plan](business-and-implementation-plan.md), and what comes next, in order.
 Each step names its exit signal, so progress is measured by evidence rather than by features shipped.

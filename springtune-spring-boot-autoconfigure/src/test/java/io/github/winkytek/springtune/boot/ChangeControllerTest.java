@@ -84,6 +84,15 @@ class ChangeControllerTest {
     private double timeoutsPerTick = 0;
     private double acquiresPerTick = 1000;
     private boolean recommend = true;
+    /** When set, the recommendation is ST-REC-HIKARI-003 DECREASE to this value. */
+    private Long decreaseTo;
+    /** What the fake pool holds (capacityObtained); {@code null}: not reported. */
+    private volatile WritableKnob.Capacity capacity;
+    /** What the next server-limit re-read returns, how often it ran, and whether it ran under the lock. */
+    private volatile ServerConnectionLimit serverLimit = ServerConnectionLimit.notApplicable();
+    private final java.util.concurrent.atomic.AtomicInteger serverReads = new java.util.concurrent.atomic.AtomicInteger();
+    private volatile boolean serverReadUnderLock;
+    private volatile java.util.concurrent.CountDownLatch serverReadGate;
 
     @BeforeEach
     void setUp() {
@@ -92,7 +101,7 @@ class ChangeControllerTest {
         counters.putAll(Map.of(Verification.ACQUIRES, 0.0, Verification.ACQUIRE_MS, 0.0, Verification.USAGES, 0.0,
                 Verification.USAGE_MS, 0.0, Verification.TIMEOUTS, 0.0));
         knobs = new ArrayList<>(List.of(new WritableKnob(KNOB, "hikari:orders", WritableKnob.Kind.HIKARI, 10, writer,
-                () -> Map.copyOf(counters))));
+                () -> Map.copyOf(counters), this::readServerLimit, () -> capacity)));
         controller = newController();
     }
 
@@ -100,11 +109,37 @@ class ChangeControllerTest {
         return new ChangeController(properties, clock, () -> knobs, this::recommendations, Optional.of(13), events::add);
     }
 
+    private ServerConnectionLimit readServerLimit() {
+        serverReads.incrementAndGet();
+        if (Thread.holdsLock(controller)) {
+            serverReadUnderLock = true;
+        }
+        java.util.concurrent.CountDownLatch gate = serverReadGate;
+        if (gate != null) {
+            try {
+                gate.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        return serverLimit;
+    }
+
+    private static ServerConnectionLimit known(int limit, Instant at) {
+        return new ServerConnectionLimit(ServerConnectionLimit.Status.KNOWN, limit, "PostgreSQL",
+                "PostgreSQL max_connections " + (limit + 3) + " - superuser_reserved_connections 3"
+                        + " - reserved_connections 0 = " + limit).checkedAt(at);
+    }
+
     private List<Recommendation> recommendations(Instant now) {
         if (!recommend) {
             return List.of();
         }
         long current = writer.values.get("maximumPoolSize");
+        if (decreaseTo != null) {
+            return List.of(new Recommendation("ST-REC-HIKARI-003", KNOB, Action.DECREASE, current, decreaseTo, "idle",
+                    Map.of(), Confidence.MEDIUM, List.of(), now));
+        }
         if (current >= 13) {
             return List.of(new Recommendation(RULE, KNOB, Action.HOLD, current, current, "at budget cap", Map.of(),
                     Confidence.MEDIUM, List.of(), now));
@@ -425,6 +460,370 @@ class ChangeControllerTest {
                 "x\n2026-01-01 INFO springtune.audit change-99 apply by admin outcome=CONFIRMED"), OPS);
         assertThat(ChangeController.auditLine(refused.change())).doesNotContain("\n").doesNotContain("\r")
                 .contains("x\\n2026-01-01");
+    }
+
+    // ------------------------------------------------------------------ capacityObtained (R2)
+
+    @Test
+    void raiseThatReachesItsTargetRecordsCapacityObtained() {
+        capacity = new WritableKnob.Capacity(10, true);
+        ticks(31);
+        assertThat(apply().status()).isEqualTo(200);
+        ticks(2);
+        capacity = new WritableKnob.Capacity(13, false); // Hikari opened the three new connections
+        acquireMs = 5;
+        ticks(32);
+        ChangeAuditEntry done = controller.audit().get(0);
+        assertThat(done.outcome()).isEqualTo(Outcome.CONFIRMED);
+        assertThat(done.capacityObtained()).isTrue();
+        assertThat(done.capacity()).isEqualTo("Capacity obtained: the pool reached 13 connections (target 13).");
+        assertThat(done.reasons()).last().isEqualTo(done.capacity());
+        assertThat(ChangeController.auditLine(done)).contains("capacityObtained=true");
+        assertThat(MicrometerSupport.capacityTag(done)).isEqualTo("true");
+    }
+
+    /** The surge case: the server refused the new connections, nothing got worse. Recorded, not reverted. */
+    @Test
+    void confirmedRaiseThatNeverObtainedItsCapacitySaysSoAndIsNotReverted() {
+        capacity = new WritableKnob.Capacity(10, true);
+        ticks(31);
+        assertThat(apply().status()).isEqualTo(200);
+        ticks(34); // threads keep waiting, the pool stays at 10, acquire and hold times unchanged
+        ChangeAuditEntry done = controller.audit().get(0);
+        assertThat(done.outcome()).isEqualTo(Outcome.CONFIRMED);
+        assertThat(done.verdict()).isEqualTo("OK");
+        assertThat(done.capacityObtained()).isFalse();
+        assertThat(done.capacity()).startsWith("Capacity NOT obtained: the pool never exceeded 10 connections;"
+                + " target 13, although threads waited for a connection (connection creation refused or failing?)")
+                .contains("Recorded only");
+        assertThat(done.reasons()).contains(done.capacity());
+        assertThat(writer.values).containsEntry("maximumPoolSize", 13L);
+        assertThat(writer.writes).hasSize(1); // no revert
+        assertThat(controller.state(KNOB)).isEqualTo(State.CONFIRMED);
+        assertThat(ChangeController.auditLine(done)).contains("capacityObtained=false");
+        assertThat(MicrometerSupport.capacityTag(done)).isEqualTo("false");
+    }
+
+    @Test
+    void capacityNotObtainedWithoutDemandSaysThereWasNoDemand() {
+        capacity = new WritableKnob.Capacity(11, false);
+        ticks(31);
+        apply();
+        acquireMs = 5;
+        ticks(34);
+        ChangeAuditEntry done = controller.audit().get(0);
+        assertThat(done.outcome()).isEqualTo(Outcome.CONFIRMED);
+        assertThat(done.capacityObtained()).isFalse();
+        assertThat(done.capacity()).contains("never exceeded 11 connections; target 13; no thread waited for a"
+                + " connection while it was smaller (no demand for more yet)");
+    }
+
+    @Test
+    void capacityIsRecordedOnARevertedRaiseToo() {
+        capacity = new WritableKnob.Capacity(13, true);
+        ticks(31);
+        apply();
+        holdMs = 40;
+        ticks(34);
+        ChangeAuditEntry done = controller.audit().get(0);
+        assertThat(done.outcome()).isEqualTo(Outcome.REVERTED);
+        assertThat(done.verdict()).isEqualTo("REGRESSED");
+        assertThat(done.capacityObtained()).isTrue();
+    }
+
+    @Test
+    void capacityObtainedIsNotApplicableToADecreaseOrWhenNotReported() {
+        capacity = new WritableKnob.Capacity(10, false);
+        decreaseTo = 8L;
+        ticks(31);
+        ChangeResponse lowered = controller.handle(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L, "idle"),
+                OPS);
+        assertThat(lowered.status()).as(lowered.message()).isEqualTo(200);
+        ticks(34);
+        ChangeAuditEntry done = controller.audit().get(0);
+        assertThat(done.outcome().isFinal()).isTrue();
+        assertThat(done.capacityObtained()).isNull();
+        assertThat(done.capacity()).startsWith("capacityObtained not applicable: maximumPoolSize was lowered (10 -> 8)");
+        assertThat(done.reasons()).noneMatch(r -> r.contains("capacityObtained"));
+        assertThat(ChangeController.auditLine(done)).doesNotContain("capacityObtained=");
+        assertThat(MicrometerSupport.capacityTag(done)).isEqualTo("not_applicable");
+
+        // A component that does not report its capacity: not measured, also null.
+        capacity = null;
+        decreaseTo = null;
+        setUp();
+        ticks(31);
+        apply();
+        acquireMs = 5;
+        ticks(34);
+        assertThat(controller.audit().get(0).capacityObtained()).isNull();
+        assertThat(controller.audit().get(0).capacity()).startsWith("capacityObtained not measured");
+    }
+
+    @Test
+    void changesCounterIsTaggedWithCapacityObtained() {
+        io.micrometer.core.instrument.simple.SimpleMeterRegistry registry =
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        MicrometerSupport.ChangeMetrics metrics = new MicrometerSupport.ChangeMetrics();
+        metrics.bindTo(registry);
+        capacity = new WritableKnob.Capacity(10, true);
+        ticks(31);
+        apply();
+        ticks(34);
+        assertThat(apply().code()).isEqualTo("COOLDOWN");
+        events.forEach(e -> metrics.onApplicationEvent(new SpringTuneChangeEvent(this, e)));
+        assertThat(registry.get("springtune.changes").tag("outcome", "confirmed").tag("capacity_obtained", "false")
+                .counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("springtune.changes").tag("outcome", "refused")
+                .tag("capacity_obtained", "not_applicable").counter().count()).isEqualTo(1.0);
+        assertThat(registry.find("springtune.changes").counters()).hasSize(2);
+    }
+
+    // ------------------------------------------------------------------ server limit re-read per apply (R3)
+
+    @Test
+    void serverLimitIsReReadForEveryApplyAndALoweredLimitRefusesTheNextRaise() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        assertThat(apply().status()).isEqualTo(200);
+        assertThat(serverReads).hasValue(1);
+        controller.handle(new ChangeRequest("revert", null, KNOB, null, "test"), OPS);
+        clock.advance(Duration.ofMinutes(61));
+        ticks(31);
+
+        // An operator lowered max_connections (and restarted the server) since the last read.
+        serverLimit = known(10, clock.instant());
+        ChangeResponse lowered = apply();
+        assertThat(serverReads).hasValue(2);
+        assertThat(lowered.status()).isEqualTo(409);
+        assertThat(lowered.code()).isEqualTo("BUDGET_EXCEEDS_SERVER");
+        assertThat(lowered.message()).contains("= 10").contains("at most 10");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+
+        // The re-read fails: refused, the last known value and its time are named.
+        serverLimit = ServerConnectionLimit.notRead("no answer within connectionTimeout (250 ms) at "
+                + clock.instant() + "; last known limit 10, read at 2026-01-01T01:11:20Z");
+        ChangeResponse unknown = apply();
+        assertThat(unknown.status()).isEqualTo(409);
+        assertThat(unknown.code()).isEqualTo("SERVER_LIMIT_UNKNOWN");
+        assertThat(unknown.message()).contains("last known limit 10, read at");
+        assertThat(writer.writes).hasSize(2); // the first apply and its revert only
+
+        serverLimit = known(20, clock.instant());
+        assertThat(apply().status()).isEqualTo(200);
+        assertThat(serverReads).hasValue(4);
+        assertThat(serverReadUnderLock).as("re-read while holding the controller lock").isFalse();
+    }
+
+    @Test
+    void refusedRequestsDoNotReadTheServerLimit() {
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        controller.handle(new ChangeRequest("apply", RULE, KNOB, 10L, "x"), new Caller(null, false));
+        controller.handle(new ChangeRequest("apply", RULE, null, 10L, "x"), OPS); // invalid request
+        assertThat(serverReads).hasValue(0);
+        assertThat(apply().status()).isEqualTo(200);
+        assertThat(apply().code()).isEqualTo("CHANGE_IN_FLIGHT");
+        controller.handle(new ChangeRequest("freeze", null, null, null, "x"), OPS);
+        assertThat(apply().code()).isEqualTo("FROZEN");
+        assertThat(serverReads).hasValue(1);
+    }
+
+    @Test
+    void aSlowServerLimitReadNeverBlocksTheSamplerTick() throws Exception {
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        serverReadGate = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            java.util.concurrent.Future<ChangeResponse> pending = http.submit(this::apply);
+            long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+            while (serverReads.get() < 1 && System.nanoTime() < deadline) {
+                Thread.sleep(5);
+            }
+            assertThat(serverReads).hasValue(1);
+            java.util.concurrent.ExecutorService sampler = java.util.concurrent.Executors.newSingleThreadExecutor();
+            try {
+                sampler.submit(() -> controller.tick(clock.instant())).get(5, java.util.concurrent.TimeUnit.SECONDS);
+                sampler.submit(() -> controller.view()).get(5, java.util.concurrent.TimeUnit.SECONDS);
+            } finally {
+                sampler.shutdownNow();
+            }
+            assertThat(pending).isNotDone();
+            serverReadGate.countDown();
+            assertThat(pending.get(5, java.util.concurrent.TimeUnit.SECONDS).status()).isEqualTo(200);
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    // ------------------------------------------------------------------ races around the unlocked re-read (review 5)
+
+    /** Starts {@code n} applies on their own threads and waits until all of them block in the server-limit read. */
+    private List<java.util.concurrent.Future<ChangeResponse>> appliesBlockedInTheRead(
+            java.util.concurrent.ExecutorService http, int n) throws InterruptedException {
+        serverReadGate = new java.util.concurrent.CountDownLatch(1);
+        long expected = writer.values.get("maximumPoolSize");
+        List<java.util.concurrent.Future<ChangeResponse>> pending = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            pending.add(http.submit(() -> controller.handle(new ChangeRequest("apply", RULE, KNOB, expected,
+                    "threads wait for connections"), OPS)));
+        }
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (serverReads.get() < n && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertThat(serverReads).as("applies blocked in the server-limit read").hasValue(n);
+        return pending;
+    }
+
+    @Test
+    void twoAppliesThatBothPassedThePreChecksAndReadTheLimitStillMakeOneChange() throws Exception {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            List<java.util.concurrent.Future<ChangeResponse>> pending = appliesBlockedInTheRead(http, 2);
+            serverReadGate.countDown();
+            List<String> codes = new ArrayList<>();
+            for (java.util.concurrent.Future<ChangeResponse> f : pending) {
+                codes.add(f.get(5, java.util.concurrent.TimeUnit.SECONDS).code());
+            }
+            assertThat(codes).containsExactlyInAnyOrder("OK", "CHANGE_IN_FLIGHT");
+            assertThat(writer.writes).hasSize(1);
+            assertThat(controller.state(KNOB)).isEqualTo(State.VERIFYING);
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    @Test
+    void freezeArrivingDuringTheReadWinsOverTheApply() throws Exception {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            java.util.concurrent.Future<ChangeResponse> pending = appliesBlockedInTheRead(http, 1).get(0);
+            assertThat(controller.handle(new ChangeRequest("freeze", null, null, null, "incident"), OPS).status())
+                    .isEqualTo(200);
+            serverReadGate.countDown();
+            assertThat(pending.get(5, java.util.concurrent.TimeUnit.SECONDS).code()).isEqualTo("FROZEN");
+            assertThat(writer.writes).isEmpty();
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    @Test
+    void stateChangedDuringTheReadIsJudgedAfterTheRead() throws Exception {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            // apply mode switched off while the read runs
+            java.util.concurrent.Future<ChangeResponse> disabled = appliesBlockedInTheRead(http, 1).get(0);
+            properties.getApply().setEnabled(false);
+            serverReadGate.countDown();
+            assertThat(disabled.get(5, java.util.concurrent.TimeUnit.SECONDS).code()).isNotEqualTo("OK");
+            properties.getApply().setEnabled(true);
+
+            // someone else changed the live value while the read runs: the CAS sees the new value
+            serverReads.set(0);
+            java.util.concurrent.Future<ChangeResponse> stale = appliesBlockedInTheRead(http, 1).get(0);
+            synchronized (controller) {
+                writer.values.put("maximumPoolSize", 11L);
+            }
+            serverReadGate.countDown();
+            assertThat(stale.get(5, java.util.concurrent.TimeUnit.SECONDS).code()).isEqualTo("STALE_EXPECTED_CURRENT");
+
+            // the limit read is the one used: a limit lowered at the read refuses the raise
+            synchronized (controller) {
+                writer.values.put("maximumPoolSize", 10L);
+            }
+            serverReads.set(0);
+            serverLimit = known(10, clock.instant());
+            java.util.concurrent.Future<ChangeResponse> lowered = appliesBlockedInTheRead(http, 1).get(0);
+            serverReadGate.countDown();
+            assertThat(lowered.get(5, java.util.concurrent.TimeUnit.SECONDS).code()).isEqualTo("BUDGET_EXCEEDS_SERVER");
+            assertThat(writer.writes).isEmpty();
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    /** A clock that runs one action right after the next reading (to land between two readings of one request). */
+    private static final class HookClock extends java.time.Clock {
+        private final java.time.Clock delegate;
+        private volatile Runnable afterNextReading;
+
+        HookClock(java.time.Clock delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return delegate.getZone();
+        }
+
+        @Override
+        public java.time.Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            Instant now = delegate.instant();
+            Runnable hook = afterNextReading;
+            afterNextReading = null;
+            if (hook != null) {
+                hook.run();
+            }
+            return now;
+        }
+    }
+
+    /**
+     * TOCTOU: the pre-check that decides whether the limit is worth reading ran while the knob was still cooling
+     * down (so nothing was read), and the decision a moment later found the cooldown over. The raise must still be
+     * checked against a freshly read limit, not approved with no check at all.
+     */
+    @Test
+    void cooldownEndingBetweenThePreCheckAndTheDecisionStillChecksAFreshLimit() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        properties.getApply().setCooldownAfterRevert(Duration.ofSeconds(400));
+        HookClock hook = new HookClock(clock);
+        controller = new ChangeController(properties, hook, () -> knobs, this::recommendations, Optional.of(13),
+                events::add);
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        assertThat(apply().status()).isEqualTo(200);
+        controller.handle(new ChangeRequest("revert", null, KNOB, null, "test"), OPS);
+        ticks(31);
+        clock.advance(Duration.ofSeconds(90).minusMillis(1)); // 1 ms before the cooldown ends
+        assertThat(apply().code()).isEqualTo("COOLDOWN");
+        int readsBefore = serverReads.get();
+
+        serverLimit = known(10, clock.instant()); // max_connections lowered meanwhile
+        hook.afterNextReading = () -> clock.advance(Duration.ofMillis(1));
+        ChangeResponse response = apply();
+        // Decided either before the cooldown ended (no read needed) or after it with a fresh read; never approved
+        // on a read that was skipped because the knob was still cooling down at an earlier check.
+        assertThat(response.code()).as(response.message()).isIn("COOLDOWN", "BUDGET_EXCEEDS_SERVER");
+        assertThat(serverReads.get()).isEqualTo(response.code().equals("COOLDOWN") ? readsBefore : readsBefore + 1);
+        assertThat(apply().code()).isEqualTo("BUDGET_EXCEEDS_SERVER");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
     }
 
     @Test

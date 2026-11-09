@@ -148,19 +148,28 @@ class ApplyGuardTest {
         // Equal to the server's limit is consistent.
         assertThat(ApplyGuard.checkApply(apply(10), ok, Optional.of(facts), recs, Optional.of(13), 20, settings, NOW)
                 .approved()).isTrue();
-        // Unknown database, or the limit not read yet: not checked.
-        for (ServerConnectionLimit unknown : List.of(
-                new ServerConnectionLimit(ServerConnectionLimit.Status.UNSUPPORTED, null, "H2", "cannot read"),
-                ServerConnectionLimit.notRead("no idle connection yet"))) {
-            KnobFacts unchecked = new KnobFacts(KNOB, WritableKnob.Kind.HIKARI, 10, 10, null, true, unknown);
-            assertThat(ApplyGuard.checkApply(apply(10), ok, Optional.of(unchecked), recs, Optional.of(13), 100,
-                    settings, NOW).approved()).isTrue();
-        }
+        // A database SpringTune cannot read the limit of: not checked.
+        KnobFacts unsupported = new KnobFacts(KNOB, WritableKnob.Kind.HIKARI, 10, 10, null, true,
+                new ServerConnectionLimit(ServerConnectionLimit.Status.UNSUPPORTED, null, "H2", "cannot read"));
+        assertThat(ApplyGuard.checkApply(apply(10), ok, Optional.of(unsupported), recs, Optional.of(13), 100,
+                settings, NOW).approved()).isTrue();
+        // The re-read for this apply failed: refused (fail closed), never approved on a stale value.
+        KnobFacts unread = new KnobFacts(KNOB, WritableKnob.Kind.HIKARI, 10, 10, null, true,
+                ServerConnectionLimit.notRead("no answer within connectionTimeout (250 ms); last known limit 20, read"
+                        + " at 2026-01-01T00:00:00Z"));
+        Decision unknown = ApplyGuard.checkApply(apply(10), ok, Optional.of(unread), recs, Optional.of(13), 20,
+                settings, NOW);
+        assertThat(unknown.refusal().code()).isEqualTo(Code.SERVER_LIMIT_UNKNOWN);
+        assertThat(unknown.refusal().status()).isEqualTo(409);
+        assertThat(unknown.refusal().message()).contains("last known limit 20, read at 2026-01-01T00:00:00Z")
+                .contains("refused until it can be read");
         // Lowering a pool is never refused for it.
         Recommendation lower = new Recommendation("ST-REC-HIKARI-003", KNOB, Action.DECREASE, 10, 6, "x", Map.of(),
                 Confidence.MEDIUM, List.of(), NOW);
         assertThat(ApplyGuard.checkApply(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L, "idle"), ok,
                 Optional.of(facts), List.of(lower), Optional.of(13), 100, settings, NOW).approved()).isTrue();
+        assertThat(ApplyGuard.checkApply(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L, "idle"), ok,
+                Optional.of(unread), List.of(lower), Optional.of(13), 100, settings, NOW).approved()).isTrue();
     }
 
     @Test

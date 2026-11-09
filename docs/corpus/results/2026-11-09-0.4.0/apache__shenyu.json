@@ -1,0 +1,350 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.4.0",
+  "summary" : {
+    "error" : 0,
+    "warning" : 4,
+    "info" : 1,
+    "suppressed" : 0,
+    "notEvaluated" : 2
+  },
+  "modules" : [ {
+    "path" : "shenyu-admin",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "h2" ],
+    "configFiles" : [ "shenyu-admin/src/main/resources/application.yml", "shenyu-admin/src/main/resources/application-h2.yml" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  }, {
+    "path" : "shenyu-bootstrap",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-bootstrap/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-bootstrap-http",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-bootstrap-http/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-dubbo/shenyu-examples-apache-dubbo-service",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-dubbo/shenyu-examples-apache-dubbo-service/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-dubbo/shenyu-examples-apache-dubbo-service-annotation",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-dubbo/shenyu-examples-apache-dubbo-service-annotation/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-dubbo/shenyu-examples-apache-dubbo-service-xml",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-dubbo/shenyu-examples-apache-dubbo-service-xml/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-eureka",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-grpc",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-grpc/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-http",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-http/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-http-swagger3",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-http-swagger3/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-https",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-https/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-mcp",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-mcp/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-dubbo/shenyu-examples-sdk-apache-dubbo-consumer",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-dubbo/shenyu-examples-sdk-apache-dubbo-consumer/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-dubbo/shenyu-examples-sdk-apache-dubbo-provider",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-dubbo/shenyu-examples-sdk-apache-dubbo-provider/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-feign",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-feign/src/main/resources/application.yaml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-grpc/shenyu-examples-sdk-grpc-consumer",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-grpc/shenyu-examples-sdk-grpc-consumer/src/main/resources/application.yaml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-grpc/shenyu-examples-sdk-grpc-provider",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-grpc/shenyu-examples-sdk-grpc-provider/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-http",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-http/src/main/resources/application.yaml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-springcloud/shenyu-examples-sdk-springcloud-consumer",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-springcloud/shenyu-examples-sdk-springcloud-consumer/src/main/resources/application.yaml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-springcloud/shenyu-examples-sdk-springcloud-provider",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-sdk/shenyu-examples-sdk-springcloud/shenyu-examples-sdk-springcloud-provider/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-springcloud",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-springcloud/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-springmvc",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-springmvc/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-springmvc-tomcat",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-springmvc-tomcat/src/main/resources/application.properties" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-websocket/shenyu-example-spring-annotation-websocket",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-websocket/shenyu-example-spring-annotation-websocket/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-websocket/shenyu-example-spring-native-websocket",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-websocket/shenyu-example-spring-native-websocket/src/main/resources/application.yml" ],
+    "technologies" : [ "tomcat" ]
+  }, {
+    "path" : "shenyu-examples/shenyu-examples-websocket/shenyu-example-spring-reactive-websocket",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-examples/shenyu-examples-websocket/shenyu-example-spring-reactive-websocket/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-apache-dubbo",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "local" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-apache-dubbo/src/main/resources/application.yml", "shenyu-integrated-test/shenyu-integrated-test-apache-dubbo/src/main/resources/application-local.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-combination",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "local" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-combination/src/main/resources/application.yml", "shenyu-integrated-test/shenyu-integrated-test-combination/src/main/resources/application-local.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-grpc",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "local" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-grpc/src/main/resources/application.yml", "shenyu-integrated-test/shenyu-integrated-test-grpc/src/main/resources/application-local.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-http",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-http/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-https",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-https/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-k8s-gateway-api-http",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-k8s-gateway-api-http/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-apache-dubbo",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-apache-dubbo/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-grpc",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "local" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-grpc/src/main/resources/application.yml", "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-grpc/src/main/resources/application-local.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-http",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-http/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-websocket",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-k8s-ingress-websocket/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-rewrite",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "local" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-rewrite/src/main/resources/application.yml", "shenyu-integrated-test/shenyu-integrated-test-rewrite/src/main/resources/application-local.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-sdk-apache-dubbo",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-sdk-apache-dubbo/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-sdk-http",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-sdk-http/src/main/resources/application.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-spring-cloud",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "local" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-spring-cloud/src/main/resources/application.yml", "shenyu-integrated-test/shenyu-integrated-test-spring-cloud/src/main/resources/application-local.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-tracing",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "local" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-tracing/src/main/resources/application.yml", "shenyu-integrated-test/shenyu-integrated-test-tracing/src/main/resources/application-local.yml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-upload-plugin/shenyu-integrated-test-upload-plugin-case",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "default" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-upload-plugin/shenyu-integrated-test-upload-plugin-case/src/main/resources/application.yaml" ],
+    "technologies" : [ ]
+  }, {
+    "path" : "shenyu-integrated-test/shenyu-integrated-test-websocket",
+    "springBootVersion" : "3.3.1",
+    "activeProfiles" : [ "local" ],
+    "configFiles" : [ "shenyu-integrated-test/shenyu-integrated-test-websocket/src/main/resources/application.yml", "shenyu-integrated-test/shenyu-integrated-test-websocket/src/main/resources/application-local.yml" ],
+    "technologies" : [ ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : "shenyu-admin",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "shenyu-admin/src/main/resources/application-h2.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : "shenyu-admin",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "shenyu-admin/src/main/resources/application-h2.yml",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : "shenyu-admin",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "shenyu-admin/src/main/resources/application-h2.yml",
+      "line" : 29,
+      "column" : 27
+    },
+    "message" : "connectionTimeout is 30000 ms, above the 5000 ms threshold.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-ASYNC-002",
+    "severity" : "WARNING",
+    "module" : "shenyu-examples/shenyu-examples-http",
+    "subject" : "HttpServerConfig#scheduler:ThreadPoolExecutor",
+    "location" : {
+      "path" : "shenyu-examples/shenyu-examples-http/src/main/java/org/apache/shenyu/examples/http/config/HttpServerConfig.java",
+      "line" : 55,
+      "column" : 38
+    },
+    "message" : "ThreadPoolExecutor is created with a LinkedBlockingQueue/Deque without capacity.",
+    "why" : "Without a bound, a slow downstream turns into unlimited queued work (memory growth, unbounded latency, lost tasks on restart) or unlimited threads (CPU and memory exhaustion). Nothing pushes back on the caller.",
+    "fix" : "Pass a capacity, e.g. new ArrayBlockingQueue<>(n) or new LinkedBlockingQueue<>(n), and a RejectedExecutionHandler.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-ASYNC-002",
+    "severity" : "WARNING",
+    "module" : "shenyu-examples/shenyu-examples-http-swagger3",
+    "subject" : "HttpServerConfig#scheduler:ThreadPoolExecutor",
+    "location" : {
+      "path" : "shenyu-examples/shenyu-examples-http-swagger3/src/main/java/org/apache/shenyu/examples/http/config/HttpServerConfig.java",
+      "line" : 56,
+      "column" : 38
+    },
+    "message" : "ThreadPoolExecutor is created with a LinkedBlockingQueue/Deque without capacity.",
+    "why" : "Without a bound, a slow downstream turns into unlimited queued work (memory growth, unbounded latency, lost tasks on restart) or unlimited threads (CPU and memory exhaustion). Nothing pushes back on the caller.",
+    "fix" : "Pass a capacity, e.g. new ArrayBlockingQueue<>(n) or new LinkedBlockingQueue<>(n), and a RejectedExecutionHandler.",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ {
+    "module" : "shenyu-admin",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : "shenyu-admin",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  } ]
+}

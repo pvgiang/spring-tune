@@ -1,0 +1,3 @@
+# SpringTune settings (https://github.com/pvgiang/spring-tune/blob/main/docs/configuration.md).
+# The default is failOn: ERROR. Every finding in this demo is a WARNING, so the demo fails the build on warnings.
+failOn: WARNING

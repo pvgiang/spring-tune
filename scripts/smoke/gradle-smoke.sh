@@ -15,6 +15,8 @@
 #
 # Environment: GRADLE (default: gradle on PATH), SMOKE_WORK (default: a new temp dir), WAIT_MINUTES (default 0):
 # poll Central/the Portal until the artifacts are visible, at most this long. The build itself is never retried.
+# SMOKE_FIXTURE: project to copy instead of scripts/smoke/gradle (scripts/smoke/readme-snippets.sh passes one built
+# from the README snippets).
 set -euo pipefail
 
 VERSION="${1:?usage: gradle-smoke.sh VERSION [portal|central|staging] [STAGING_REPO_URL]}"
@@ -30,7 +32,7 @@ echo "SpringTune Gradle smoke: version $VERSION, plugin from $PLUGIN_REPO, stagi
 "$GRADLE" --version
 mkdir -p "$WORK"
 rm -rf "$WORK/project" "$WORK/gradle-home"
-cp -R "$HERE/gradle" "$WORK/project"
+cp -R "${SMOKE_FIXTURE:-$HERE/gradle}" "$WORK/project"
 export GRADLE_USER_HOME="$WORK/gradle-home"
 
 if [ -z "$STAGING" ] && [ "$WAIT_MINUTES" -gt 0 ]; then

@@ -101,3 +101,93 @@ something, and enough users to ask whether they want it.
 | Date | Central downloads (engine, month) | Release asset downloads (all) | Stars (with company) | Rule requests | Rec. feedback (accepted / all) | Paid-signal teams / paid pilots | FP issues (confirmed) |
 |---|---|---|---|---|---|---|---|
 | 2026-11-04 | n/a (not published) | 0 | 0 (0) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
+| 2026-11-09 (release-day baseline, [detail](#release-day-baseline-2026-11-09)) | published, stats owner-only: **pending** (human copies) | 0 | 0 (0) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
+
+### Release-day baseline (2026-11-09)
+
+0.4.0 reached Maven Central on 2026-11-09. Values fetched with `gh api` on 2026-11-09 around 04:45 UTC, before any
+launch post. Everything below is zero, which is the point: launch effects are measured against this row.
+
+| Signal | Value | Query |
+|---|---|---|
+| Repository visibility | **private** (launch blocker: see the [launch checklist](../launch/checklist.md)) | `gh api repos/pvgiang/spring-tune --jq .visibility` |
+| Stars / forks / watchers | 0 / 0 / 0 | `gh api repos/pvgiang/spring-tune --jq '[.stargazers_count, .forks_count, .subscribers_count]'` |
+| Open issues | 0 (the 6 items the issues API returns are PRs #1–#6, all closed) | `gh api 'repos/pvgiang/spring-tune/issues?state=all' --jq '.[] \| [.number, .state, (.pull_request != null)]'` |
+| Issues by label (all states) | `rule-request` 0, `false-positive` 0, `rec-feedback` 0, `paid-signal` 0 | `gh api 'repos/pvgiang/spring-tune/issues?state=all&labels=<label>' --jq length` |
+| Release assets, v0.4.0 (2026-11-08) | `springtune-cli-0.4.0.jar` 0, `springtune-maven-repo-0.4.0.zip` 0, `SHA256SUMS` 0, `LICENSE.txt` 0 | `gh api repos/pvgiang/spring-tune/releases --jq '.[] \| .tag_name as $t \| .assets[] \| [$t, .name, .download_count]'` |
+| Release assets, v0.3.0 (2026-11-05) | `springtune-cli-0.3.0.jar` 0, `springtune-maven-repo-0.3.0.zip` 0, `SHA256SUMS` 0, `LICENSE.txt` 0 | same |
+| Release assets, v0.1.0 (2026-11-03) | `springtune-cli-0.1.0.jar` 0, `springtune-maven-repo-0.1.0.zip` 0, `SHA256SUMS` 0 | same |
+| Maven Central | published (`io.github.winkytek.springtune:*:0.4.0` resolves from repo1.maven.org); download stats owner-only: **pending** | human: central.sonatype.com → Namespaces → `io.github.winkytek` |
+| Gradle Plugin Portal | not listed; `plugins { id("io.github.winkytek.springtune") version "0.4.0" }` resolves because the Portal proxies Maven Central | post-release smoke run [42563268215](https://github.com/pvgiang/spring-tune/actions/runs/42563268215) |
+| GitHub Action users (code search) | 0 | `gh api 'search/code?q=%22pvgiang%2Fspring-tune%22+extension%3Ayml' --jq .total_count` |
+| Traffic (views, clones, referrers) | not readable with the session token (HTTP 403); needs the fine-grained PAT ([brief](../delivery/iteration-5-brief.md) row 12) | `gh api repos/pvgiang/spring-tune/traffic/views` |
+
+Note: right after this snapshot, the corpus re-run downloaded `springtune-cli-0.4.0.jar` and `SHA256SUMS` of
+v0.4.0 once each through the API (around 04:47 UTC). If those two counters read 1 later, that is this download,
+not a user.
+
+## Launch log
+
+One row per post. Fill *24 h* and *7 d* at those times after posting (score = upvotes or points; for dev.to,
+reactions). *Referrer delta* = views from that channel's domain in the traffic collector's referrers, 7 d after
+minus the day before. Stars and release downloads in the same window go in the last column so the channels can
+be compared.
+
+| Channel | URL | Posted at (UTC) | 24 h score / comments | 7 d score / comments | Referrer delta (7 d views) | Stars / downloads delta (7 d) | Notes |
+|---|---|---|---|---|---|---|---|
+| r/java | | | | | | | |
+| Show HN | | | | | | | |
+| dev.to | | | | | | | |
+| JUG / newsletter | | | | | | | |
+
+## Collector
+
+GitHub keeps traffic (views, clones, referrers, popular paths) for **14 days only**, and referrers are the only way
+to see which launch channel worked. [`scripts/gates/collect.sh`](../../scripts/gates/collect.sh) records it, with
+every other signal above that GitHub can give, in one JSON snapshot;
+[`gates-collect.yml`](../../.github/workflows/gates-collect.yml) runs it weekly (Monday 06:41 UTC, and *Actions →
+Gates collector → Run workflow*) and appends the snapshot to the orphan branch **`gates-data`**
+(`snapshots/<collected_at>.json` plus one line in `snapshots.jsonl`). The branch is created on the first run; the
+job's only write permission is `contents: write`, used for that one push (`HEAD:refs/heads/gates-data`). It never
+touches `main`.
+
+| Snapshot field | Source | Feeds |
+|---|---|---|
+| `repository` | `repos/{repo}`: stars, forks, watchers (subscribers), description, topics | gate 1 trend |
+| `stargazers` | `repos/{repo}/stargazers` with `starred_at` (star+json media type); `company` from each profile (newest 300) | gate 1: stars with a company; spikes line up with the launch log |
+| `issues.by_label` | `repos/{repo}/issues?state=all` (pull requests dropped), per label: `rule-request`, `false-positive`, `rec-feedback`, `paid-signal`, `outcome-*`, `pilot-*`; each issue with `created_at`, `author`, `author_association`; `from_outside` excludes OWNER, MEMBER, COLLABORATOR | gates 1 to 4, FP rate |
+| `releases` | `repos/{repo}/releases`: `download_count` per asset, per release, and the total | gate 1 trend |
+| `action_users` | `search/code`, `q=pvgiang/spring-tune@ path:.github/workflows`, this repository excluded | gate 1: named teams |
+| `traffic` | `traffic/views`, `traffic/clones` (per day), `traffic/popular/referrers`, `traffic/popular/paths` | launch log referrer delta |
+
+Not collected (copy by hand, see the [gate table](#gate-table)): Maven Central download statistics (owner-only) and
+the Plugin Portal (no counter).
+
+**Tokens.** Without a secret the job runs on `GITHUB_TOKEN`, and the snapshot says so:
+`"traffic": {"available": false, "reason": "traffic: unavailable (no GATES_TOKEN)"}`; the run shows a notice.
+`GITHUB_TOKEN` may also be refused by code search, or see only this repository, in which case `action_users` is
+recorded as unavailable. **Human step:** create a fine-grained personal access token (*Settings → Developer settings
+→ Fine-grained tokens*), resource owner `pvgiang`, *Only select repositories*: `spring-tune`, permissions
+**Administration: Read-only** (traffic), Issues: Read-only, Metadata: Read-only; store it as the repository secret
+`GATES_TOKEN`. Fine-grained tokens expire (at most a year): put the expiry date in your calendar, because an expired
+token loses traffic silently except for the `available: false` line.
+
+Any section that fails is written as `{"available": false, "reason": "..."}` and the rest of the snapshot is kept.
+
+Run it locally (uses your `gh` login; traffic needs a token with admin rights on the repository):
+
+```bash
+scripts/gates/collect.sh /tmp/snapshot.json          # or no argument for stdout
+GATES_TOKEN=github_pat_... scripts/gates/collect.sh  # also traffic
+```
+
+Read the history:
+
+```bash
+git fetch origin gates-data
+git show origin/gates-data:snapshots.jsonl | jq -r '[.collected_at, .repository.stars, .releases.total_downloads, .action_users.count // "n/a"] | @tsv'
+git show origin/gates-data:snapshots.jsonl | jq -r 'select(.traffic.available) | .traffic.referrers[] | [.referrer, .count, .uniques] | @tsv'
+```
+
+Monthly, copy the latest snapshot's numbers into the [log](#log) table above; the snapshots are the evidence each
+row traces to.

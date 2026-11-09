@@ -4,12 +4,15 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
 import java.util.Locale;
 
 /**
  * The number of connections the database server accepts from ordinary (non-administrative) roles, read through
- * the pool once: a configured {@code springtune.budget.database-max-connections} above it is a misconfiguration
- * that only a real database can reveal ({@link ApplyGuard.Code#BUDGET_EXCEEDS_SERVER}).
+ * the pool: a configured {@code springtune.budget.database-max-connections} above it is a misconfiguration that only
+ * a real database can reveal ({@link ApplyGuard.Code#BUDGET_EXCEEDS_SERVER}). It is read once in the background
+ * after the pool starts (for the apply plan) and <b>re-read before every apply attempt</b>, because an operator can
+ * lower {@code max_connections} (with a server restart) while the application keeps running.
  *
  * <ul>
  *   <li>PostgreSQL: {@code max_connections - superuser_reserved_connections - reserved_connections} (the last one
@@ -18,22 +21,29 @@ import java.util.Locale;
  *   <li>Any other database: {@link Status#UNSUPPORTED}, not checked (the apply plan says so).</li>
  * </ul>
  *
- * @param status  whether {@code limit} is known
- * @param limit   connections available to application roles, or {@code null}
- * @param product database product name, or {@code null} when not read
- * @param detail  how the limit was computed, or why it is not known
+ * @param status         whether {@code limit} is known
+ * @param limit          connections available to application roles, or {@code null}
+ * @param product        database product name, or {@code null} when not read
+ * @param detail         how the limit was computed, or why it is not known
+ * @param checkedAt      when {@code limit} was read, or {@code null}
+ * @param recheckFailure for a known limit: why the latest re-read failed (and when), or {@code null}
  */
-record ServerConnectionLimit(Status status, Integer limit, String product, String detail) {
+record ServerConnectionLimit(Status status, Integer limit, String product, String detail, Instant checkedAt,
+        String recheckFailure) {
 
     enum Status {
         /** Read from the server. */
         KNOWN,
-        /** Not read yet: the pool has not had an idle connection to read it with, or the read failed. */
+        /** Not read: the pool has not had a connection to read it with yet, or the (re-)read failed. */
         NOT_READ,
         /** A database SpringTune cannot read the limit of. */
         UNSUPPORTED,
         /** No connection budget configured, so there is nothing to compare. */
         NOT_APPLICABLE
+    }
+
+    ServerConnectionLimit(Status status, Integer limit, String product, String detail) {
+        this(status, limit, product, detail, null, null);
     }
 
     static final String POSTGRES_QUERY = "SELECT current_setting('max_connections')::int,"
@@ -50,6 +60,20 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
 
     boolean known() {
         return status == Status.KNOWN;
+    }
+
+    ServerConnectionLimit checkedAt(Instant at) {
+        return new ServerConnectionLimit(status, limit, product, detail, at, null);
+    }
+
+    /** This (known) limit, annotated with a failed re-read: kept for the apply plan, never used to approve a raise. */
+    ServerConnectionLimit withRecheckFailure(String failure) {
+        return new ServerConnectionLimit(status, limit, product, detail, checkedAt, failure);
+    }
+
+    /** "last known 20 (checked at ...)" for messages, or {@code null} when nothing was ever read. */
+    String lastKnown() {
+        return known() ? "last known limit " + limit + ", read at " + checkedAt : null;
     }
 
     /** Reads the limit with {@code connection} (borrowed from the pool and returned by the caller). */
@@ -88,8 +112,12 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
             case KNOWN -> "server limit: " + detail + "; database-max-connections " + configured
                     + (configured != null && configured > limit
                             ? " > " + limit + ": apply mode refuses to raise the pool (BUDGET_EXCEEDS_SERVER)"
-                            : " <= " + limit + ": consistent with the server");
-            case NOT_READ -> "server limit not checked yet (" + detail + ")";
+                            : " <= " + limit + ": consistent with the server")
+                    + (checkedAt != null ? "; last checked at " + checkedAt + ", re-read before every apply" : "")
+                    + (recheckFailure != null ? "; " + recheckFailure + ": a raise is refused while it cannot be"
+                            + " re-read (SERVER_LIMIT_UNKNOWN)" : "");
+            case NOT_READ -> "server limit not checked yet (" + detail + "); it is re-read before every apply, and a"
+                    + " raise is refused if it cannot be read (SERVER_LIMIT_UNKNOWN)";
             case UNSUPPORTED -> "server limit not checked: " + detail;
             case NOT_APPLICABLE -> "server limit not checked: " + detail;
         };

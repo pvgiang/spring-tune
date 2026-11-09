@@ -13,6 +13,8 @@
 #
 # Environment: SMOKE_WORK (work directory, default: a new temp dir), WAIT_MINUTES (default 0): poll Central until
 # every artifact is visible, at most this long, before building. The build itself is never retried.
+# SMOKE_FIXTURE: project to copy instead of scripts/smoke/maven (scripts/smoke/readme-snippets.sh passes one built
+# from the README snippets).
 set -euo pipefail
 
 VERSION="${1:?usage: maven-smoke.sh VERSION [STAGING_REPO_URL]}"
@@ -26,7 +28,7 @@ GROUP_PATH="io/github/winkytek/springtune"
 echo "SpringTune Maven smoke: version $VERSION, work directory $WORK, staging repository ${STAGING:-none}"
 mkdir -p "$WORK"
 rm -rf "$WORK/project" "$WORK/m2" "$WORK/cli"
-cp -R "$HERE/maven" "$WORK/project"
+cp -R "${SMOKE_FIXTURE:-$HERE/maven}" "$WORK/project"
 
 # Settings: none of the user's mirrors or repositories. With a staging repository, search it first.
 if [ -n "$STAGING" ]; then

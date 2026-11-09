@@ -1,0 +1,84 @@
+{
+  "tool" : "SpringTune",
+  "version" : "0.4.0",
+  "summary" : {
+    "error" : 0,
+    "warning" : 2,
+    "info" : 2,
+    "suppressed" : 0,
+    "notEvaluated" : 2
+  },
+  "modules" : [ {
+    "path" : ".",
+    "springBootVersion" : "4.1.2",
+    "activeProfiles" : [ "h2", "spring-data-jpa" ],
+    "configFiles" : [ "src/main/resources/application.properties", "src/main/resources/application-h2.properties" ],
+    "technologies" : [ "hikari", "tomcat" ]
+  } ],
+  "findings" : [ {
+    "ruleId" : "ST-HIKARI-001",
+    "severity" : "WARNING",
+    "module" : ".",
+    "subject" : "spring.datasource.hikari.connection-timeout",
+    "location" : {
+      "path" : "src/main/resources/application-h2.properties",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "connectionTimeout is not set, so HikariCP waits up to 30000 ms (default) for a connection.",
+    "why" : "When the pool is exhausted, every request thread blocks for up to connectionTimeout before failing. A long wait turns a brief database slowdown into a stalled thread pool and timeouts in every upstream caller.",
+    "fix" : "Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-HIKARI-002",
+    "severity" : "WARNING",
+    "module" : ".",
+    "subject" : "spring.datasource.hikari.leak-detection-threshold",
+    "location" : {
+      "path" : "src/main/resources/application-h2.properties",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "leakDetectionThreshold is not set (HikariCP default 0 = disabled).",
+    "why" : "A connection that is borrowed and never returned shrinks the pool permanently. Without leak detection the first symptom is pool exhaustion in production, with no stack trace pointing at the code that leaked.",
+    "fix" : "Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TOMCAT-001",
+    "severity" : "INFO",
+    "module" : ".",
+    "subject" : "server.tomcat.threads.max",
+    "location" : {
+      "path" : "src/main/resources/application-h2.properties",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "Tomcat may run 200 request threads (default) against 10 pooled connections (default), a ratio of 20:1 (threshold 10:1).",
+    "why" : "When requests that need the database outnumber connections, the extra threads block in the pool for connectionTimeout. Under a slowdown all Tomcat threads end up waiting there, and even health checks and endpoints that never touch the database stop answering.",
+    "fix" : "Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).",
+    "suppressed" : false
+  }, {
+    "ruleId" : "ST-TX-001",
+    "severity" : "INFO",
+    "module" : ".",
+    "subject" : "spring.transaction.default-timeout",
+    "location" : {
+      "path" : "src/main/resources/application-h2.properties",
+      "line" : 1,
+      "column" : 0
+    },
+    "message" : "No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.",
+    "why" : "Long-running queries keep connections checked out. A handful of them is enough to drain the pool, and then every other request waits in connectionTimeout.",
+    "fix" : "Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).",
+    "suppressed" : false
+  } ],
+  "notEvaluated" : [ {
+    "module" : ".",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml"
+  }, {
+    "module" : ".",
+    "code" : "RULE_SKIPPED",
+    "message" : "ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml"
+  } ]
+}

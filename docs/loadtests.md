@@ -53,7 +53,7 @@ The database is the referee:
 
 | Test | Proves |
 |---|---|
-| `raiseIsConfirmedAndTheServerNeverSeesMoreSessionsThanTheNewMaximum` | Saturated 4/4 pool, 30 ms holds → `ST-REC-HIKARI-001` INCREASE 4 → 5, applied, **CONFIRMED** (R1–R3 OK). `pg_stat_activity` ≤ 4 sessions before and exactly 5 at most after; no 53300, no client error. |
+| `raiseIsConfirmedAndTheServerNeverSeesMoreSessionsThanTheNewMaximum` | Saturated 4/4 pool, 30 ms holds → `ST-REC-HIKARI-001` INCREASE 4 → 5, applied, **CONFIRMED** (R1–R3 OK), `capacityObtained=true`. `pg_stat_activity` ≤ 4 sessions before and exactly 5 at most after; no 53300, no client error. |
 | `slowSqlIsHeldAndApplyIsRefused` | 600 ms `pg_sleep` (> `slow-usage` 500 ms) → `ST-REC-HIKARI-002` **HOLD**; applying it → 409 `RECOMMENDATION_IS_HOLD`, applying 001 anyway → 409 `NO_CURRENT_RECOMMENDATION`; pool still 4, server never above 4. |
 | `raiseThatSlowsEverySessionIsRevertedOnceAndNotRetried` | Bar 4. The server slows every statement once a 5th session is active → R2 **REGRESSED → REVERTED** to 4/4. The pool stays saturated, so the operator tries again: 409 **`COOLDOWN`**, still `COOLDOWN` 25 s later (longer than the normal cooldown); exactly **one** change executed: no oscillation. |
 
@@ -63,11 +63,11 @@ Every replica starts at 4/4 and is saturated, so each one is recommended 4 → 5
 
 | Test | Proves |
 |---|---|
-| `threeReplicasRaisingAtOnceStayWithinTheBudget` | 3 replicas apply at the same instant: all accepted, ≥ 2 (in practice 3) CONFIRMED; per replica ≤ 5 sessions, service ≤ 16, all client backends ≤ 20; **zero** `too many clients` lines and **zero** client 53300. After the cooldown, further applies are refused (`RECOMMENDATION_IS_HOLD`: at the cap). |
+| `threeReplicasRaisingAtOnceStayWithinTheBudget` | 3 replicas apply at the same instant: all accepted, ≥ 2 (in practice 3) CONFIRMED, each with `capacityObtained=true` (asserted for every CONFIRMED entry in the four "raise at once" tests); per replica ≤ 5 sessions, service ≤ 16, all client backends ≤ 20; **zero** `too many clients` lines and **zero** client 53300. After the cooldown, further applies are refused (`RECOMMENDATION_IS_HOLD`: at the cap). |
 | `raiseWhileHikariReplacesConnections` | Same with `maxLifetime=30s` (HikariCP's minimum), so every connection is retired and replaced during the verification window. Same invariants; the server log proves the replacement (35 authorizations for at most 15 open sessions). HikariCP decrements its count before the physical close completes, so a brief overshoot per replica was a real possibility: none was observed. |
 | `oneReplicaRevertsWhileTwoRaise` | replica-3's database slows down with a 5th session: replica-1/2 CONFIRMED, replica-3 REVERTED, same invariants; replica-3's further apply → `COOLDOWN`. |
 | `anotherServiceHoldsConnectionsDuringTheRaise` | Another service (own role, fixed pool of 3, busy) on the same server, invisible to the budget. 15 + 3 + the probe = 19 ≤ 20: no refusal. The safety factor's headroom (20 − 16 = 4) is exactly what other clients may use. |
-| `surgeReplicaNotCountedInMaxReplicasBreachesTheBudget` | **Negative control.** A 4th (surge) replica with `max-replicas=3`: each cap is still 5, all four raise. The probe **must** see the breach: service sessions 19 > 16, and the server refused the last connection attempts (`remaining connection slots are reserved` in the log). This proves the probe and the log scan see a breach when there is one. |
+| `surgeReplicaNotCountedInMaxReplicasBreachesTheBudget` | **Negative control.** A 4th (surge) replica with `max-replicas=3`: each cap is still 5, all four raise. The probe **must** see the breach: service sessions 19 > 16, and the server refused the last connection attempts (`remaining connection slots are reserved` in the log). This proves the probe and the log scan see a breach when there is one. **R2 regression test:** every replica's `capacityObtained` must equal "the server saw 5 sessions of it" (`pg_stat_activity`), and at least one replica must be CONFIRMED with `capacityObtained=false` and "never exceeded 4 connections; target 5". |
 | `surgeReplicaCountedInMaxReplicasStaysWithinTheBudget` | The same 4 replicas with `max-replicas=4`: cap 4, every apply refused (`RECOMMENDATION_IS_HOLD`, "already at its connection budget cap"), service ≤ 16, no refusal by the server. |
 | `serverLogAndClientSeeTheServersLimit` | Negative control for the log scan and the SQLSTATE count: one role opens connections until the server refuses: SQLSTATE 53300 on the 21st (20 opened), and the server log has the line. |
 
@@ -81,7 +81,9 @@ Every replica starts at 4/4 and is saturated, so each one is recommended 4 → 5
 ## Product changes found by these tests
 
 1. **`BUDGET_EXCEEDS_SERVER` (409)** (row 7). Before raising a Hikari pool, the configured
-   `database-max-connections` is compared with the server's limit for application roles, read once through the pool
+   `database-max-connections` is compared with the server's limit for application roles, read through the pool
+   (since iteration 5: **re-read for every apply attempt**, bounded by `connectionTimeout`; a failed re-read refuses
+   the raise with `SERVER_LIMIT_UNKNOWN`)
    (`ServerConnectionLimit`: PostgreSQL `max_connections − superuser_reserved_connections − reserved_connections`,
    MySQL/MariaDB `@@max_connections`, any other database not checked, which the apply plan says). The read runs on a
    short-lived thread with one pooled connection, so the sampler never waits behind a saturated pool.
@@ -101,14 +103,21 @@ Findings documented, not changed:
   within the cap the budget already assumes.
 - In the surge test one replica was CONFIRMED although the server refused its 5th connection: verification checks
   that nothing got worse, not that the new capacity was obtained. `ST-REC-HIKARI-004` holds any further raise of that
-  pool.
+  pool. **Iteration 5 (R2):** still CONFIRMED (no revert, by decision), but the entry now says
+  `capacityObtained=false` ("the pool never exceeded 4 connections; target 5, although threads waited for a
+  connection (connection creation refused or failing?)"), the `POST`/snapshot JSON shows it and
+  `springtune.changes{capacity_obtained="false"}` counts it; the surge test asserts it against `pg_stat_activity`.
+- **Iteration 5 (R3)** is not exercised here: lowering `max_connections` needs a server restart, which the shared
+  server of the suite cannot do per test. `ChangeControllerTest` and `ServerLimitRecheckTest` cover the re-read;
+  `budgetLargerThanTheServerIsRefused` runs it against the real server (the refusal now comes from the per-apply
+  re-read).
 
 ## Measured connection counts
 
 From three local passes of every suite (PostgreSQL 16.15, 4 vCPUs, all replicas in one JVM). Maxima of the 50 ms
 `pg_stat_activity` readings; "53300" is server-log lines plus client SQLSTATEs.
 
-All 36 test runs (12 tests × 3 passes) were green, with no retries.
+All 36 test runs (12 tests × 3 passes) were green, with no retries. Iteration 5 (2026-11-09, PostgreSQL 16, one pass of all 12 tests, green): surge `max-replicas=3` again 5, 5, 5, 4 per replica, service max 19 (509 of 843 readings above 16), 14 refusal lines; replica-4 CONFIRMED with `capacityObtained=false`; every other CONFIRMED raise in the suite `capacityObtained=true` (15 of 15), and both REVERTED raises `true` too (they got their 5th connection; it made things slower).
 
 | Test | Per replica max | Service max (readings > 16) | All client backends max | 53300 (log / client) | Outcomes (all 3 passes) |
 |---|---|---|---|---|---|
@@ -119,7 +128,7 @@ All 36 test runs (12 tests × 3 passes) were green, with no retries.
 | short `maxLifetime` | 5, 5, 5 | 15 (0 of ~1020) | 16 | 0 / 0 | 3 × CONFIRMED; 31–36 authorized connections for ≤ 15 open |
 | one reverts, two raise | 5, 5, 5 | 15 (0 of ~1030) | 16 | 0 / 0 | CONFIRMED, CONFIRMED, REVERTED; further: HOLD, HOLD, `COOLDOWN` |
 | other service (K = 3) | 5, 5, 5; other 3 | 15 (0 of ~1050) | 19–20 | 0 / 0 | 3 × CONFIRMED |
-| surge, `max-replicas=3` | 5, 5, 5, 4 | **19 (≈ 510 of ≈ 855)** | 20 | **14 / 0** | 4 × applied; one replica's 5th connection refused by the server |
+| surge, `max-replicas=3` | 5, 5, 5, 4 | **19 (≈ 510 of ≈ 855)** | 20 | **14 / 0** | 4 × applied, 4 × CONFIRMED; one replica's 5th connection refused by the server, and (iteration 5) that replica reports `capacityObtained=false`, the other three `true` |
 | surge, `max-replicas=4` | 4, 4, 4, 4 | 16 (0 of ~355) | 17 | 0 / 0 | 4 × `RECOMMENDATION_IS_HOLD` |
 | log sees the limit | – | – | 20 | 1 / refused with 53300 | 20 opened, the 21st refused |
 | budget exceeds server | 4 | – | – | – | `BUDGET_EXCEEDS_SERVER` |
