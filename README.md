@@ -4,7 +4,9 @@ A CI check for risky Spring Boot configuration, plus read-only runtime advice.
 
 Catch the Spring Boot configuration that will take you down before production does: pool exhaustion, hung threads
 and retry storms, reported on the exact line in your pull request. At runtime, the starter explains what it would
-change and why, without changing anything; applying a change is an experimental, opt-in mode.
+change and why, without changing anything; applying a change is an experimental, opt-in mode (5 of its 6
+[pre-registered bars](docs/delivery/iteration-4-brief.md#2-pre-registered-bar-for-leaving-experimental-posre-recorded-before-any-load-test-code)
+are met; the missing one is a team running it in production).
 
 SpringTune has two parts that share one model and one set of rule IDs, plus an opt-in limiter:
 

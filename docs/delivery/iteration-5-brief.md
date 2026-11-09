@@ -54,6 +54,50 @@ PM/devrel proposed, PO/SRE skeptic attacked.
 7. Post the launch (r/java, Show HN, dev.to, a JUG) and fill in the launch log at 24 h and 7 d.
 8. Copy Maven Central download stats into the gates log monthly.
 
-## 5. Scope, acceptance criteria and evidence
+## 5. Review round (adversarial reviewers against the implementations)
 
-(Filled in at delivery.)
+| # | Raised by | Finding | Decision |
+|---|---|---|---|
+| R1 | Apply reviewer | **TOCTOU:** the unlocked pre-check decided whether to read the server limit, the decision under the lock used later state; a raise retried as a cooldown ended was approved with no limit check (`BUDGET_EXCEEDS_SERVER` bypassed). | **Fixed (production):** `handle()` decides under the lock whether a read is needed, reads outside it, decides under a fresh hold; test fails on the old code. |
+| R2 | Apply reviewer | An `Error` in the limit-reader thread left its future incomplete: every later raise waited `connectionTimeout` and was refused until restart. | **Fixed (production):** the reader completes the future on any `Throwable`; test fails on the old code. |
+| R3 | Apply reviewer | A hung read (half-open TCP, pgjdbc `socketTimeout=0`) can refuse raises for ~15 min; a decrease waits for the read. | Accepted, documented: fails closed and bounded. Follow-up: `setNetworkTimeout` on the borrowed connection; skip the read for decreases. |
+| R4 | Action reviewer | **Path traversal in `version`:** on the curl path a crafted version fetched both jar and `SHA256SUMS` from another repository, so the checksum passed. | **Fixed:** version must match a semantic version, else exit 2. |
+| R5 | Action reviewer | A token that cannot read the release stopped the Action instead of falling back to anonymous download (breaks public-repo users with GHES/expired/fine-grained tokens). | **Fixed:** warn and fall back; the checksum stays mandatory. |
+| R6 | Action reviewer | Download token still in the CLI's environment; curl could follow a redirect to HTTP; `setup-java` on a movable tag in users' workflows. | **Fixed:** token unset before `java -jar`, `--proto '=https'`, `setup-java` pinned by SHA. |
+| R7 | Action reviewer | The demo assertion ignored extra findings. | **Fixed:** `assert-sarif.py --exact`; an injected extra finding now fails. |
+| R8 | Action reviewer | Re-verified ≥10 launch numbers from the raw 0.4.0 JSON. | All match (282 modules, 199 findings, 45 HikariCP with 38/6/1, 18 not evaluated 11/7, 6 HTTP clients, 7 executors, 70 TX, 25 Tomcat). |
+| R9 | Action reviewer | README said only "experimental, opt-in" for apply. | Fixed by the lead: README states 5 of 6 bars met, no production user. |
+| R10 | Action reviewer | `ci.yml` keeps tag pins; gates-collect collects in the same job that holds the write token. | Accepted: existing convention (Scorecard will report it); collector hardening is a follow-up. |
+
+## 6. Scope
+
+| In | Out (where it goes) |
+|---|---|
+| 0.4.0 sweep (README, check, ci-integration, case-study install lines, roadmap), stale-string guard, README snippet jobs, v0.4.0 Portal correction | Docs site (row 3) |
+| `action.yml`: default 0.4.0, SHA-256 verification, version validation, token fallback, tests | A new Action tag (human step, see §8) |
+| `examples/broken-config-ci` + workflow template + exact-SARIF demo job (PR + weekly) | Standalone public demo repository (human step) |
+| Corpus re-run on 0.4.0 (identical to the original run), launch post, variants, checklist, claims trace, 2 deep dives + template, `check-claims.sh` | Posting (human step) |
+| SECURITY, CONTRIBUTING (DCO), CODE_OF_CONDUCT, Dependabot, Scorecard (no badge), CycloneDX SBOMs, gates collector to `gates-data`, release-day baseline + launch log | CodeQL (row 10), CLA (row 9) |
+| Apply: `capacityObtained` on verdicts, server limit re-read per apply (`SERVER_LIMIT_UNKNOWN` refuses raises when unreadable) | `setNetworkTimeout` on the limit read (R3) |
+
+## 7. Acceptance criteria and evidence
+
+| ID | Criterion | Verification | Result |
+|---|---|---|---|
+| AC-5.1 | No stale install strings in user-facing docs; README snippets execute against Central in a fresh project | `install-strings` job; `readme-snippets` job (main/weekly/dispatch) | ✅ guard locally; Maven + CLI snippet modes passed locally, Gradle modes need CI (Central 429 here) |
+| AC-5.2 | Action defaults to 0.4.0 and refuses an unverified jar | `action-checksum` job, `test-verify-sha256.sh` (tampered, CRLF, look-alike, extra SBOM line) | ✅ |
+| AC-5.3 | Demo fails exactly as documented; each fix removes one finding | `demo` job with `--exact`; reviewer re-ran all fixes | ✅ |
+| AC-5.4 | Every launch number traces to a committed artifact re-run on 0.4.0; no oversold apply wording | `docs/launch/claims.md`; `check-claims.sh`; reviewer re-verification | ✅ |
+| AC-5.5 | Signals collected from day 1 without telemetry | `collect.sh` local run; `gates-collect.yml` | ✅ locally (traffic needs `GATES_TOKEN`) |
+| AC-5.6 | Release-day baseline and launch log | `docs/adoption/gates.md` | ✅ |
+| AC-5.7 | Trust files, Dependabot, Scorecard, SBOM | files; `-Prelease package` lists 10 SBOMs; JReleaser dry run | ✅ |
+| AC-5.8 | Two deep dives linking rule page and demo | `docs/deep-dives/` | ✅ |
+| AC-5.9 | Verdicts record obtained capacity; the limit is re-read per apply; no TOCTOU | `ChangeControllerTest`, `ServerLimitRecheckTest`, `BudgetLoadTest` (surge replica `capacityObtained=false`) | ✅ load suite 12/12 on PostgreSQL 16; mutations killed |
+| AC-5.10 | Nothing regresses | full reactor on Boot 4.1.2 and 3.5.16 | see the PR |
+
+## 8. Human steps before the launch (in order)
+
+1. **Make the repository public** (the Action, release URLs and every post link 404 while private).
+2. Tag a release carrying the new `action.yml` (0.4.1), then switch the docs' `@v0.4.0` + `version: "0.4.0"` to the new tag.
+3. Plugin Portal workflow; repository description/topics; private vulnerability reporting; `GATES_TOKEN`; edit the v0.4.0 release body.
+4. Sign the launch checklist, post, fill the launch log at 24 h and 7 d.
