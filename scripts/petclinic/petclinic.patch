@@ -1,0 +1,25 @@
+diff --git a/pom.xml b/pom.xml
+index db5b9f7..83787e9 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -17,6 +17,7 @@
+   <properties>
+     <!-- Generic properties -->
+     <java.version>17</java.version>
++    <springtune.version>0.4.0</springtune.version>
+     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+     <!-- Important for reproducible builds. Update using e.g. ./mvnw versions:set -DnewVersion=... -->
+@@ -43,6 +44,12 @@
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-actuator</artifactId>
+     </dependency>
++    <!-- SpringTune runtime starter (added by spring-tune scripts/petclinic/petclinic.patch) -->
++    <dependency>
++      <groupId>io.github.winkytek.springtune</groupId>
++      <artifactId>springtune-spring-boot-starter</artifactId>
++      <version>${springtune.version}</version>
++    </dependency>
+     <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-cache</artifactId>
