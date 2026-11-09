@@ -9,7 +9,8 @@ four the check passes.
 
 In GitHub Actions: copy [`../github-workflow.yml`](../github-workflow.yml) to `.github/workflows/springtune.yml` in a
 repository that contains this project at its root, and open a pull request. The job fails, and the four findings
-appear as code-scanning alerts on the lines below.
+appear as code-scanning alerts on the lines below. (While `pvgiang/spring-tune` is still private, the Action cannot
+download the CLI in another repository's workflow: the release URLs return 404. Use the local run below until then.)
 
 Locally (Java 17+, nothing is built or executed, nothing leaves your machine):
 
@@ -109,8 +110,8 @@ The reason appears in the report and in code scanning.
 ## How this demo is kept working
 
 SpringTune's CI (`.github/workflows/ci.yml`, job *Demo*) runs the repository's own Action on this project on every
-push and weekly, and fails unless the check exits with code 1 and the SARIF report has the four findings above,
-each with its file and line.
+push and weekly, and fails unless the check exits with code 1 and the SARIF report has exactly the five findings
+above (the four warnings and the INFO), each with its file and line: a new, moved or missing finding fails it.
 
 The runtime starter is on the classpath too: `mvn spring-boot:run`, then `curl localhost:8080/actuator/tuning` for
 the live, read-only recommendations ([starter docs](../../docs/starter.md)).

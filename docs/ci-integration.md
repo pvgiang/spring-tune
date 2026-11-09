@@ -34,10 +34,11 @@ Action inputs: `path`, `version`, `profile`, `fail-on`, `format`, `output`, `con
 is a project it fails on.
 
 **Verified download.** The Action downloads `springtune-cli-<version>.jar` and the release's `SHA256SUMS` (through
-the GitHub REST API with the workflow's token, input `token`; set it to `""` for plain `curl`), and checks
-the jar's line with `sha256sum -c` ([`scripts/action/verify-sha256.sh`](../scripts/action/verify-sha256.sh)) before
-running it. A mismatch, or a missing `SHA256SUMS` or jar line, stops the step with exit code 2 and the jar never
-runs. A jar passed through the `jar` input (your own build) is not verified. This verification is in `action.yml`
+the GitHub REST API with the workflow's token, input `token`; set it to `""`, or give a token that cannot read
+the release, and it falls back to anonymous `curl` over HTTPS, which needs this repository to be public; the token
+is never passed to the CLI), and checks the jar's line with `sha256sum -c` ([`scripts/action/verify-sha256.sh`](../scripts/action/verify-sha256.sh)) before
+running it. A mismatch, a missing `SHA256SUMS` or jar line, or a `version` that is not a release number (such as
+`0.4.0`) stops the step with exit code 2 and the jar never runs. A jar passed through the `jar` input (your own build) is not verified. This verification is in `action.yml`
 on `main` and ships with the next tag: the `v0.4.0` tag's Action downloads the jar over HTTPS without checking it.
 To get the check before then, pin the Action to a full commit SHA of `main` instead of the tag, or
 verify the jar yourself, as the [README](../README.md#quick-start) shows for the CLI.

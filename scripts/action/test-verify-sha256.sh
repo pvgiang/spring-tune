@@ -68,6 +68,10 @@ expect 1 "SHA256SUMS without the jar's line is rejected" -- "$VERIFY" "$JAR" "$W
 printf '%064d  %s\n' 0 "$NAME" > "$WORK/wrong-hash"
 expect 1 "SHA256SUMS with a wrong hash is rejected" -- "$VERIFY" "$JAR" "$WORK/wrong-hash"
 
+# CRLF line endings make the name field "<name>\r": no exact match, so it fails closed instead of guessing.
+sed 's/$/\r/' "$SUMS" > "$WORK/crlf"
+expect 1 "SHA256SUMS with CRLF line endings is rejected (fails closed)" -- "$VERIFY" "$JAR" "$WORK/crlf"
+
 cat "$SUMS" "$SUMS" > "$WORK/duplicate"
 expect 1 "SHA256SUMS with two lines for the jar is rejected" -- "$VERIFY" "$JAR" "$WORK/duplicate"
 
