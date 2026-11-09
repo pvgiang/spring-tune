@@ -221,7 +221,7 @@ with notes from `docs/releases/`, and deploys to Maven Central once the secrets 
   [transactions and queries without a timeout (ST-TX-001)](docs/deep-dives/ST-TX-001-transaction-query-timeouts.md)
 - [Runtime starter](docs/starter.md)
 - [Try the starter in staging for two weeks (design partners)](docs/design-partners.md): what you will see and when, and how to report each recommendation
-- [PetClinic benchmark: what the starter recommends under load (pre-registered, one miss)](docs/benchmarks/petclinic.md)
+- [PetClinic benchmark: what the starter recommends under load (pre-registered; 2 of 4 matched as registered, 1 more only with a poll bound added afterwards, 1 miss)](docs/benchmarks/petclinic.md)
 - [Load tests: apply mode against a real PostgreSQL](docs/loadtests.md)
 - [Adaptive limiter: when it helps, when it hurts, rollout, measurements](docs/limiter.md)
 - [CI integration (GitHub code scanning)](docs/ci-integration.md)
