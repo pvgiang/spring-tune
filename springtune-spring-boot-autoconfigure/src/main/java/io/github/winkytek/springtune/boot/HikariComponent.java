@@ -5,6 +5,9 @@ import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
 import io.github.winkytek.springtune.model.Knob;
 import io.github.winkytek.springtune.model.Recommendation;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -12,12 +15,26 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Reads a {@link HikariDataSource}. Never calls a setter: in apply mode the only write path is the
  * {@link HikariPoolWriter} of its {@link #writableKnob() writable knob}.
  */
 final class HikariComponent implements TunedComponent {
+
+    /** Longest an apply waits for the server-limit re-read, whatever {@code connectionTimeout} says (0 = forever). */
+    static final long MAX_SERVER_LIMIT_WAIT_MS = 30_000;
+
+    /** Reads the server's limit with a borrowed connection; {@link ServerConnectionLimit#read} except in tests. */
+    @FunctionalInterface
+    interface LimitReader {
+        ServerConnectionLimit read(Connection connection) throws SQLException;
+    }
 
     private final String beanName;
     private final HikariDataSource dataSource;
@@ -27,11 +44,19 @@ final class HikariComponent implements TunedComponent {
     private final SampleWindow<HikariSample> samples;
     private volatile WritableKnob writableKnob;
     private volatile ServerConnectionLimit serverLimit;
-    private final java.util.concurrent.atomic.AtomicBoolean readingServerLimit =
-            new java.util.concurrent.atomic.AtomicBoolean();
+    private final AtomicReference<CompletableFuture<ServerConnectionLimit>> reading = new AtomicReference<>();
+    private final LimitReader limitReader;
+    private final Clock clock;
 
     HikariComponent(String beanName, HikariDataSource dataSource, TimerReader timers, SpringTuneProperties properties,
             Optional<Integer> budgetCap) {
+        this(beanName, dataSource, timers, properties, budgetCap, Clock.systemUTC(), ServerConnectionLimit::read);
+    }
+
+    HikariComponent(String beanName, HikariDataSource dataSource, TimerReader timers, SpringTuneProperties properties,
+            Optional<Integer> budgetCap, Clock clock, LimitReader limitReader) {
+        this.clock = clock;
+        this.limitReader = limitReader;
         this.beanName = beanName;
         this.dataSource = dataSource;
         this.timers = timers;
@@ -44,9 +69,73 @@ final class HikariComponent implements TunedComponent {
                 + " started yet") : ServerConnectionLimit.notApplicable();
     }
 
-    /** The server's connection limit as last read (see {@link #sample(Instant)}). */
+    /**
+     * The server's connection limit as last read (see {@link #sample(Instant)} and {@link #recheckServerLimit()}),
+     * with when it was read and whether the latest re-read failed. Shown in the apply plan and the signals.
+     */
     ServerConnectionLimit serverLimit() {
         return serverLimit;
+    }
+
+    /**
+     * Re-reads the server's connection limit for an apply attempt and returns the <b>fresh</b> result: KNOWN,
+     * UNSUPPORTED, NOT_APPLICABLE, or NOT_READ when the read failed or did not answer within the pool's
+     * {@code connectionTimeout} (at most {@value #MAX_SERVER_LIMIT_WAIT_MS} ms). A failed re-read never falls back to
+     * the cached value: the guard refuses the raise ({@code SERVER_LIMIT_UNKNOWN}); the cached value stays for the
+     * apply plan with its "last checked at" time. Blocks the calling (request) thread only; the read itself runs on a
+     * short-lived thread with one connection borrowed from the pool, and a read already running is joined.
+     */
+    ServerConnectionLimit recheckServerLimit() {
+        if (budgetCap.isEmpty()) {
+            return ServerConnectionLimit.notApplicable();
+        }
+        ServerConnectionLimit cached = serverLimit;
+        if (cached.status() == ServerConnectionLimit.Status.UNSUPPORTED) {
+            return cached; // the product does not change while the pool runs
+        }
+        long configured = dataSource.getHikariConfigMXBean().getConnectionTimeout();
+        long waitMs = configured <= 0 ? MAX_SERVER_LIMIT_WAIT_MS : Math.min(configured, MAX_SERVER_LIMIT_WAIT_MS);
+        try {
+            return startRead().get(waitMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException ex) {
+            return failedNow("no answer within connectionTimeout (" + waitMs + " ms) at " + clock.instant());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return failedNow("interrupted while re-reading it");
+        } catch (ExecutionException ex) {
+            return failedNow("re-reading it failed: " + ex.getCause());
+        }
+    }
+
+    /** A NOT_READ result naming the last known value, without touching the cache (the read may still finish). */
+    private ServerConnectionLimit failedNow(String why) {
+        String last = serverLimit.lastKnown();
+        return ServerConnectionLimit.notRead(why + (last == null ? "; never read successfully" : "; " + last));
+    }
+
+    /** The read in progress, or a new one on its own daemon thread. */
+    private CompletableFuture<ServerConnectionLimit> startRead() {
+        while (true) {
+            CompletableFuture<ServerConnectionLimit> current = reading.get();
+            if (current != null && !current.isDone()) {
+                return current;
+            }
+            CompletableFuture<ServerConnectionLimit> next = new CompletableFuture<>();
+            if (reading.compareAndSet(current, next)) {
+                Thread reader = new Thread(() -> next.complete(readServerLimit()),
+                        "springtune-server-limit-" + poolName());
+                reader.setDaemon(true);
+                reader.start();
+                return next;
+            }
+        }
+    }
+
+    /** Total connections the pool holds now, and whether threads wait for one; {@code null} before it starts. */
+    WritableKnob.Capacity capacity() {
+        HikariPoolMXBean pool = dataSource.getHikariPoolMXBean();
+        return pool == null ? null
+                : new WritableKnob.Capacity(pool.getTotalConnections(), pool.getThreadsAwaitingConnection() > 0);
     }
 
     /**
@@ -59,7 +148,8 @@ final class HikariComponent implements TunedComponent {
         if (knob == null && dataSource.getHikariPoolMXBean() != null) {
             knob = new WritableKnob(knobId("maximumPoolSize"), id(), WritableKnob.Kind.HIKARI,
                     dataSource.getHikariConfigMXBean().getMaximumPoolSize(),
-                    new HikariPoolWriter(dataSource::getHikariConfigMXBean), this::counters, this::serverLimit);
+                    new HikariPoolWriter(dataSource::getHikariConfigMXBean), this::counters, this::recheckServerLimit,
+                    this::capacity);
             writableKnob = knob;
         }
         return knob;
@@ -151,7 +241,9 @@ final class HikariComponent implements TunedComponent {
         signals.put("holdTimeMetrics", latest.timersAvailable() ? "available" : "unavailable");
         ServerConnectionLimit server = serverLimit;
         if (server.status() != ServerConnectionLimit.Status.NOT_APPLICABLE) {
-            signals.put("serverConnectionLimit", server.known() ? server.limit() + " (" + server.detail() + ")"
+            signals.put("serverConnectionLimit", server.known() ? server.limit() + " (" + server.detail()
+                    + (server.checkedAt() != null ? "; last checked at " + server.checkedAt() : "")
+                    + (server.recheckFailure() != null ? "; " + server.recheckFailure() : "") + ")"
                     : server.status() + ": " + server.detail());
         }
         return signals;
@@ -177,27 +269,33 @@ final class HikariComponent implements TunedComponent {
                 acquire.map(TimerReader.Totals::count).orElse(0L), acquire.map(TimerReader.Totals::totalMs).orElse(0.0),
                 usage.map(TimerReader.Totals::count).orElse(0L), usage.map(TimerReader.Totals::totalMs).orElse(0.0),
                 timers.counter("hikaricp.connections.timeout", poolName()).orElse(0.0), pool.getTotalConnections()));
-        if (serverLimit.status() == ServerConnectionLimit.Status.NOT_READ
-                && readingServerLimit.compareAndSet(false, true)) {
-            Thread reader = new Thread(this::readServerLimit, "springtune-server-limit-" + poolName());
-            reader.setDaemon(true);
-            reader.start();
+        if (serverLimit.status() == ServerConnectionLimit.Status.NOT_READ) {
+            startRead(); // never waited for here
         }
     }
 
     /**
-     * Reads the server's connection limit once (only when a budget is configured), with one connection borrowed from
-     * the pool like any other request. It runs on its own short-lived thread so the sampler never waits behind
-     * threads queuing for a saturated pool; it opens no connection outside the pool. The limit cannot change without
-     * a server restart; a failed read is retried after the next tick.
+     * Reads the server's connection limit (only when a budget is configured), with one connection borrowed from the
+     * pool like any other request, on the thread {@link #startRead()} created, so the sampler never waits behind
+     * threads queuing for a saturated pool; it opens no connection outside the pool. Until a first read succeeds it
+     * is retried after every tick; after that it is re-read before every apply ({@link #recheckServerLimit()}).
+     * Returns the fresh result and updates the cached one; a failed re-read keeps the last known value, marked.
      */
-    private void readServerLimit() {
-        try (java.sql.Connection connection = dataSource.getConnection()) {
-            serverLimit = ServerConnectionLimit.read(connection);
-        } catch (java.sql.SQLException | RuntimeException ex) {
-            serverLimit = ServerConnectionLimit.notRead("reading it failed: " + ex.getMessage());
-        } finally {
-            readingServerLimit.set(false);
+    private ServerConnectionLimit readServerLimit() {
+        try (Connection connection = dataSource.getConnection()) {
+            ServerConnectionLimit read = limitReader.read(connection).checkedAt(clock.instant());
+            serverLimit = read;
+            return read;
+        } catch (SQLException | RuntimeException ex) {
+            String failure = "re-reading it failed at " + clock.instant() + ": " + ex.getMessage();
+            ServerConnectionLimit cached = serverLimit;
+            if (cached.known()) {
+                serverLimit = cached.withRecheckFailure(failure);
+                return ServerConnectionLimit.notRead(failure + "; " + cached.lastKnown());
+            }
+            serverLimit = ServerConnectionLimit.notRead("reading it failed at " + clock.instant() + ": "
+                    + ex.getMessage() + "; never read successfully");
+            return serverLimit;
         }
     }
 

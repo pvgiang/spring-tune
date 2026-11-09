@@ -13,19 +13,41 @@ import java.util.function.Supplier;
  * @param configuredValue value when SpringTune discovered the component (the startup configuration)
  * @param writer          the only path to the setter
  * @param counters        cumulative counters, read on every sampler tick; empty when unavailable
- * @param serverLimit     the database server's connection limit (Hikari), checked before a pool is raised
+ * @param serverLimit     the database server's connection limit (Hikari), <b>re-read</b> when called: once per apply
+ *                        attempt, before a pool may be raised. It may block (bounded by the pool's
+ *                        {@code connectionTimeout}), so {@link ChangeController} calls it outside its lock, never on
+ *                        the sampler thread
+ * @param capacity        the capacity the component actually holds right now (Hikari: total connections; executor:
+ *                        threads), read on every sampler tick while a change is verified ({@code capacityObtained});
+ *                        {@code null} when unknown
  */
 record WritableKnob(String knobId, String componentId, Kind kind, long configuredValue, KnobWriter writer,
-        Supplier<Map<String, Double>> counters, Supplier<ServerConnectionLimit> serverLimit) {
+        Supplier<Map<String, Double>> counters, Supplier<ServerConnectionLimit> serverLimit,
+        Supplier<Capacity> capacity) {
 
     WritableKnob(String knobId, String componentId, Kind kind, long configuredValue, KnobWriter writer,
             Supplier<Map<String, Double>> counters) {
-        this(knobId, componentId, kind, configuredValue, writer, counters, ServerConnectionLimit::notApplicable);
+        this(knobId, componentId, kind, configuredValue, writer, counters, ServerConnectionLimit::notApplicable,
+                () -> null);
+    }
+
+    WritableKnob(String knobId, String componentId, Kind kind, long configuredValue, KnobWriter writer,
+            Supplier<Map<String, Double>> counters, Supplier<ServerConnectionLimit> serverLimit) {
+        this(knobId, componentId, kind, configuredValue, writer, counters, serverLimit, () -> null);
     }
 
     enum Kind {
         HIKARI,
         EXECUTOR
+    }
+
+    /**
+     * What the component holds at one instant.
+     *
+     * @param held   connections (Hikari {@code getTotalConnections()}) or threads ({@code getPoolSize()})
+     * @param demand whether work was waiting for more: threads awaiting a connection, or queued tasks
+     */
+    record Capacity(long held, boolean demand) {
     }
 
     long current() {

@@ -55,9 +55,16 @@ final class ExecutorComponent implements TunedComponent {
             String setting = unbounded ? ExecutorPoolWriter.CORE : ExecutorPoolWriter.MAX;
             long configured = unbounded ? executor.getCorePoolSize() : executor.getMaxPoolSize();
             writableKnob = new WritableKnob(knobPrefix() + "." + setting, id(), WritableKnob.Kind.EXECUTOR, configured,
-                    new ExecutorPoolWriter(executor, setting), this::counters);
+                    new ExecutorPoolWriter(executor, setting), this::counters, ServerConnectionLimit::notApplicable,
+                    this::capacity);
         }
         return writableKnob;
+    }
+
+    /** Threads the executor holds now, and whether tasks are queued (demand for more threads). */
+    WritableKnob.Capacity capacity() {
+        ThreadPoolExecutor pool = poolOrNull();
+        return pool == null ? null : new WritableKnob.Capacity(pool.getPoolSize(), !pool.getQueue().isEmpty());
     }
 
     /** Cumulative counters of this executor (verification signal R6) plus HTTP totals as evidence. */

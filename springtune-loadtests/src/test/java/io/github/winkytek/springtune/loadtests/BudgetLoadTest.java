@@ -115,6 +115,27 @@ class BudgetLoadTest {
             assertThat(probe.maxSum(Fleet.SERVICE)).as("service sessions above the usable budget of " + USABLE)
                     .isGreaterThan(USABLE);
             assertThat(probe.samplesAbove(Fleet.SERVICE, USABLE)).isPositive();
+
+            // R2 (iteration 4): a replica whose 5th connection the server refused used to be CONFIRMED silently.
+            // Its entry must now say capacityObtained=false, and every replica's flag must agree with what the
+            // server saw of it (pg_stat_activity), without changing any verdict.
+            List<String> refusedConfirmed = new ArrayList<>();
+            for (int i = 0; i < fleet.replicas.size(); i++) {
+                Replica replica = fleet.replicas.get(i);
+                JsonNode entry = entries.get(i);
+                boolean reached = probe.maxOf(replica.name()) >= CAP;
+                assertThat(entry.path("capacityObtained").asText())
+                        .as(replica.name() + " capacityObtained vs server sessions max " + probe.maxOf(replica.name())
+                                + ": " + entry.path("capacity").asText())
+                        .isEqualTo(String.valueOf(reached));
+                if (!reached && "CONFIRMED".equals(outcome(entry))) {
+                    refusedConfirmed.add(replica.name());
+                    assertThat(entry.path("capacity").asText()).contains("never exceeded 4 connections; target 5");
+                }
+            }
+            scenario.record("CONFIRMED but capacityObtained=false: " + refusedConfirmed);
+            assertThat(refusedConfirmed).as("a replica CONFIRMED although the server refused its 5th connection")
+                    .isNotEmpty();
         }
     }
 
@@ -190,6 +211,13 @@ class BudgetLoadTest {
         scenario.record("further applies: " + further.stream().map(r -> r.status() + " " + r.code()).toList());
 
         assertThat(results).as("all applies accepted").allMatch(r -> r.status() == 200);
+        for (int i = 0; i < entries.size(); i++) {
+            JsonNode entry = entries.get(i);
+            if ("CONFIRMED".equals(outcome(entry))) {
+                assertThat(entry.path("capacityObtained").asText()).as(fleet.replicas.get(i).name() + " "
+                        + entry.path("capacity").asText()).isEqualTo("true");
+            }
+        }
         assertThat(entries.stream().filter(Objects::nonNull).filter(e -> "CONFIRMED".equals(outcome(e))).count())
                 .isGreaterThanOrEqualTo(expectConfirmedAtLeast);
         for (Replica replica : fleet.replicas) {
@@ -216,7 +244,8 @@ class BudgetLoadTest {
             JsonNode entry = entries.get(i);
             scenario.record(fleet.replicas.get(i).name() + ": apply " + results.get(i).status() + " "
                     + results.get(i).code() + (entry == null ? "" : " -> " + outcome(entry) + " "
-                            + entry.path("verdict").asText() + " " + entry.path("reasons")) + "; pool max now "
+                            + entry.path("verdict").asText() + " capacityObtained="
+                            + entry.path("capacityObtained").asText() + " " + entry.path("reasons")) + "; pool max now "
                     + fleet.replicas.get(i).maximumPoolSize());
         }
         scenario.record("server sessions max per application " + probe.maxByApplication() + "; service max "

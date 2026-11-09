@@ -103,7 +103,8 @@ public class TuningService {
             for (Map.Entry<String, DataSource> entry : beanFactory.getBeansOfType(DataSource.class, false, false)
                     .entrySet()) {
                 unwrapHikari(entry.getValue()).ifPresent(hikari -> found.add(
-                        new HikariComponent(entry.getKey(), hikari, timers, properties, budgetCap)));
+                        new HikariComponent(entry.getKey(), hikari, timers, properties, budgetCap, clock,
+                                ServerConnectionLimit::read)));
             }
         }
         beanFactory.getBeansOfType(ThreadPoolTaskExecutor.class, false, false)

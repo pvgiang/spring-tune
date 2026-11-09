@@ -83,7 +83,11 @@ final class MicrometerSupport {
                 .register(registry);
     }
 
-    /** {@code springtune.changes{outcome}}: apply-mode changes by final outcome (and refusals). */
+    /**
+     * {@code springtune.changes{outcome, capacity_obtained}}: apply-mode changes by final outcome (and refusals), and
+     * whether a verified raise actually obtained its new capacity ({@code true}, {@code false}, or
+     * {@code not_applicable} for decreases, refusals and freezes). At most 8 &times; 3 series.
+     */
     static final class ChangeMetrics implements MeterBinder, ApplicationListener<SpringTuneChangeEvent> {
 
         private volatile MeterRegistry registry;
@@ -99,8 +103,14 @@ final class MicrometerSupport {
             ChangeAuditEntry entry = event.getEntry();
             if (target != null && entry.outcome().isFinal()) {
                 Counter.builder("springtune.changes").tag("outcome", entry.outcome().name().toLowerCase(java.util.Locale.ROOT))
+                        .tag("capacity_obtained", capacityTag(entry))
                         .description("SpringTune apply-mode changes by outcome").register(target).increment();
             }
         }
+    }
+
+    /** {@code true}, {@code false} or {@code not_applicable}. */
+    static String capacityTag(ChangeAuditEntry entry) {
+        return entry.capacityObtained() == null ? "not_applicable" : entry.capacityObtained().toString();
     }
 }

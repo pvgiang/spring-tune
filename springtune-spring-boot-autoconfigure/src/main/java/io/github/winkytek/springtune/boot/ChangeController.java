@@ -46,6 +46,16 @@ import org.apache.commons.logging.LogFactory;
  * recorded on every tick, so the baseline (B) and verification (V) windows can be compared
  * ({@link Verification}). Every action is audited ({@code springtune.audit} logger, {@link SpringTuneChangeEvent},
  * endpoint).
+ *
+ * <p>While a raise is verified, every tick also records the capacity the component actually holds (Hikari: total
+ * connections; executor: threads). The final entry says whether the new size was reached
+ * ({@link ChangeAuditEntry#capacityObtained()}). That is recorded only: it never changes the verdict and never
+ * triggers a revert (a database refusing connections is answered by {@code ST-REC-HIKARI-004}, not by acting during
+ * the outage).
+ *
+ * <p>Before an apply of a Hikari knob, the database server's connection limit is re-read
+ * ({@link WritableKnob#serverLimit()}) <b>outside</b> this object's lock, so a slow read (bounded by the pool's
+ * {@code connectionTimeout}) never delays the sampler tick.
  */
 final class ChangeController {
 
@@ -96,6 +106,10 @@ final class ChangeController {
     private final Map<String, Applied> applied = new HashMap<>();
     private final Deque<ChangeAuditEntry> audit = new ArrayDeque<>();
     private InFlight inFlight;
+    /** Most capacity the knob's component held since the change in flight was applied; -1 when not measured. */
+    private long maxHeld = -1;
+    /** Whether work waited for more capacity at a reading where the component held less than the target. */
+    private boolean demandWhileShort;
     private boolean frozen;
     private String frozenReason;
     private long sequence;
@@ -139,24 +153,62 @@ final class ChangeController {
 
     // ------------------------------------------------------------------ requests
 
-    synchronized ChangeResponse handle(ChangeRequest request, Caller caller) {
-        Instant now = clock.instant();
+    /**
+     * Not synchronized as a whole: for an authenticated apply of a Hikari knob the server's connection limit is
+     * re-read first, without holding the lock the sampler tick needs; the decision is then taken under the lock.
+     */
+    ChangeResponse handle(ChangeRequest request, Caller caller) {
         Optional<Refusal> refusal = ApplyGuard.checkCaller(caller, settings.getRequiredRole())
                 .or(() -> ApplyGuard.checkRequest(request));
-        if (refusal.isPresent()) {
-            return refuse(request, caller, refusal.get(), now);
+        if (refusal.isEmpty() && request.normalizedAction().equals("apply")) {
+            ServerConnectionLimit server = serverLimitFor(request.knobId());
+            synchronized (this) {
+                return apply(request, caller.name(), clock.instant(), server);
+            }
         }
-        return switch (request.normalizedAction()) {
-            case "apply" -> apply(request, caller.name(), now);
-            case "revert" -> revert(request, caller.name(), now);
-            default -> freeze(request, caller.name(), now);
-        };
+        synchronized (this) {
+            Instant now = clock.instant();
+            if (refusal.isPresent()) {
+                return refuse(request, caller, refusal.get(), now);
+            }
+            return switch (request.normalizedAction()) {
+                case "revert" -> revert(request, caller.name(), now);
+                default -> freeze(request, caller.name(), now);
+            };
+        }
     }
 
-    private ChangeResponse apply(ChangeRequest request, String who, Instant now) {
+    /**
+     * The server's connection limit, re-read for this apply attempt (an operator may have lowered
+     * {@code max_connections} since the last read). Only for a Hikari knob with a budget, and only when the cheap
+     * state guards would not refuse anyway, so a request refused for frozen, in flight or cooldown causes no
+     * database read. Runs outside the lock.
+     */
+    private ServerConnectionLimit serverLimitFor(String knobId) {
+        Optional<WritableKnob> knob = knob(knobId);
+        if (knob.isEmpty() || knob.get().kind() != WritableKnob.Kind.HIKARI || budgetCap.isEmpty()
+                || !worthReadingServerLimit(knobId)) {
+            return ServerConnectionLimit.notApplicable();
+        }
+        try {
+            ServerConnectionLimit limit = knob.get().serverLimit().get();
+            return limit == null ? ServerConnectionLimit.notApplicable() : limit;
+        } catch (RuntimeException ex) {
+            return ServerConnectionLimit.notRead("re-reading it failed: " + ex.getMessage());
+        }
+    }
+
+    private synchronized boolean worthReadingServerLimit(String knobId) {
+        Instant now = clock.instant();
+        Instant cooldown = cooldownUntil(knobId);
+        return properties.getMode() == SpringTuneProperties.Mode.APPLY && settings.isEnabled() && !frozen
+                && inFlight == null && (cooldown == null || !now.isBefore(cooldown));
+    }
+
+    private ChangeResponse apply(ChangeRequest request, String who, Instant now, ServerConnectionLimit server) {
         Optional<WritableKnob> knob = knob(request.knobId());
         Optional<KnobFacts> facts = knob.map(k -> new KnobFacts(k.knobId(), k.kind(), k.current(), k.configuredValue(),
-                cooldownUntil(k.knobId()), baselineStart(k.knobId(), now) != null, k.serverLimit().get()));
+                cooldownUntil(k.knobId()), baselineStart(k.knobId(), now) != null, server));
         ApplyGuard.State state = new ApplyGuard.State(properties.getMode(), settings.isEnabled(), frozen, inFlight != null);
         List<Recommendation> fresh = recommender.apply(now);
         Decision decision = ApplyGuard.checkApply(request, state, facts, fresh, budgetCap,
@@ -207,6 +259,9 @@ final class ChangeController {
         ChangeAuditEntry entry = record(new ChangeAuditEntry(nextId(), now, "apply", who, request.reason(),
                 rec.ruleId(), target.knobId(), before, after, Outcome.VERIFYING, null, null, reasons, Map.of(), null));
         inFlight = new InFlight(target, entry, now, baseline, before, after);
+        maxHeld = -1;
+        demandWhileShort = false;
+        observeCapacity(inFlight);
         states.put(target.knobId(), new KnobState(State.VERIFYING, now, null));
         return new ChangeResponse(200, "OK", "Applied " + target.knobId() + " " + before.get(target.writer().setting())
                 + " -> " + after.get(target.writer().setting()) + "; verifying.", entry);
@@ -276,12 +331,66 @@ final class ChangeController {
         }
         InFlight change = inFlight;
         if (change != null) {
+            observeCapacity(change);
             try {
                 progress(now);
             } catch (RuntimeException ex) {
                 LOG.warn("SpringTune could not verify change " + change.entryId(), ex);
             }
         }
+    }
+
+    /** Records the capacity the in-flight change's component holds now (never fails the tick). */
+    private void observeCapacity(InFlight change) {
+        try {
+            WritableKnob.Capacity capacity = change.knob().capacity().get();
+            if (capacity == null) {
+                return;
+            }
+            maxHeld = Math.max(maxHeld, capacity.held());
+            if (capacity.demand() && capacity.held() < change.after().get(change.knob().writer().setting())) {
+                demandWhileShort = true;
+            }
+        } catch (RuntimeException ex) {
+            LOG.debug("SpringTune could not read the capacity of " + change.knob().knobId(), ex);
+        }
+    }
+
+    private record CapacityResult(Boolean obtained, String line) {
+    }
+
+    /**
+     * Whether a raise obtained its new capacity while it was verified. Not applicable to a decrease (a smaller pool
+     * is applied lazily, so there is nothing to obtain) or when the component did not report its capacity.
+     */
+    private CapacityResult capacityResult(InFlight change) {
+        String setting = change.knob().writer().setting();
+        long from = change.before().get(setting);
+        long to = change.after().get(setting);
+        boolean hikari = change.knob().kind() == WritableKnob.Kind.HIKARI;
+        String unit = hikari ? "connections" : "threads";
+        if (to <= from) {
+            return new CapacityResult(null, "capacityObtained not applicable: " + setting + " was lowered (" + from
+                    + " -> " + to + ")");
+        }
+        if (maxHeld < 0) {
+            return new CapacityResult(null, "capacityObtained not measured: the component did not report how many "
+                    + unit + " it holds");
+        }
+        if (maxHeld >= to) {
+            return new CapacityResult(true, "Capacity obtained: the pool reached " + maxHeld + " " + unit
+                    + " (target " + to + ").");
+        }
+        String waited = hikari ? "threads waited for a connection" : "tasks were queued";
+        return new CapacityResult(false, "Capacity NOT obtained: the pool never exceeded " + maxHeld + " " + unit
+                + "; target " + to + (demandWhileShort
+                        ? ", although " + waited + (hikari ? " (connection creation refused or failing?)"
+                                : " (thread creation failing?)")
+                        : "; no " + (hikari ? "thread waited for a connection" : "task was queued")
+                                + " while it was smaller (no demand for more yet)")
+                + ". Recorded only: the verdict judges whether the knob's own signals got worse, not whether the"
+                + " capacity was obtained" + (hikari ? "; ST-REC-HIKARI-004 holds further raises of a pool that"
+                        + " cannot open connections." : "."));
     }
 
     private void progress(Instant now) {
@@ -403,8 +512,14 @@ final class ChangeController {
 
     private ChangeAuditEntry finish(InFlight change, Outcome outcome, String verdict, List<String> reasons,
             Map<String, String> evidence, Instant now) {
+        CapacityResult capacity = capacityResult(change);
+        List<String> all = new ArrayList<>(reasons);
+        if (capacity.obtained() != null) {
+            all.add(capacity.line());
+        }
         inFlight = null;
-        return record(change.entry().finish(outcome, verdict, reasons, evidence, now));
+        return record(change.entry().finish(outcome, verdict, all, evidence, now, capacity.obtained(),
+                capacity.line()));
     }
 
     private String ruleIdOf(InFlight change) {
@@ -478,6 +593,7 @@ final class ChangeController {
                 + (entry.ruleId() != null ? " rule=" + entry.ruleId() : "")
                 + (entry.before().isEmpty() ? "" : " before=" + entry.before() + " after=" + entry.after())
                 + (entry.verdict() != null ? " verdict=" + entry.verdict() : "")
+                + (entry.capacityObtained() != null ? " capacityObtained=" + entry.capacityObtained() : "")
                 + " why=\"" + (entry.why() == null ? "" : entry.why()) + "\" reasons=" + entry.reasons()
                 + (entry.evidence().isEmpty() ? "" : " evidence=" + entry.evidence());
         // Caller-supplied text (why, ruleId, knobId, principal) must not start a forged log line.

@@ -15,7 +15,8 @@ import java.util.Optional;
  * recommendation (matched by {@code ruleId} + {@code knobId}, re-evaluated at request time), and only when
  * the caller's {@code expectedCurrent} equals the live value (compare-and-set). On top of that the value must
  * stay within the step and growth limits, raising a Hikari pool needs a configured connection budget that the
- * database server can honour ({@link ServerConnectionLimit}, when it could be read) and stays under its
+ * database server can honour ({@link ServerConnectionLimit}, re-read for every apply attempt; a raise is refused
+ * when that read fails, and not checked only for databases SpringTune cannot read) and stays under its
  * per-instance cap, the knob must not be cooling down, and no other change may be in flight.
  */
 final class ApplyGuard {
@@ -39,6 +40,7 @@ final class ApplyGuard {
         STALE_EXPECTED_TARGET(409),
         NO_BUDGET(400),
         BUDGET_EXCEEDS_SERVER(409),
+        SERVER_LIMIT_UNKNOWN(409),
         ABOVE_BUDGET_CAP(400),
         STEP_LIMIT(400),
         GROWTH_LIMIT(400),
@@ -233,6 +235,12 @@ final class ApplyGuard {
                         + " set springtune.budget.database-max-connections and max-replicas.");
             }
             ServerConnectionLimit server = knob.serverLimit();
+            if (server != null && server.status() == ServerConnectionLimit.Status.NOT_READ) {
+                return Decision.refuse(Code.SERVER_LIMIT_UNKNOWN, "The database server's connection limit could not"
+                        + " be re-read for this apply (" + server.detail() + "), so database-max-connections="
+                        + databaseMaxConnections + " cannot be checked against it. Raising the pool is refused until"
+                        + " it can be read; retry when a connection is available.");
+            }
             if (server != null && server.known() && databaseMaxConnections != null
                     && databaseMaxConnections > server.limit()) {
                 return Decision.refuse(Code.BUDGET_EXCEEDS_SERVER, "springtune.budget.database-max-connections="
