@@ -171,6 +171,31 @@ class ServerLimitRecheckTest {
         assertThat(reads).hasValue(0);
     }
 
+    /**
+     * An Error thrown by the reader (e.g. a LinkageError in the driver) must not leave a read that never completes:
+     * every later apply would join it, time out and refuse the raise until restart.
+     */
+    @Test
+    void anErrorInTheReaderDoesNotWedgeLaterReReads() {
+        HikariComponent.LimitReader failingOnce = new HikariComponent.LimitReader() {
+            private final AtomicInteger calls = new AtomicInteger();
+
+            @Override
+            public ServerConnectionLimit read(Connection connection) throws SQLException {
+                if (calls.getAndIncrement() == 0) {
+                    throw new NoClassDefFoundError("org/postgresql/Missing");
+                }
+                return ServerLimitRecheckTest.this.read(connection);
+            }
+        };
+        HikariComponent wedged = new HikariComponent("dataSource", dataSource, TimerReader.NONE, properties,
+                Optional.of(5), clock, failingOnce);
+        ServerConnectionLimit first = wedged.recheckServerLimit();
+        assertThat(first.status()).isEqualTo(ServerConnectionLimit.Status.NOT_READ);
+        assertThat(first.detail()).contains("NoClassDefFoundError");
+        assertThat(wedged.recheckServerLimit().known()).as("the next apply reads again").isTrue();
+    }
+
     @Test
     void capacityIsTheTotalConnectionCount() {
         WritableKnob.Capacity capacity = component.writableKnob().capacity().get();

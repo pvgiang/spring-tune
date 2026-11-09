@@ -161,9 +161,19 @@ final class ChangeController {
         Optional<Refusal> refusal = ApplyGuard.checkCaller(caller, settings.getRequiredRole())
                 .or(() -> ApplyGuard.checkRequest(request));
         if (refusal.isEmpty() && request.normalizedAction().equals("apply")) {
-            ServerConnectionLimit server = serverLimitFor(request.knobId());
-            synchronized (this) {
-                return apply(request, caller.name(), clock.instant(), server);
+            // Whether the limit must be read is decided under the same lock hold as the apply itself: a state that
+            // changed after an earlier check (cooldown just over, apply re-enabled, pool started) can never let a
+            // raise through with no read at all. A read result, once taken, is judged with the state after it.
+            ServerConnectionLimit server = null;
+            while (true) {
+                synchronized (this) {
+                    Instant now = clock.instant();
+                    if (server != null || !needsServerLimit(request.knobId(), now)) {
+                        return apply(request, caller.name(), now,
+                                server != null ? server : ServerConnectionLimit.notApplicable());
+                    }
+                }
+                server = serverLimitFor(request.knobId());
             }
         }
         synchronized (this) {
@@ -180,15 +190,13 @@ final class ChangeController {
 
     /**
      * The server's connection limit, re-read for this apply attempt (an operator may have lowered
-     * {@code max_connections} since the last read). Only for a Hikari knob with a budget, and only when the cheap
-     * state guards would not refuse anyway, so a request refused for frozen, in flight or cooldown causes no
-     * database read. Runs outside the lock.
+     * {@code max_connections} since the last read). Called only when {@link #needsServerLimit} said so under the
+     * lock, so a request refused for frozen, in flight or cooldown causes no database read. Runs outside the lock.
      */
     private ServerConnectionLimit serverLimitFor(String knobId) {
         Optional<WritableKnob> knob = knob(knobId);
-        if (knob.isEmpty() || knob.get().kind() != WritableKnob.Kind.HIKARI || budgetCap.isEmpty()
-                || !worthReadingServerLimit(knobId)) {
-            return ServerConnectionLimit.notApplicable();
+        if (knob.isEmpty()) {
+            return ServerConnectionLimit.notRead("the knob disappeared while reading it");
         }
         try {
             ServerConnectionLimit limit = knob.get().serverLimit().get();
@@ -198,8 +206,15 @@ final class ChangeController {
         }
     }
 
-    private synchronized boolean worthReadingServerLimit(String knobId) {
-        Instant now = clock.instant();
+    /**
+     * Whether an apply of this knob needs the server limit: a Hikari knob with a budget, and the cheap state guards
+     * would not refuse anyway. Called with the lock held, in the same hold that then decides.
+     */
+    private boolean needsServerLimit(String knobId, Instant now) {
+        Optional<WritableKnob> knob = knob(knobId);
+        if (knob.isEmpty() || knob.get().kind() != WritableKnob.Kind.HIKARI || budgetCap.isEmpty()) {
+            return false;
+        }
         Instant cooldown = cooldownUntil(knobId);
         return properties.getMode() == SpringTuneProperties.Mode.APPLY && settings.isEnabled() && !frozen
                 && inFlight == null && (cooldown == null || !now.isBefore(cooldown));

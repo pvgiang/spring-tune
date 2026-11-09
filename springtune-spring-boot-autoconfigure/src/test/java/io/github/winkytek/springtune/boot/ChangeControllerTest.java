@@ -660,6 +660,172 @@ class ChangeControllerTest {
         }
     }
 
+    // ------------------------------------------------------------------ races around the unlocked re-read (review 5)
+
+    /** Starts {@code n} applies on their own threads and waits until all of them block in the server-limit read. */
+    private List<java.util.concurrent.Future<ChangeResponse>> appliesBlockedInTheRead(
+            java.util.concurrent.ExecutorService http, int n) throws InterruptedException {
+        serverReadGate = new java.util.concurrent.CountDownLatch(1);
+        long expected = writer.values.get("maximumPoolSize");
+        List<java.util.concurrent.Future<ChangeResponse>> pending = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            pending.add(http.submit(() -> controller.handle(new ChangeRequest("apply", RULE, KNOB, expected,
+                    "threads wait for connections"), OPS)));
+        }
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (serverReads.get() < n && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertThat(serverReads).as("applies blocked in the server-limit read").hasValue(n);
+        return pending;
+    }
+
+    @Test
+    void twoAppliesThatBothPassedThePreChecksAndReadTheLimitStillMakeOneChange() throws Exception {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            List<java.util.concurrent.Future<ChangeResponse>> pending = appliesBlockedInTheRead(http, 2);
+            serverReadGate.countDown();
+            List<String> codes = new ArrayList<>();
+            for (java.util.concurrent.Future<ChangeResponse> f : pending) {
+                codes.add(f.get(5, java.util.concurrent.TimeUnit.SECONDS).code());
+            }
+            assertThat(codes).containsExactlyInAnyOrder("OK", "CHANGE_IN_FLIGHT");
+            assertThat(writer.writes).hasSize(1);
+            assertThat(controller.state(KNOB)).isEqualTo(State.VERIFYING);
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    @Test
+    void freezeArrivingDuringTheReadWinsOverTheApply() throws Exception {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            java.util.concurrent.Future<ChangeResponse> pending = appliesBlockedInTheRead(http, 1).get(0);
+            assertThat(controller.handle(new ChangeRequest("freeze", null, null, null, "incident"), OPS).status())
+                    .isEqualTo(200);
+            serverReadGate.countDown();
+            assertThat(pending.get(5, java.util.concurrent.TimeUnit.SECONDS).code()).isEqualTo("FROZEN");
+            assertThat(writer.writes).isEmpty();
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    @Test
+    void stateChangedDuringTheReadIsJudgedAfterTheRead() throws Exception {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            // apply mode switched off while the read runs
+            java.util.concurrent.Future<ChangeResponse> disabled = appliesBlockedInTheRead(http, 1).get(0);
+            properties.getApply().setEnabled(false);
+            serverReadGate.countDown();
+            assertThat(disabled.get(5, java.util.concurrent.TimeUnit.SECONDS).code()).isNotEqualTo("OK");
+            properties.getApply().setEnabled(true);
+
+            // someone else changed the live value while the read runs: the CAS sees the new value
+            serverReads.set(0);
+            java.util.concurrent.Future<ChangeResponse> stale = appliesBlockedInTheRead(http, 1).get(0);
+            synchronized (controller) {
+                writer.values.put("maximumPoolSize", 11L);
+            }
+            serverReadGate.countDown();
+            assertThat(stale.get(5, java.util.concurrent.TimeUnit.SECONDS).code()).isEqualTo("STALE_EXPECTED_CURRENT");
+
+            // the limit read is the one used: a limit lowered at the read refuses the raise
+            synchronized (controller) {
+                writer.values.put("maximumPoolSize", 10L);
+            }
+            serverReads.set(0);
+            serverLimit = known(10, clock.instant());
+            java.util.concurrent.Future<ChangeResponse> lowered = appliesBlockedInTheRead(http, 1).get(0);
+            serverReadGate.countDown();
+            assertThat(lowered.get(5, java.util.concurrent.TimeUnit.SECONDS).code()).isEqualTo("BUDGET_EXCEEDS_SERVER");
+            assertThat(writer.writes).isEmpty();
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    /** A clock that runs one action right after the next reading (to land between two readings of one request). */
+    private static final class HookClock extends java.time.Clock {
+        private final java.time.Clock delegate;
+        private volatile Runnable afterNextReading;
+
+        HookClock(java.time.Clock delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return delegate.getZone();
+        }
+
+        @Override
+        public java.time.Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            Instant now = delegate.instant();
+            Runnable hook = afterNextReading;
+            afterNextReading = null;
+            if (hook != null) {
+                hook.run();
+            }
+            return now;
+        }
+    }
+
+    /**
+     * TOCTOU: the pre-check that decides whether the limit is worth reading ran while the knob was still cooling
+     * down (so nothing was read), and the decision a moment later found the cooldown over. The raise must still be
+     * checked against a freshly read limit, not approved with no check at all.
+     */
+    @Test
+    void cooldownEndingBetweenThePreCheckAndTheDecisionStillChecksAFreshLimit() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        properties.getApply().setCooldownAfterRevert(Duration.ofSeconds(400));
+        HookClock hook = new HookClock(clock);
+        controller = new ChangeController(properties, hook, () -> knobs, this::recommendations, Optional.of(13),
+                events::add);
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        assertThat(apply().status()).isEqualTo(200);
+        controller.handle(new ChangeRequest("revert", null, KNOB, null, "test"), OPS);
+        ticks(31);
+        clock.advance(Duration.ofSeconds(90).minusMillis(1)); // 1 ms before the cooldown ends
+        assertThat(apply().code()).isEqualTo("COOLDOWN");
+        int readsBefore = serverReads.get();
+
+        serverLimit = known(10, clock.instant()); // max_connections lowered meanwhile
+        hook.afterNextReading = () -> clock.advance(Duration.ofMillis(1));
+        ChangeResponse response = apply();
+        // Decided either before the cooldown ended (no read needed) or after it with a fresh read; never approved
+        // on a read that was skipped because the knob was still cooling down at an earlier check.
+        assertThat(response.code()).as(response.message()).isIn("COOLDOWN", "BUDGET_EXCEEDS_SERVER");
+        assertThat(serverReads.get()).isEqualTo(response.code().equals("COOLDOWN") ? readsBefore : readsBefore + 1);
+        assertThat(apply().code()).isEqualTo("BUDGET_EXCEEDS_SERVER");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+    }
+
     @Test
     void invalidGuardrailSettingsAreRejected() {
         properties.getApply().setMaxStep(0);
