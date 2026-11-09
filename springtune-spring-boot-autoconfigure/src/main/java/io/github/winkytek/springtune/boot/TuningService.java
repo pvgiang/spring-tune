@@ -35,7 +35,7 @@ public class TuningService {
     private final boolean hikariPresent;
     private final boolean micrometerPresent;
     private volatile List<TunedComponent> components;
-    private volatile List<Recommendation> recommendations = List.of();
+    private volatile TunedComponent.Evaluation latest = new TunedComponent.Evaluation(List.of(), List.of());
     private volatile ChangeController changes;
 
     public TuningService(SpringTuneProperties properties, ListableBeanFactory beanFactory, Clock clock) {
@@ -162,7 +162,7 @@ public class TuningService {
             }
         }
         if (properties.getMode() != SpringTuneProperties.Mode.OBSERVE) {
-            recommendations = evaluate(now);
+            latest = evaluateAll(now);
         }
         ChangeController controller = changes;
         if (controller != null) {
@@ -172,23 +172,40 @@ public class TuningService {
 
     /** Recomputes recommendations from the retained samples (also used by apply mode to re-check a request). */
     List<Recommendation> evaluate(Instant now) {
+        return evaluateAll(now).recommendations();
+    }
+
+    /** One pass over every component: recommendations and the per-rule statuses that produced them. */
+    TunedComponent.Evaluation evaluateAll(Instant now) {
+        List<RuleEvaluation> rules = new ArrayList<>();
         List<Recommendation> next = new ArrayList<>();
         for (TunedComponent component : components()) {
             try {
-                next.addAll(component.recommend(now));
+                TunedComponent.Evaluation evaluation = component.evaluate(now);
+                rules.addAll(evaluation.rules());
+                next.addAll(evaluation.recommendations());
             } catch (RuntimeException ex) {
                 LOG.warn("SpringTune could not evaluate " + component.id(), ex);
             }
         }
-        return List.copyOf(next);
+        return new TunedComponent.Evaluation(rules, next);
     }
 
     public List<Recommendation> recommendations() {
-        return recommendations;
+        return latest.recommendations();
+    }
+
+    /** Per-rule statuses of the latest sampler tick (empty in observe mode and before the first tick). */
+    public List<RuleEvaluation> evaluations() {
+        return latest.rules();
     }
 
     /** Apply plans for the current INCREASE/DECREASE recommendations. */
     public List<ApplyPlan> applyPlans() {
+        return applyPlans(recommendations());
+    }
+
+    private List<ApplyPlan> applyPlans(List<Recommendation> recommendations) {
         List<ApplyPlan> plans = new ArrayList<>();
         for (Recommendation rec : recommendations) {
             components().stream()
@@ -210,6 +227,7 @@ public class TuningService {
     }
 
     public TuningSnapshot snapshot() {
+        TunedComponent.Evaluation current = latest;
         List<TuningSnapshot.Component> views = new ArrayList<>();
         for (TunedComponent component : components()) {
             views.add(new TuningSnapshot.Component(component.id(), component.sampleCount(), component.knobs(),
@@ -221,6 +239,7 @@ public class TuningService {
         return new TuningSnapshot(properties.getMode().name(), apply, clock.instant(),
                 new TuningSnapshot.Budget(budget.getDatabaseMaxConnections(), budget.getMaxReplicas(),
                         budget.getSafetyFactor(), budgetCap.orElse(null)),
-                views, recommendations, applyPlans(), apply ? controller.view() : null);
+                views, current.recommendations(), current.rules(), applyPlans(current.recommendations()),
+                apply ? controller.view() : null);
     }
 }

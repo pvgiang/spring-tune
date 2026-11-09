@@ -10,6 +10,9 @@ import java.util.Map;
  * Payload of {@code GET /actuator/tuning}.
  *
  * @param applySupported whether this process accepts {@code POST /actuator/tuning} ({@code mode=apply})
+ * @param evaluations    every rule's status per component at the latest sampler tick ({@link RuleEvaluation}):
+ *                       tells an empty {@code recommendations} apart (collecting, meter missing, quiet); empty in
+ *                       observe mode and before the first tick
  * @param applyPlans     how to apply each INCREASE/DECREASE recommendation (advise and apply mode)
  * @param apply          apply-mode state (guardrails, writable knobs, audit), or {@code null} in other modes
  */
@@ -20,8 +23,20 @@ public record TuningSnapshot(
         Budget budget,
         List<Component> components,
         List<Recommendation> recommendations,
+        List<RuleEvaluation> evaluations,
         List<ApplyPlan> applyPlans,
         Apply apply) {
+
+    public TuningSnapshot {
+        evaluations = evaluations == null ? List.of() : List.copyOf(evaluations);
+    }
+
+    /** Without evaluations (as before they existed). */
+    public TuningSnapshot(String mode, boolean applySupported, Instant generatedAt, Budget budget,
+            List<Component> components, List<Recommendation> recommendations, List<ApplyPlan> applyPlans,
+            Apply apply) {
+        this(mode, applySupported, generatedAt, budget, components, recommendations, List.of(), applyPlans, apply);
+    }
 
     public record Component(String id, int samples, List<Knob> knobs, Map<String, Object> signals) {
     }

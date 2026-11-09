@@ -166,8 +166,13 @@ final class ExecutorComponent implements TunedComponent {
 
     @Override
     public List<Recommendation> recommend(Instant now) {
-        return ExecutorAdvisor.advise(knobPrefix(),
-                samples.covering(now, properties.getExecutor().getWindow(), properties.getSampling().getInterval()),
-                properties.getExecutor(), now).map(List::of).orElse(List.of());
+        return evaluate(now).recommendations();
+    }
+
+    @Override
+    public Evaluation evaluate(Instant now) {
+        return ExecutorAdvisor.evaluate(id(), knobPrefix(),
+                samples.coverage(now, properties.getExecutor().getWindow(), properties.getSampling().getInterval()),
+                properties.getExecutor(), now);
     }
 }
