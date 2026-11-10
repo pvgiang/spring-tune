@@ -20,8 +20,8 @@ jobs:
       matrix:
         pass: [1, 2, 3]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -32,7 +32,7 @@ jobs:
           -Dspringtune.it.requireDocker=true
       - name: Upload results and server logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nightly-loadtests-pass-${{ matrix.pass }}
           path: |
@@ -45,8 +45,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -73,7 +73,7 @@ jobs:
           test "$failures" -eq 0
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nightly-hikari-apply-reports
           path: springtune-spring-boot-autoconfigure/target/nightly-reports/
