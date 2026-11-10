@@ -16,6 +16,438 @@ SpringTune has two parts that share one model and one set of rule IDs, plus an o
 | **`springtune-spring-boot-starter`** | Runtime | `/actuator/tuning` with live knobs (HikariCP, `ThreadPoolTaskExecutor`), signals and **explained, budget-capped recommendations**. Read-only by default; experimental guarded `apply` mode (one reviewed change, verified and auto-reverted) is opt-in. |
 | **`springtune-limiter`** (opt-in) | Runtime | Adaptive concurrency limiter (servlet and WebFlux): fast `503` + `Retry-After` instead of a queue when a downstream saturates. Off by default; shadow mode (count, never reject) until you enforce. [Docs](docs/limiter.md) |
 
+## What it looks like
+
+Every output below is real and unedited except where marked *trimmed*. It was produced by
+[`scripts/readme/capture-check-runs.sh`](scripts/readme/capture-check-runs.sh) and
+[`capture-runtime-runs.sh`](scripts/readme/capture-runtime-runs.sh). The raw outputs are in
+[`docs/readme-runs/`](docs/readme-runs/).
+
+- **Check:** the released 0.4.1 CLI (`springtune-cli-0.4.1.jar`, verified against the v0.4.1 release's
+  `SHA256SUMS`), run on copies of [examples/broken-config-ci](examples/broken-config-ci).
+- **Runtime:** the [sample app](springtune-samples/broken-config) on Spring Boot 3.5.16, under load from `curl`.
+  - It runs the starter from this branch, 0.4.2-SNAPSHOT. `evaluations` and `/actuator/tuning/report` arrive in the
+    release after 0.4.1; the recommendation rules are unchanged since 0.4.0.
+  - The saturation window is shortened from 5 minutes to 1 minute (`springtune.hikari.window=1m`) so each case takes
+    a minute. All other settings are defaults.
+
+### In CI: the build fails on the exact line, with the fix
+
+The demo service as shipped. Its `springtune.yml` sets `failOn: WARNING`.
+
+```console
+$ java -jar springtune-cli-0.4.1.jar check .
+SpringTune 0.4.1: 1 module(s), 5 finding(s) (0 error, 4 warning, 1 info), 0 suppressed
+
+WARNING ST-HTTP-001  src/main/java/com/example/orders/InventoryClient.java:10:39
+        new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite).
+        Fix: Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HTTP-001.md
+
+WARNING ST-HIKARI-002  src/main/resources/application.yml:1
+        leakDetectionThreshold is not set (HikariCP default 0 = disabled).
+        Fix: Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HIKARI-002.md
+
+INFO    ST-TX-001  src/main/resources/application.yml:1
+        No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.
+        Fix: Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-TX-001.md
+
+WARNING ST-HIKARI-001  src/main/resources/application.yml:9:27
+        connectionTimeout is 30000 ms, above the 5000 ms threshold.
+        Fix: Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HIKARI-001.md
+
+WARNING ST-TOMCAT-001  src/main/resources/application.yml:15:12
+        Tomcat may run 400 request threads against 10 pooled connections, a ratio of 40:1 (threshold 10:1).
+        Fix: Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-TOMCAT-001.md
+
+Not evaluated (2):
+  - [.] ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml
+  - [.] ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml
+
+FAILED: 4 finding(s) at or above WARNING. Fix them or suppress with a reason in springtune.yml.
+$ echo $?
+1
+```
+
+The four other cases a team meets in its first week:
+
+| Case | What changes | Result | Exit |
+|---|---|---|---|
+| After the four fixes | the one-line fixes from the [demo README](examples/broken-config-ci#what-fails-and-how-to-fix-it) | 0 warnings; the INFO about timeouts stays | 0 |
+| Accept a finding instead | a suppression **with a required reason** in `springtune.yml` | the reason is printed; the other 3 warnings still fail | 1 |
+| Config lives in Config Server | `spring.config.import: configserver:...` | **not evaluated, and why**: it never guesses | 0 |
+| Declare the database limit | `databases[].maxConnections: 100`, `maxReplicas: 6`, pool 20 | ERROR: 20 × 6 = 120 connections > 80 usable | 1 |
+
+<details><summary><b>After the four fixes</b> (exit 0)</summary>
+
+```console
+$ java -jar springtune-cli-0.4.1.jar check .
+SpringTune 0.4.1: 1 module(s), 1 finding(s) (0 error, 0 warning, 1 info), 0 suppressed
+
+INFO    ST-TX-001  src/main/resources/application.yml:1
+        No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.
+        Fix: Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-TX-001.md
+
+Not evaluated (2):
+  - [.] ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml
+  - [.] ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml
+$ echo $?
+0
+```
+</details>
+
+<details><summary><b>Accept a finding instead</b> (suppressed, with its reason)</summary>
+
+```yaml
+# springtune.yml
+suppress:
+  - rule: ST-TOMCAT-001
+    reason: "Most endpoints never touch the database; reviewed 2026-11"   # required
+```
+
+```console
+$ java -jar springtune-cli-0.4.1.jar check .
+SpringTune 0.4.1: 1 module(s), 4 finding(s) (0 error, 3 warning, 1 info), 1 suppressed
+
+WARNING ST-HTTP-001  src/main/java/com/example/orders/InventoryClient.java:10:39
+        new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite).
+        Fix: Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HTTP-001.md
+
+WARNING ST-HIKARI-002  src/main/resources/application.yml:1
+        leakDetectionThreshold is not set (HikariCP default 0 = disabled).
+        Fix: Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HIKARI-002.md
+
+INFO    ST-TX-001  src/main/resources/application.yml:1
+        No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.
+        Fix: Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-TX-001.md
+
+WARNING ST-HIKARI-001  src/main/resources/application.yml:9:27
+        connectionTimeout is 30000 ms, above the 5000 ms threshold.
+        Fix: Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HIKARI-001.md
+
+Suppressed (1):
+  - ST-TOMCAT-001 src/main/resources/application.yml:15:12: Most endpoints never touch the database; reviewed 2026-11
+
+Not evaluated (2):
+  - [.] ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml
+  - [.] ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml
+
+FAILED: 3 finding(s) at or above WARNING. Fix them or suppress with a reason in springtune.yml.
+$ echo $?
+1
+```
+</details>
+
+<details><summary><b>Config lives in Config Server</b> (not evaluated, and why)</summary>
+
+```yaml
+# src/main/resources/application.yml
+spring:
+  application:
+    name: payments-service
+  config:
+    import: "configserver:http://config:8888"
+```
+
+```console
+$ java -jar springtune-cli-0.4.1.jar check .
+SpringTune 0.4.1: 1 module(s), 0 finding(s) (0 error, 0 warning, 0 info), 0 suppressed
+
+Not evaluated (1):
+  - [.] Local config is incomplete: spring.config.import loads remote configuration (configserver:http://config:8888); rules that report missing properties were not evaluated for this module
+$ echo $?
+0
+```
+</details>
+
+<details><summary><b>Declare the database limit</b> (the connection budget: ERROR)</summary>
+
+```yaml
+# springtune.yml (added), with spring.datasource.hikari.maximum-pool-size: 20
+databases:
+  - name: orders-db
+    maxConnections: 100
+services:
+  - path: .
+    maxReplicas: 6
+```
+
+```console
+$ java -jar springtune-cli-0.4.1.jar check . --fail-on ERROR
+SpringTune 0.4.1: 1 module(s), 6 finding(s) (1 error, 4 warning, 1 info), 0 suppressed
+
+WARNING ST-HTTP-001  src/main/java/com/example/orders/InventoryClient.java:10:39
+        new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite).
+        Fix: Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HTTP-001.md
+
+WARNING ST-HIKARI-002  src/main/resources/application.yml:1
+        leakDetectionThreshold is not set (HikariCP default 0 = disabled).
+        Fix: Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HIKARI-002.md
+
+INFO    ST-TX-001  src/main/resources/application.yml:1
+        No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run.
+        Fix: Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-TX-001.md
+
+ERROR   ST-HIKARI-004  src/main/resources/application.yml:8:26
+        Database 'orders-db' allows 80 pool connections (max_connections 100 x safety factor 0.8) but its services can open 120: . 20x6 [replicas from springtune.yml services[path=.]].
+        Fix: Lower maximum-pool-size (proportional share for this service: 13), cap maxReplicas, or raise max_connections / add a connection proxy such as PgBouncer.
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HIKARI-004.md
+
+WARNING ST-HIKARI-001  src/main/resources/application.yml:9:27
+        connectionTimeout is 30000 ms, above the 5000 ms threshold.
+        Fix: Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-HIKARI-001.md
+
+WARNING ST-TOMCAT-001  src/main/resources/application.yml:15:12
+        Tomcat may run 400 request threads against 20 pooled connections, a ratio of 20:1 (threshold 10:1).
+        Fix: Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).
+        Docs: https://github.com/pvgiang/spring-tune/blob/main/docs/rules/ST-TOMCAT-001.md
+
+Not evaluated (1):
+  - [.] ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml
+
+FAILED: 1 finding(s) at or above ERROR. Fix them or suppress with a reason in springtune.yml.
+$ echo $?
+1
+```
+</details>
+
+### At runtime: advice with its reason, nothing changed
+
+Add the starter and expose `tuning`, then read `GET /actuator/tuning`. The sample's budget is 100 connections × 0.8
+across 6 replicas, which caps the pool at **13**. The same kind of load gives a different answer depending on what
+the signals say:
+
+| Case | Pool | Load (callers × connection hold time) | `GET /actuator/tuning` says |
+|---|---|---|---|
+| A: just started | 20 | none | no recommendation; each rule `COLLECTING`, 10 of 58 s seen |
+| B: pool is the bottleneck, over budget | 20 | 60 × 50 ms | `ST-REC-HIKARI-001` **HOLD**: do not raise, already above the budget cap of 13 |
+| C: slow queries | 20 | 60 × 2 s | `ST-REC-HIKARI-002` **HOLD**: do not raise, the database work is the bottleneck |
+| D: pool is the bottleneck, within budget | 8 | 40 × 50 ms | `ST-REC-HIKARI-001` **INCREASE 8 → 10**, within the cap of 13 |
+
+Nothing is applied in any case: the default mode is `advise`.
+
+<details><summary><b>A: just started</b> (trimmed: the pool's evaluations)</summary>
+
+```json
+{
+  "recommendations": [],
+  "evaluations": [
+    {
+      "component": "hikari:orders-pool",
+      "ruleId": "ST-REC-HIKARI-001",
+      "status": "COLLECTING",
+      "seenSamples": 6,
+      "minSamples": 3,
+      "seenSeconds": 10,
+      "neededSeconds": 58,
+      "missingMeters": null,
+      "supersededBy": null
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-002",
+      "status": "COLLECTING"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-004",
+      "status": "COLLECTING"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-003",
+      "status": "COLLECTING"
+    }
+  ]
+}
+```
+</details>
+
+<details><summary><b>B: threads wait, connections come back in 50 ms, pool already over budget</b> (trimmed)</summary>
+
+```json
+{
+  "recommendations": [
+    {
+      "ruleId": "ST-REC-HIKARI-001",
+      "action": "HOLD",
+      "currentValue": 20,
+      "recommendedValue": 20,
+      "reason": "Do not raise the pool. It is the bottleneck (threads wait while connections are returned in 50 ms), but it is already above its connection budget cap of 13 (current 20), so the fleet can exceed the database's max_connections at peak scale (ST-HIKARI-004). Reduce per-request connection use, cap replicas, or raise the database's max_connections.",
+      "evidence": {
+        "window": "1m",
+        "samples": "30",
+        "samplesWithWaitingThreads": "100%",
+        "maxWaitingThreads": "39",
+        "meanConnectionHoldTime": "50 ms",
+        "meanAcquireTime": "92 ms",
+        "slowHoldThreshold": "500 ms",
+        "budgetCap": "13"
+      },
+      "confidence": "MEDIUM"
+    }
+  ],
+  "evaluations": [
+    {
+      "ruleId": "ST-REC-HIKARI-001",
+      "status": "RECOMMENDING"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-002",
+      "status": "QUIET"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-004",
+      "status": "QUIET"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-003",
+      "status": "COLLECTING"
+    }
+  ]
+}
+```
+</details>
+
+<details><summary><b>C: threads wait because each connection is held too long</b> (trimmed)</summary>
+
+```json
+{
+  "recommendations": [
+    {
+      "ruleId": "ST-REC-HIKARI-002",
+      "action": "HOLD",
+      "currentValue": 20,
+      "recommendedValue": 20,
+      "reason": "Do not raise the pool. Threads wait for connections because each connection is held for 2000 ms on average (threshold 500 ms). The database work is the bottleneck, and more connections would add load to an already busy database. Look for slow queries, long transactions or remote calls made inside transactions.",
+      "evidence": {
+        "window": "1m",
+        "samples": "30",
+        "samplesWithWaitingThreads": "100%",
+        "maxWaitingThreads": "40",
+        "meanConnectionHoldTime": "2000 ms",
+        "meanAcquireTime": "4013 ms",
+        "slowHoldThreshold": "500 ms"
+      },
+      "confidence": "HIGH"
+    }
+  ],
+  "evaluations": [
+    {
+      "ruleId": "ST-REC-HIKARI-001",
+      "status": "QUIET"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-002",
+      "status": "RECOMMENDING"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-004",
+      "status": "QUIET"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-003",
+      "status": "COLLECTING"
+    }
+  ]
+}
+```
+</details>
+
+<details><summary><b>D: the same short holds on a pool of 8</b> (trimmed), and the shareable report</summary>
+
+```json
+{
+  "recommendations": [
+    {
+      "ruleId": "ST-REC-HIKARI-001",
+      "action": "INCREASE",
+      "currentValue": 8,
+      "recommendedValue": 10,
+      "reason": "Raise maximumPoolSize from 8 to 10. Threads waited for a connection in 100% of samples over 1m, while connections were returned quickly (50 ms average hold), so the pool size is the bottleneck. This stays within the connection budget cap of 13.",
+      "evidence": {
+        "window": "1m",
+        "samples": "30",
+        "samplesWithWaitingThreads": "100%",
+        "maxWaitingThreads": "32",
+        "meanConnectionHoldTime": "50 ms",
+        "meanAcquireTime": "194 ms",
+        "slowHoldThreshold": "500 ms",
+        "budgetCap": "13"
+      },
+      "confidence": "HIGH"
+    }
+  ],
+  "evaluations": [
+    {
+      "ruleId": "ST-REC-HIKARI-001",
+      "status": "RECOMMENDING"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-002",
+      "status": "QUIET"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-004",
+      "status": "QUIET"
+    },
+    {
+      "ruleId": "ST-REC-HIKARI-003",
+      "status": "COLLECTING"
+    }
+  ]
+}
+```
+
+`GET /actuator/tuning/report` turns the same state into something you can paste into a
+[recommendation feedback](https://github.com/pvgiang/spring-tune/issues/new?template=3-recommendation-feedback.yml)
+issue. It is built only from SpringTune's own rule IDs, numbers, enum values and pseudonyms such as `hikari#1`, and
+each recommendation has a `feedbackUrl` that pre-fills the form. Trimmed below: `components` dropped,
+`feedbackUrl` shortened.
+
+```json
+{
+  "format": "springtune-report/1",
+  "springtuneVersion": "0.4.2-SNAPSHOT",
+  "springBootVersion": "3.5.16",
+  "mode": "ADVISE",
+  "recommendations": [
+    {
+      "ruleId": "ST-REC-HIKARI-001",
+      "knob": "hikari#1.maximumPoolSize",
+      "action": "INCREASE",
+      "currentValue": 8,
+      "recommendedValue": 10,
+      "confidence": "HIGH",
+      "evidence": {
+        "window": "1m",
+        "samples": "30",
+        "samplesWithWaitingThreads": "100%",
+        "maxWaitingThreads": "32",
+        "meanConnectionHoldTime": "50 ms",
+        "meanAcquireTime": "194 ms",
+        "slowHoldThreshold": "500 ms",
+        "budgetCap": "13"
+      },
+      "createdAt": "2026-11-10T14:03:11.788116935Z",
+      "feedbackUrl": "https://github.com/pvgiang/spring-tune/issues/new?template=3-recommendation-feedback.yml&title=%5Brecommendation%5D%20ST…"
+    }
+  ],
+  "omitted": ["componentIds", "knobIds", "knobSources", "signals", "recommendation.reason", "recommendation.relatedRuleIds", "recommendation.evidence.nonNumeric", "applyPlans", "apply.frozenReason", "apply.requiredRole", "apply.guardrails", "apply.knobs", "audit.who", "audit.why", "audit.reasons", "audit.evidence", "audit.capacity"]
+}
+```
+</details>
+
 ## Quick start
 
 Everything below is SpringTune **0.4.1**, groupId `io.github.winkytek.springtune` (no rule changes from 0.4.0, so
