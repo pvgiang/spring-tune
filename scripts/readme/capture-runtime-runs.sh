@@ -5,13 +5,14 @@
 #
 #   mvn -q install -DskipTests -Dinvoker.skip -pl springtune-samples/broken-config -am
 #   scripts/readme/capture-runtime-runs.sh OUT_DIR
+#   JAR=path/to/springtune-sample-broken-config-0.4.1.jar scripts/readme/capture-runtime-runs.sh OUT_DIR   # another build
 #
 # The saturation window is shortened from 5 minutes to 1 minute (springtune.hikari.window=1m) so the run takes
 # about 8 minutes; rules and thresholds are otherwise the defaults. Needs curl and jq.
 set -euo pipefail
 OUT="$1"; mkdir -p "$OUT"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-JAR="$(ls "$ROOT"/springtune-samples/broken-config/target/springtune-sample-broken-config-*.jar | head -1)"
+JAR="${JAR:-$(ls "$ROOT"/springtune-samples/broken-config/target/springtune-sample-broken-config-*.jar | head -1)}"
 PORT="${PORT:-18081}"; BASE="http://localhost:$PORT"
 APP=""
 
@@ -45,6 +46,6 @@ load_stop; stop_app
 # Pool of 8: inside the budget cap.
 start_app app-pool8.log --spring.datasource.hikari.maximum-pool-size=8
 load_start 40 50; sleep 80; snap d-short-holds-pool8   # D: 40 callers, 50 ms holds
-curl -fs "$BASE/actuator/tuning/report" > "$OUT/d-report.json"
+curl -fs "$BASE/actuator/tuning/report" > "$OUT/d-report.json" || rm -f "$OUT/d-report.json"   # 0.4.2+ only
 load_stop; stop_app
 echo "outputs in $OUT"

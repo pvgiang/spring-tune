@@ -1,0 +1,45 @@
+=== mvn verify exit code: 1
+[INFO] --- springtune:0.4.1:check (default) @ orders-service ---
+[INFO] SpringTune 0.4.1: 5 finding(s), 0 suppressed
+[WARNING] ST-HTTP-001 src/main/java/com/example/orders/InventoryClient.java:10:39: new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite). Fix: Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.
+[WARNING] ST-HIKARI-002 src/main/resources/application.yml:1: leakDetectionThreshold is not set (HikariCP default 0 = disabled). Fix: Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.
+[INFO] ST-TX-001 src/main/resources/application.yml:1: No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run. Fix: Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).
+[WARNING] ST-HIKARI-001 src/main/resources/application.yml:9:27: connectionTimeout is 30000 ms, above the 5000 ms threshold. Fix: Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).
+[WARNING] ST-TOMCAT-001 src/main/resources/application.yml:15:12: Tomcat may run 400 request threads against 10 pooled connections, a ratio of 40:1 (threshold 10:1). Fix: Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).
+[INFO] Not evaluated: ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml
+[INFO] Not evaluated: ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml
+[INFO] Report: <project>/target/springtune/springtune-report.md
+[INFO] Report: <project>/target/springtune/springtune-report.sarif
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[ERROR] Failed to execute goal io.github.winkytek.springtune:springtune-maven-plugin:0.4.1:check (default) on project orders-service: SpringTune: 4 finding(s) at or above WARNING. Fix them or suppress them with a reason in springtune.yml (or set -Dspringtune.failOn=NONE). -> [Help 1]
+=== gradle check exit code: 1
+> Task :springtuneCheck
+SpringTune 0.4.1: 5 finding(s), 0 suppressed
+WARNING ST-HTTP-001 src/main/java/com/example/orders/InventoryClient.java:10:39: new RestTemplate() uses SimpleClientHttpRequestFactory with no connect or read timeout (infinite). Fix: Build it with RestTemplateBuilder.connectTimeout(...).readTimeout(...), or pass a request factory with timeouts set.
+WARNING ST-HIKARI-002 src/main/resources/application.yml:1: leakDetectionThreshold is not set (HikariCP default 0 = disabled). Fix: Set spring.datasource.hikari.leak-detection-threshold slightly above your longest legitimate connection hold time, e.g. 30000-60000 ms. HikariCP then logs the borrowing stack trace.
+INFO ST-TX-001 src/main/resources/application.yml:1: No transaction or query timeout is configured: a slow query holds its pooled connection for as long as the database lets it run. Fix: Set spring.transaction.default-timeout (e.g. 30s) and/or a JDBC query timeout (spring.jdbc.template.query-timeout, or jakarta.persistence.query.timeout for JPA).
+WARNING ST-HIKARI-001 src/main/resources/application.yml:9:27: connectionTimeout is 30000 ms, above the 5000 ms threshold. Fix: Set spring.datasource.hikari.connection-timeout below your upstream request timeout, at most 5000 ms (e.g. 2000-5000).
+WARNING ST-TOMCAT-001 src/main/resources/application.yml:15:12: Tomcat may run 400 request threads against 10 pooled connections, a ratio of 40:1 (threshold 10:1). Fix: Bound concurrency to what the database can serve: lower server.tomcat.threads.max, or raise the pool within the connection budget (ST-HIKARI-004). Keep connectionTimeout short (ST-HIKARI-001).
+Not evaluated: ST-HIKARI-003 not evaluated: declare databases[].idleTimeout (e.g. MySQL wait_timeout) in springtune.yml
+Not evaluated: ST-HIKARI-004 not evaluated: declare databases[].maxConnections in springtune.yml
+SpringTune report: file://<project>/build/springtune/springtune-report.md
+SpringTune report: file://<project>/build/springtune/springtune-report.sarif
+
+> Task :springtuneCheck FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':springtuneCheck'.
+> There was a failure while executing work items
+   > A failure occurred while executing io.github.winkytek.springtune.gradle.CheckWorkAction
+      > SpringTune: 4 finding(s) at or above WARNING in :springtuneCheck. Fix them or suppress them with a reason in springtune.yml (or run with -Pspringtune.failOn=NONE).
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 16s
