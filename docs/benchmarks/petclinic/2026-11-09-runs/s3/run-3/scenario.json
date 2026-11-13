@@ -1,0 +1,11 @@
+{
+  "scenario": "S3",
+  "run": 3,
+  "rate_per_second": 50,
+  "seed": 63003,
+  "load_seconds": 450,
+  "poll_seconds": 30,
+  "app_args": "",
+  "springtune_version": "0.4.0",
+  "lock_holder": "LOCK TABLE owners IN ACCESS EXCLUSIVE MODE for 2.85 s of every 3 s"
+}

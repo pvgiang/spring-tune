@@ -1,0 +1,5 @@
+{"rate_per_second":100,"polls":30,"polls_with_pending":1,"share":0.03333333333333333}
+{"rate_per_second":200,"polls":30,"polls_with_pending":4,"share":0.13333333333333333}
+{"rate_per_second":400,"polls":30,"polls_with_pending":19,"share":0.6333333333333333}
+{"rate_per_second":800,"polls":30,"polls_with_pending":6,"share":0.2}
+{"rate_per_second":1200,"polls":30,"polls_with_pending":7,"share":0.23333333333333334}

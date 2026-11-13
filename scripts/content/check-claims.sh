@@ -6,14 +6,14 @@
 #
 # Fails (exit 1) on:
 #   1. banned wording: apply mode must never be oversold;
-#   2. an install command that names a SpringTune version other than $EXPECTED_VERSION (default 0.4.0):
+#   2. an install command that names a SpringTune version other than $EXPECTED_VERSION (default 0.4.1):
 #      Action refs and `version:` inputs, release download URLs, CLI jar names, Central paths, Gradle plugin ids,
 #      Maven <version> right after a springtune artifactId, groupId:artifactId:version coordinates;
 #   3. the pre-0.3.0 groupId io.github.winky.springtune.
 # Exit 2 on usage errors (a path that does not exist, nothing to scan).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-EXPECTED="${EXPECTED_VERSION:-0.4.0}"
+EXPECTED="${EXPECTED_VERSION:-0.4.1}"
 if [ "$#" -eq 0 ]; then set -- "$ROOT/docs/launch" "$ROOT/docs/deep-dives"; fi
 
 files=()

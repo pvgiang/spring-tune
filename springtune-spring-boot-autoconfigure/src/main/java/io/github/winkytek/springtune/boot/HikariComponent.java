@@ -7,6 +7,7 @@ import io.github.winkytek.springtune.model.Knob;
 import io.github.winkytek.springtune.model.Recommendation;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,6 +21,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * Reads a {@link HikariDataSource}. Never calls a setter: in apply mode the only write path is the
@@ -29,6 +32,8 @@ final class HikariComponent implements TunedComponent {
 
     /** Longest an apply waits for the server-limit re-read, whatever {@code connectionTimeout} says (0 = forever). */
     static final long MAX_SERVER_LIMIT_WAIT_MS = 30_000;
+
+    private static final Log LOG = LogFactory.getLog(HikariComponent.class);
 
     /** Reads the server's limit with a borrowed connection; {@link ServerConnectionLimit#read} except in tests. */
     @FunctionalInterface
@@ -93,8 +98,7 @@ final class HikariComponent implements TunedComponent {
         if (cached.status() == ServerConnectionLimit.Status.UNSUPPORTED) {
             return cached; // the product does not change while the pool runs
         }
-        long configured = dataSource.getHikariConfigMXBean().getConnectionTimeout();
-        long waitMs = configured <= 0 ? MAX_SERVER_LIMIT_WAIT_MS : Math.min(configured, MAX_SERVER_LIMIT_WAIT_MS);
+        long waitMs = serverLimitWaitMs();
         try {
             return startRead().get(waitMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
@@ -104,6 +108,42 @@ final class HikariComponent implements TunedComponent {
             return failedNow("interrupted while re-reading it");
         } catch (ExecutionException ex) {
             return failedNow("re-reading it failed: " + ex.getCause());
+        }
+    }
+
+    /**
+     * The bound of a server-limit read: how long an apply waits for it, and the network timeout of the connection
+     * the read borrows ({@link #boundNetworkTimeout}). The pool's {@code connectionTimeout}, at most
+     * {@value #MAX_SERVER_LIMIT_WAIT_MS} ms ({@code 0}, "wait forever", counts as that maximum).
+     */
+    long serverLimitWaitMs() {
+        long configured = dataSource.getHikariConfigMXBean().getConnectionTimeout();
+        return configured <= 0 ? MAX_SERVER_LIMIT_WAIT_MS : Math.min(configured, MAX_SERVER_LIMIT_WAIT_MS);
+    }
+
+    /**
+     * Bounds every socket read of the limit query on the borrowed connection to {@code timeoutMs}
+     * ({@link Connection#setNetworkTimeout}), so a read on a half-open TCP connection (pgjdbc's default
+     * {@code socketTimeout=0} waits for the kernel, ~15 min) ends with an I/O error instead of pinning the connection
+     * and the reader thread. HikariCP records the change (dirty bit) and restores the pool's own network timeout when
+     * the connection is returned, so nothing leaks into the pool; a read that timed out fails with a connection
+     * SQLState (08xxx), and HikariCP evicts that connection instead of returning it. A driver that cannot set it
+     * ({@link SQLFeatureNotSupportedException}, or an {@link AbstractMethodError} from a pre-JDBC-4.1 driver) keeps
+     * the previous behaviour: the apply still waits at most {@code timeoutMs}, but the read itself is unbounded.
+     *
+     * @return whether the bound was set
+     */
+    static boolean boundNetworkTimeout(Connection connection, long timeoutMs) throws SQLException {
+        try {
+            // HikariCP restores a changed network timeout on return only when its own probe (get, then set) worked
+            // for this pool. A driver that cannot report the timeout fails that probe, so a bound set here would
+            // never be restored and would cut every later query on the pooled connection: do not set it then.
+            connection.getNetworkTimeout();
+            connection.setNetworkTimeout(Runnable::run, (int) Math.min(timeoutMs, Integer.MAX_VALUE));
+            return true;
+        } catch (SQLFeatureNotSupportedException | AbstractMethodError ex) {
+            LOG.debug("SpringTune cannot bound the server-limit read with a network timeout: " + ex);
+            return false;
         }
     }
 
@@ -287,9 +327,12 @@ final class HikariComponent implements TunedComponent {
      * threads queuing for a saturated pool; it opens no connection outside the pool. Until a first read succeeds it
      * is retried after every tick; after that it is re-read before every apply ({@link #recheckServerLimit()}).
      * Returns the fresh result and updates the cached one; a failed re-read keeps the last known value, marked.
+     * The query is bounded by {@link #serverLimitWaitMs()} ({@link #boundNetworkTimeout}), so a hung read releases
+     * its connection within that bound.
      */
     private ServerConnectionLimit readServerLimit() {
         try (Connection connection = dataSource.getConnection()) {
+            boundNetworkTimeout(connection, serverLimitWaitMs());
             ServerConnectionLimit read = limitReader.read(connection).checkedAt(clock.instant());
             serverLimit = read;
             return read;
@@ -308,12 +351,20 @@ final class HikariComponent implements TunedComponent {
 
     @Override
     public List<Recommendation> recommend(Instant now) {
+        return evaluate(now).recommendations();
+    }
+
+    /** Recommendation and per-rule statuses from one {@link HikariAdvisor#evaluate} pass. */
+    @Override
+    public Evaluation evaluate(Instant now) {
         SpringTuneProperties.Hikari settings = properties.getHikari();
         Duration tolerance = properties.getSampling().getInterval();
         int current = dataSource.getHikariConfigMXBean().getMaximumPoolSize();
-        return HikariAdvisor.advise(knobId("maximumPoolSize"), current,
-                samples.covering(now, settings.getWindow(), tolerance),
-                samples.covering(now, settings.getLowUtilizationWindow(), tolerance),
-                budgetCap, settings, now).map(List::of).orElse(List.of());
+        List<String> missingMeters = HikariAdvisor.HOLD_TIME_METERS.stream()
+                .filter(meter -> timers.read(meter, poolName()).isEmpty()).toList();
+        return HikariAdvisor.evaluate(id(), knobId("maximumPoolSize"), current,
+                samples.coverage(now, settings.getWindow(), tolerance),
+                samples.coverage(now, settings.getLowUtilizationWindow(), tolerance),
+                budgetCap, settings, now, missingMeters);
     }
 }

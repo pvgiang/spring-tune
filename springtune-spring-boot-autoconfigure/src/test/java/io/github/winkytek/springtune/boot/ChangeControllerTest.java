@@ -826,6 +826,111 @@ class ChangeControllerTest {
         assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
     }
 
+    // ------------------------------------------------------------------ no read for a decrease (iteration 6 row 8)
+
+    @Test
+    void decreaseIsAppliedWithoutReadingTheServerLimitEvenWhenTheReadWouldNeverReturn() throws Exception {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        decreaseTo = 8L;
+        ticks(31);
+        serverReadGate = new java.util.concurrent.CountDownLatch(1); // the server never answers
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            ChangeResponse lowered = http.submit(() -> controller.handle(new ChangeRequest("apply",
+                    "ST-REC-HIKARI-003", KNOB, 10L, "idle"), OPS)).get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(lowered.status()).as(lowered.message()).isEqualTo(200);
+            assertThat(writer.values).containsEntry("maximumPoolSize", 8L);
+            assertThat(serverReads).as("server-limit reads for a decrease").hasValue(0);
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    @Test
+    void raiseStillReadsTheServerLimit() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(10, clock.instant());
+        ticks(31);
+        assertThat(apply().code()).isEqualTo("BUDGET_EXCEEDS_SERVER");
+        assertThat(serverReads).hasValue(1);
+        serverLimit = known(20, clock.instant());
+        assertThat(apply().status()).isEqualTo(200);
+        assertThat(serverReads).hasValue(2);
+    }
+
+    /**
+     * The recommendation flips from a decrease to a raise between two evaluations. The read decision and the guard
+     * must judge the same evaluation: either the decrease that was seen is applied (no read needed), or the raise is
+     * checked against a fresh limit or refused. A raise is never approved without a fresh read.
+     */
+    @Test
+    void recommendationFlippingFromDecreaseToRaiseNeverRaisesWithoutAFreshLimit() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        java.util.concurrent.atomic.AtomicInteger evaluations = new java.util.concurrent.atomic.AtomicInteger();
+        controller = new ChangeController(properties, clock, () -> knobs, now -> {
+            long current = writer.values.get("maximumPoolSize");
+            String rule = "ST-REC-HIKARI-003";
+            return evaluations.getAndIncrement() == 0
+                    ? List.of(new Recommendation(rule, KNOB, Action.DECREASE, current, 8, "idle", Map.of(),
+                            Confidence.MEDIUM, List.of(), now))
+                    : List.of(new Recommendation(rule, KNOB, Action.INCREASE, current, 13, "saturated", Map.of(),
+                            Confidence.HIGH, List.of(), now));
+        }, Optional.of(13), events::add);
+        serverLimit = known(5, clock.instant()); // any raise checked against it is BUDGET_EXCEEDS_SERVER
+        ticks(31);
+        ChangeResponse response = controller.handle(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L,
+                "flip"), OPS);
+        boolean raised = writer.values.get("maximumPoolSize") > 10;
+        assertThat(raised && serverReads.get() == 0).as("raised without a fresh server limit: " + response.message())
+                .isFalse();
+        assertThat(raised).as("raised against a limit of 5: " + response.message()).isFalse();
+        // This implementation decides in one hold from one evaluation: the decrease it saw, no read.
+        assertThat(response.status()).as(response.message()).isEqualTo(200);
+        assertThat(writer.values).containsEntry("maximumPoolSize", 8L);
+        assertThat(evaluations).hasValue(1);
+        assertThat(serverReads).hasValue(0);
+    }
+
+    /** The reverse flip: a raise reads, and the decision after the read is judged on a fresh evaluation. */
+    @Test
+    void recommendationFlippingFromRaiseToDecreaseDuringTheReadIsJudgedFresh() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        java.util.concurrent.atomic.AtomicInteger evaluations = new java.util.concurrent.atomic.AtomicInteger();
+        controller = new ChangeController(properties, clock, () -> knobs, now -> {
+            long current = writer.values.get("maximumPoolSize");
+            return evaluations.getAndIncrement() == 0
+                    ? List.of(new Recommendation(RULE, KNOB, Action.INCREASE, current, 13, "saturated", Map.of(),
+                            Confidence.HIGH, List.of(), now))
+                    : List.of(new Recommendation(RULE, KNOB, Action.DECREASE, current, 8, "idle", Map.of(),
+                            Confidence.MEDIUM, List.of(), now));
+        }, Optional.of(13), events::add);
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        ChangeResponse response = controller.handle(new ChangeRequest("apply", RULE, KNOB, 10L, "flip", 13L), OPS);
+        assertThat(serverReads).hasValue(1);
+        assertThat(evaluations).hasValue(2);
+        assertThat(response.code()).as(response.message()).isEqualTo("STALE_EXPECTED_TARGET");
+        assertThat(writer.writes).isEmpty();
+    }
+
+    @Test
+    void refusedDecreaseReadsNothingEither() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        decreaseTo = 8L;
+        ticks(31);
+        assertThat(controller.handle(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 9L, "stale"), OPS).code())
+                .isEqualTo("STALE_EXPECTED_CURRENT");
+        recommend = false;
+        assertThat(controller.handle(new ChangeRequest("apply", RULE, KNOB, 10L, "gone"), OPS).code())
+                .isEqualTo("NO_CURRENT_RECOMMENDATION");
+        assertThat(serverReads).hasValue(0);
+    }
+
     @Test
     void invalidGuardrailSettingsAreRejected() {
         properties.getApply().setMaxStep(0);

@@ -1,0 +1,11 @@
+{
+  "scenario": "S1",
+  "run": 1,
+  "rate_per_second": 50,
+  "seed": 61001,
+  "load_seconds": 450,
+  "poll_seconds": 30,
+  "app_args": "",
+  "springtune_version": "0.4.0",
+  "lock_holder": null
+}

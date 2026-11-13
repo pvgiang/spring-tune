@@ -4,6 +4,11 @@ What the runtime starter and the limiter cost, measured with [JMH](https://githu
 asks for published numbers; the gates were pre-registered in the
 [iteration-4 brief](delivery/iteration-4-brief.md) (row 14) before any benchmark code was written.
 
+> What the starter **recommends** under load (not what it costs) is in the separate, pre-registered
+> [PetClinic benchmark](benchmarks/petclinic.md): 2 of 4 scenarios matched the prediction as registered, a third (S2) only
+> with a poll-window bound added after the runs, and one missed: a database-side lock produced an INCREASE. All of it is
+> published, deviations included.
+
 | Gate (pre-registered) | Measured (mean ± 99.9 % error) | Verdict |
 |---|---|---|
 | Sampler tick with 4 components **< 1 ms** | **376 ± 17 µs** (re-measured 2026-11-06 after a setup fix, see below) | **Pass** (upper bound 393 µs) |

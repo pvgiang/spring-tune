@@ -116,4 +116,24 @@ class ApplySecurityWebTest {
                 .contains("\"outcome\":\"FROZEN\"");
         assertThat(context.getBean(ChangeController.class).audit()).hasSize(4);
     }
+
+    /** The report selector is a read operation next to the write extension: neither shadows the other. */
+    @Test
+    void reportIsReadableAndSecuredLikeTheSnapshot() throws Exception {
+        String root = base;
+        try {
+            base = root + "/report";
+            assertThat(send("GET", null, null).statusCode()).isEqualTo(401);
+            HttpResponse<String> report = send("GET", "viewer", null);
+            assertThat(report.statusCode()).isEqualTo(200);
+            assertThat(report.body()).contains("\"format\":\"springtune-report/1\"").contains("\"mode\":\"APPLY\"")
+                    .doesNotContain("viewer").doesNotContain("\"who\"");
+            assertThat(send("POST", "ops", "{\"action\":\"freeze\"}").statusCode()).as("no write operation here")
+                    .isIn(404, 405);
+            base = root + "/unknown";
+            assertThat(send("GET", "ops", null).statusCode()).isEqualTo(404);
+        } finally {
+            base = root;
+        }
+    }
 }

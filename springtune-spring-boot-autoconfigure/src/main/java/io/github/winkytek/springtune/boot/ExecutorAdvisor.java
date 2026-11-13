@@ -22,6 +22,21 @@ final class ExecutorAdvisor {
     private ExecutorAdvisor() {
     }
 
+    /**
+     * The rule's status and its recommendation from one decision: {@code COLLECTING} while the window is not
+     * covered, otherwise {@link #advise} decides and the status follows its result (no meter is needed).
+     */
+    static TunedComponent.Evaluation evaluate(String componentId, String knobPrefix,
+            SampleWindow.Coverage<ExecutorSample> window, SpringTuneProperties.Executor settings, Instant now) {
+        if (!window.covered()) {
+            return new TunedComponent.Evaluation(List.of(RuleEvaluation.collecting(componentId, RULE, window)),
+                    List.of());
+        }
+        Optional<Recommendation> rec = advise(knobPrefix, window.samples(), settings, now);
+        return new TunedComponent.Evaluation(List.of(rec.isPresent() ? RuleEvaluation.recommending(componentId, RULE)
+                : RuleEvaluation.quiet(componentId, RULE, null)), rec.map(List::of).orElse(List.of()));
+    }
+
     static Optional<Recommendation> advise(String knobPrefix, List<ExecutorSample> window,
             SpringTuneProperties.Executor settings, Instant now) {
         if (window.isEmpty()) {

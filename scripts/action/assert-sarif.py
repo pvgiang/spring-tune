@@ -64,6 +64,7 @@ def main(argv):
 
     for spec, expectation in zip(argv[2:], expectations):
         ok = any(matches(f, expectation) for f in found)
+        rule, path, line = expectation
         print(f"{'OK  ' if ok else 'MISS'} {rule} at {path}:{line}")
         if not ok:
             problems.append(spec)

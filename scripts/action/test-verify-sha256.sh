@@ -3,7 +3,7 @@
 #
 #   scripts/action/test-verify-sha256.sh JAR SHA256SUMS
 #
-# JAR and SHA256SUMS are a real release's CLI jar and checksum file (CI downloads v0.4.0's). Proves: the genuine
+# JAR and SHA256SUMS are a real release's CLI jar and checksum file (CI downloads v0.4.1's). Proves: the genuine
 # jar verifies, also when SHA256SUMS lists more assets (the SBOM, in releases after 0.4.0); a tampered jar (one byte appended,
 # one byte changed), a missing or empty SHA256SUMS, a SHA256SUMS without the jar's line, one with a wrong hash and
 # one with two lines for the jar are all rejected with exit code 1.

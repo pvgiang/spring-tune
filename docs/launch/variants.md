@@ -44,7 +44,7 @@ ThingsBoard, JeecgBoot, mall and others; 282 modules) and reviewed the findings 
 Raw JSON for every repo, pinned commits and the method are in the repository; the numbers were re-run with the
 released 0.4.0 CLI and came out identical.
 
-It runs as a GitHub Action (SARIF, line-level annotations), a Maven plugin, a Gradle plugin or a CLI, all 0.4.0 on
+It runs as a GitHub Action (SARIF, line-level annotations), a Maven plugin, a Gradle plugin or a CLI, all 0.4.1 on
 Maven Central under `io.github.winkytek.springtune`. Static only: nothing is built or executed.
 
 What it is not: there is a runtime starter with read-only advice, and an experimental, opt-in apply mode that
@@ -91,10 +91,10 @@ them up to 30 s; 6 HTTP clients in 5 repos have no timeouts, including the Sprin
 why it now says "not evaluated" when the config lives in a Config Server instead of guessing. Raw reports and
 pinned commits are in the repo.
 
-Try it: GitHub Action, Maven plugin, Gradle plugin or CLI, 0.4.0 on Maven Central. It is static only; nothing
+Try it: GitHub Action, Maven plugin, Gradle plugin or CLI, 0.4.1 on Maven Central. It is static only; nothing
 is built or executed and nothing is sent anywhere (there is no telemetry).
 
-  java -jar springtune-check-cli-0.4.0-all.jar check . --fail-on WARNING
+  java -jar springtune-check-cli-0.4.1-all.jar check . --fail-on WARNING
 
 Limits: 13 rules, one topic. Config outside the repository is invisible to it. There is also a runtime
 starter with read-only advice and an experimental, opt-in mode that applies one pool change and reverts it if
@@ -116,7 +116,7 @@ repository copy. dev.to allows at most 4 tags, lowercase alphanumeric.
 ---
 title: "We scanned 20 popular Spring Boot projects for the config behind a common outage"
 published: false
-description: "Every HikariCP module we could evaluate waits more than 5 s for a connection, 6 HTTP clients have no timeouts, and 1 false positive in 199 findings. Method, raw data and a CI check you can run on 0.4.0."
+description: "Every HikariCP module we could evaluate waits more than 5 s for a connection, 6 HTTP clients have no timeouts, and 1 false positive in 199 findings. Method, raw data and a CI check you can run on 0.4.1."
 tags: java, springboot, devops, opensource
 canonical_url: https://github.com/pvgiang/spring-tune/blob/main/docs/launch/launch-post.md
 ---

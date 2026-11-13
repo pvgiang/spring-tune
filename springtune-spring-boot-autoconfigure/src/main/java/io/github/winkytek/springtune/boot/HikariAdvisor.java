@@ -40,6 +40,17 @@ final class HikariAdvisor {
     /** Share of window samples in which threads waited while the pool was below its maximum. */
     static final double STARVED_RATIO = 0.5;
 
+    /** Micrometer timers rule 001 needs to tell a pool that is too small from slow database work. */
+    static final String ACQUIRE_TIMER = "hikaricp.connections.acquire";
+    static final String USAGE_TIMER = "hikaricp.connections.usage";
+    static final List<String> HOLD_TIME_METERS = List.of(ACQUIRE_TIMER, USAGE_TIMER);
+
+    /** Rules decided over the saturation window, in the order they are reported. */
+    private static final List<String> SATURATION_RULES = List.of(RAISE, HOLD_SLOW, HOLD_STARVED);
+
+    /** Every rule, in the order statuses are reported. */
+    static final List<String> RULES = List.of(RAISE, HOLD_SLOW, HOLD_STARVED, LOWER);
+
     private HikariAdvisor() {
     }
 
@@ -53,13 +64,63 @@ final class HikariAdvisor {
     static Optional<Recommendation> advise(String knobId, int current, List<HikariSample> window,
             List<HikariSample> longWindow, Optional<Integer> budgetCap, SpringTuneProperties.Hikari settings,
             Instant now) {
-        if (!window.isEmpty()) {
-            double waiting = SampleWindow.ratio(window, s -> s.pending() > 0);
+        return evaluate("hikari", knobId, current, SampleWindow.Coverage.of(window, settings.getWindow()),
+                SampleWindow.Coverage.of(longWindow, settings.getLowUtilizationWindow()), budgetCap, settings, now,
+                HOLD_TIME_METERS).recommendations().stream().findFirst();
+    }
+
+    /**
+     * Evaluates every rule for one pool in one pass: the recommendation (at most one) and each rule's status come
+     * from the same checks. Rule 001 is {@code NO_SIGNAL} whenever a covered window has samples without hold-time
+     * timers: it can never fire then (waiting threads get the low-confidence 002 HOLD instead).
+     *
+     * @param missingMeters which of {@link #HOLD_TIME_METERS} the reader lacks now, named in a NO_SIGNAL status
+     *                      (both when empty, e.g. when the meters appeared after the window began)
+     */
+    static TunedComponent.Evaluation evaluate(String componentId, String knobId, int current,
+            SampleWindow.Coverage<HikariSample> window, SampleWindow.Coverage<HikariSample> longWindow,
+            Optional<Integer> budgetCap, SpringTuneProperties.Hikari settings, Instant now, List<String> missingMeters) {
+        Map<String, RuleEvaluation> rules = new LinkedHashMap<>();
+        List<String> missing = missingMeters.isEmpty() ? HOLD_TIME_METERS : missingMeters;
+        Recommendation rec = null;
+        if (!window.covered()) {
+            for (String rule : SATURATION_RULES) {
+                rules.put(rule, RuleEvaluation.collecting(componentId, rule, window));
+            }
+        } else {
+            List<HikariSample> samples = window.samples();
+            boolean timers = samples.stream().allMatch(HikariSample::timersAvailable);
+            double waiting = SampleWindow.ratio(samples, s -> s.pending() > 0);
             if (waiting >= settings.getSaturatedRatio()) {
-                return Optional.of(saturated(knobId, current, window, waiting, budgetCap, settings, now));
+                rec = saturated(knobId, current, samples, waiting, budgetCap, settings, now);
+            }
+            String fired = rec == null ? null : rec.ruleId();
+            for (String rule : SATURATION_RULES) {
+                if (rule.equals(fired)) {
+                    rules.put(rule, RuleEvaluation.recommending(componentId, rule));
+                } else if (rule.equals(RAISE) && !timers) {
+                    rules.put(rule, RuleEvaluation.noSignal(componentId, rule, missing));
+                } else {
+                    rules.put(rule, RuleEvaluation.quiet(componentId, rule, fired));
+                }
             }
         }
-        if (!longWindow.isEmpty() && longWindow.stream().allMatch(s -> s.pending() == 0)) {
+        if (!longWindow.covered()) {
+            rules.put(LOWER, RuleEvaluation.collecting(componentId, LOWER, longWindow));
+        } else if (rec != null) {
+            rules.put(LOWER, RuleEvaluation.quiet(componentId, LOWER, rec.ruleId()));
+        } else {
+            rec = lower(knobId, current, longWindow.samples(), settings, now);
+            rules.put(LOWER, rec != null ? RuleEvaluation.recommending(componentId, LOWER)
+                    : RuleEvaluation.quiet(componentId, LOWER, null));
+        }
+        List<RuleEvaluation> ordered = RULES.stream().map(rules::get).toList();
+        return new TunedComponent.Evaluation(ordered, rec == null ? List.of() : List.of(rec));
+    }
+
+    private static Recommendation lower(String knobId, int current, List<HikariSample> longWindow,
+            SpringTuneProperties.Hikari settings, Instant now) {
+        if (longWindow.stream().allMatch(s -> s.pending() == 0)) {
             int peak = longWindow.stream().mapToInt(HikariSample::active).max().orElse(0);
             if ((double) peak / current < settings.getLowUtilization()) {
                 int proposed = Math.max(2, peak * 2);
@@ -69,19 +130,19 @@ final class HikariAdvisor {
                     evidence.put("samples", String.valueOf(longWindow.size()));
                     evidence.put("peakActiveConnections", peak + " of " + current);
                     evidence.put("threadsEverWaiting", "no");
-                    return Optional.of(new Recommendation(LOWER, knobId, Action.DECREASE, current, proposed,
+                    return new Recommendation(LOWER, knobId, Action.DECREASE, current, proposed,
                             "Over the last " + Format.duration(settings.getLowUtilizationWindow()) + " at most " + peak
                                     + " of " + current + " connections were in use and no thread ever waited."
                                     + " Lowering the pool to " + proposed + " frees " + (current - proposed)
                                     + " database connections per instance for other services.",
-                            evidence, Confidence.MEDIUM, List.of("ST-HIKARI-004"), now));
+                            evidence, Confidence.MEDIUM, List.of("ST-HIKARI-004"), now);
                 }
             }
         }
-        return Optional.empty();
+        return null;
     }
 
-    private static Recommendation saturated(String knobId, int current, List<HikariSample> window, double waiting,
+    static Recommendation saturated(String knobId, int current, List<HikariSample> window, double waiting,
             Optional<Integer> budgetCap, SpringTuneProperties.Hikari settings, Instant now) {
         HikariSample first = window.get(0);
         HikariSample last = window.get(window.size() - 1);

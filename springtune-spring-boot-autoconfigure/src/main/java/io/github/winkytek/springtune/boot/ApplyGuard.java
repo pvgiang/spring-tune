@@ -96,6 +96,10 @@ final class ApplyGuard {
             this(knobId, kind, current, configured, cooldownUntil, baselineCovered,
                     ServerConnectionLimit.notApplicable());
         }
+
+        KnobFacts withServerLimit(ServerConnectionLimit limit) {
+            return new KnobFacts(knobId, kind, current, configured, cooldownUntil, baselineCovered, limit);
+        }
     }
 
     /** Effective bounds for the next change of a knob (shown by the endpoint). */
@@ -169,6 +173,24 @@ final class ApplyGuard {
         return Math.max(1, (long) Math.ceil(current * maxStep));
     }
 
+    /** The recommendation a request applies: same {@code ruleId} and {@code knobId}. */
+    static Optional<Recommendation> match(ChangeRequest request, List<Recommendation> recommendations) {
+        return recommendations.stream()
+                .filter(r -> r.ruleId().equals(request.ruleId()) && r.knobId().equals(request.knobId()))
+                .findFirst();
+    }
+
+    /**
+     * Whether {@link #checkApply} would judge this request as raising a Hikari pool (the branch that needs the
+     * server's limit), given the same facts and recommendations: a matching non-HOLD recommendation whose target is
+     * above the live value. The apply decides with exactly these inputs, and a request judged not to raise carries
+     * {@link ServerConnectionLimit.Status#SKIPPED_FOR_DECREASE}, which {@link #checkApply} refuses for any raise.
+     */
+    static boolean raisesHikariPool(ChangeRequest request, KnobFacts knob, List<Recommendation> recommendations) {
+        return knob.kind() == WritableKnob.Kind.HIKARI && match(request, recommendations)
+                .filter(r -> r.action() != Action.HOLD && r.recommendedValue() > knob.current()).isPresent();
+    }
+
     static Decision checkApply(ChangeRequest request, State state, Optional<KnobFacts> knobFacts,
             List<Recommendation> recommendations, Optional<Integer> budgetCap, SpringTuneProperties.Apply settings,
             Instant now) {
@@ -203,9 +225,7 @@ final class ApplyGuard {
             return Decision.refuse(Code.COOLDOWN, "Knob " + knob.knobId() + " is cooling down until "
                     + knob.cooldownUntil() + ".");
         }
-        Optional<Recommendation> match = recommendations.stream()
-                .filter(r -> r.ruleId().equals(request.ruleId()) && r.knobId().equals(request.knobId()))
-                .findFirst();
+        Optional<Recommendation> match = match(request, recommendations);
         if (match.isEmpty()) {
             return Decision.refuse(Code.NO_CURRENT_RECOMMENDATION, "There is no current " + request.ruleId()
                     + " recommendation for " + request.knobId() + " (re-evaluated now); nothing to apply.");
@@ -240,6 +260,13 @@ final class ApplyGuard {
                         + " be re-read for this apply (" + server.detail() + "), so database-max-connections="
                         + databaseMaxConnections + " cannot be checked against it. Raising the pool is refused until"
                         + " it can be read; retry when a connection is available.");
+            }
+            if (server != null && server.status() == ServerConnectionLimit.Status.SKIPPED_FOR_DECREASE) {
+                // Fail closed: the read was skipped because this apply was judged not to raise the pool. If it raises
+                // now, that judgement is wrong or stale, and a raise is never approved without a fresh limit.
+                return Decision.refuse(Code.SERVER_LIMIT_UNKNOWN, "The database server's connection limit was not"
+                        + " read for this apply (" + server.detail() + "), but the recommendation raises the pool ("
+                        + current + " -> " + target + "). Raising is refused without a fresh read; retry.");
             }
             if (server != null && server.known() && databaseMaxConnections != null
                     && databaseMaxConnections > server.limit()) {

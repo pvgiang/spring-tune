@@ -39,7 +39,14 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
         /** A database SpringTune cannot read the limit of. */
         UNSUPPORTED,
         /** No connection budget configured, so there is nothing to compare. */
-        NOT_APPLICABLE
+        NOT_APPLICABLE,
+        /**
+         * Deliberately not read for this apply attempt: under the same lock hold, from the same re-evaluated
+         * recommendation that the guard then judges, the change was found not to raise the pool (a decrease, or a
+         * request the guard refuses anyway). Never cached; {@link ApplyGuard} refuses <b>any</b> raise that carries it
+         * ({@code SERVER_LIMIT_UNKNOWN}), so a recommendation that turned into a raise can never pass unchecked.
+         */
+        SKIPPED_FOR_DECREASE
     }
 
     ServerConnectionLimit(Status status, Integer limit, String product, String detail) {
@@ -52,6 +59,12 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
 
     static ServerConnectionLimit notRead(String why) {
         return new ServerConnectionLimit(Status.NOT_READ, null, null, why);
+    }
+
+    /** See {@link Status#SKIPPED_FOR_DECREASE}. */
+    static ServerConnectionLimit skippedForDecrease() {
+        return new ServerConnectionLimit(Status.SKIPPED_FOR_DECREASE, null, null, "not read for this apply: it was"
+                + " evaluated as not raising the pool");
     }
 
     static ServerConnectionLimit notApplicable() {
@@ -76,7 +89,10 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
         return known() ? "last known limit " + limit + ", read at " + checkedAt : null;
     }
 
-    /** Reads the limit with {@code connection} (borrowed from the pool and returned by the caller). */
+    /**
+     * Reads the limit with {@code connection} (borrowed from the pool and returned by the caller, which has already
+     * bounded its network timeout: {@code HikariComponent#boundNetworkTimeout}).
+     */
     static ServerConnectionLimit read(Connection connection) throws SQLException {
         String product = connection.getMetaData().getDatabaseProductName();
         String name = product == null ? "" : product.toLowerCase(Locale.ROOT);
@@ -120,6 +136,7 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
                     + " raise is refused if it cannot be read (SERVER_LIMIT_UNKNOWN)";
             case UNSUPPORTED -> "server limit not checked: " + detail;
             case NOT_APPLICABLE -> "server limit not checked: " + detail;
+            case SKIPPED_FOR_DECREASE -> "server limit not read: " + detail + "; a raise needs a fresh read";
         };
     }
 }

@@ -68,8 +68,8 @@ misses. springtune.yml snippet for options and for a suppression with a reason.>
 |---|---|---|---|---|
 | 1 | ST-HIKARI-001 | Connection acquire timeout | 45 findings, 12 repos | launch |
 | 2 | ST-HTTP-001 | HTTP clients without timeouts | 6 findings, 5 repos | launch |
-| 3 | ST-ASYNC-002 | Unbounded executor queues | 7 findings, 5 repos | launch + 2 weeks |
-| 4 | ST-HIKARI-004 | Connection budget across replicas | needs `springtune.yml` (0 in a cold run) | launch + 4 weeks |
-| 5 | ST-TX-001 | Transaction and query timeouts | 70 findings, 16 repos (1 false positive) | launch + 6 weeks |
+| 3 | ST-TX-001 | Transaction and query timeouts ([written](ST-TX-001-transaction-query-timeouts.md), iteration 6) | 70 findings, 16 repos (1 false positive) | launch + 2 weeks |
+| 4 | ST-ASYNC-002 | Unbounded executor queues | 7 findings, 5 repos | launch + 4 weeks |
+| 5 | ST-HIKARI-004 | Connection budget across replicas | needs `springtune.yml` (0 in a cold run) | launch + 6 weeks |
 
 Pick the next one by rule requests and false-positive reports first, corpus counts second.
