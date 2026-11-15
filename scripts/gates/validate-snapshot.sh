@@ -14,9 +14,12 @@ err() { echo "::error::$*"; exit 1; }
 test -f "$SNAPSHOT" || err "snapshot.json missing ($SNAPSHOT)"
 size="$(stat -c %s "$SNAPSHOT")"
 [ "$size" -lt 1048576 ] || err "snapshot is $size bytes (limit 1 MB)"
-jq -e '
+# --slurp: the file must hold exactly one JSON value. Without it, jq -e takes its exit status from the last value
+# only, so arbitrary JSON followed by a valid snapshot would pass and be appended to snapshots.jsonl.
+jq -e -s '
   ["schema","collected_at","repo","auth","repository","stargazers","issues","releases",
    "action_users","traffic","not_collected"] as $k
+  | length == 1 and (.[0]
   | type == "object"
   and (keys - $k | length == 0)
   and ($k - keys | length == 0)
@@ -29,9 +32,9 @@ jq -e '
   and ([.repository, .stargazers, .issues, .releases, .action_users, .traffic] | all(type == "object"))
   and (.releases.available == false
        or (.releases.releases | type == "array"
-           and all(.[]; has("own_ci_runs_since")
+           and all(.[]; has("own_ci_runs_since") and has("downloads_per_own_ci_run")
                         and (.own_ci_runs_since | type == "number" or type == "null")
                         and (.downloads_per_own_ci_run | type == "number" or type == "null"))))
-  and (.not_collected | type == "array")
+  and (.not_collected | type == "array"))
 ' "$SNAPSHOT" >/dev/null 2>&1 || err "snapshot.json does not have the shape collect.sh writes"
 echo "snapshot ok: $size bytes, collected_at $(jq -r .collected_at "$SNAPSHOT")"
