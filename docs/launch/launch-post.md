@@ -1,7 +1,8 @@
 <!--
-Launch post draft (posting is a human step). Every number below is traced in docs/launch/claims.md.
-Before posting: docs/launch/checklist.md, and scripts/content/check-claims.sh must pass.
-Links are absolute so the text can be pasted elsewhere; they work only once the repository is public.
+Launch post (posting is a human step). Every number below is traced in docs/launch/claims.md.
+Before posting: docs/launch/checklist.md; scripts/launch/verify-checklist.sh runs every agent-checkable item.
+Links are absolute so the text can be pasted elsewhere; the repository is public, so they resolve anonymously.
+Install lines are 0.4.1, the version Maven Central serves.
 -->
 
 # We scanned 20 popular Spring Boot projects for the config behind a common outage
@@ -61,7 +62,9 @@ with the code and the fixes.
 
 It is static only: nothing is built or executed, and nothing leaves the machine. The default threshold is ERROR,
 and the ERROR rules need your database limits, so these snippets use `WARNING` to turn the findings above into a
-red check.
+red check. The [README](https://github.com/pvgiang/spring-tune#start-here-pick-one) has one complete path per
+approach (CLI, Maven, Gradle, GitHub Action, starter), each with the real output on the demo project; the snippets
+below are the short version.
 
 **GitHub Action**, findings as code-scanning alerts on the exact line. It runs the CLI jar only if its SHA-256
 matches the release's `SHA256SUMS`:
@@ -126,7 +129,9 @@ report).
 
 - **It is a CI check plus read-only advice.** That is what this post is about. There is also a runtime starter
   that exposes `/actuator/tuning` with live pool and executor values and explained recommendations; it is
-  read-only by default.
+  read-only by default. SpringTune 0.4.2, released on GitHub (on Maven Central after publication), adds a
+  per-rule status to that endpoint, so an empty recommendation list no longer looks like a broken install, and a
+  report you can paste into a feedback issue. The install lines above stay on 0.4.1 until 0.4.2 is on Central.
 - **Apply mode is experimental and opt-in.** The starter can apply one reviewed pool change, verify it and revert
   it. Before writing any load test we pre-registered six bars it must meet before it stops being experimental.
   Five of six are met (among them three replicas raising at once on a real PostgreSQL without exceeding the
