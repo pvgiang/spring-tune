@@ -122,7 +122,8 @@ def compile_template(t):
     if not sep:
         return None
     # The templates are POSIX EREs; the ones used here are also valid Python regexes.
-    return re.compile(f"(?<![0-9])({pre}){F}({post})" + ("(?![0-9])" if post == "" else ""))
+    left = "(?<![0-9.])" if pre == "" else "(?<![0-9])"  # 0.4.1 is not the tail of 10.4.1 or 2.0.4.1
+    return re.compile(f"{left}({pre}){F}({post})" + ("(?![0-9])" if post == "" else ""))
 
 
 templates = [c for c in (compile_template(t.rstrip("\n")) for t in open(tfile, encoding="utf-8")) if c]

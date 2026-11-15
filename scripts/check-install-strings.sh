@@ -30,7 +30,8 @@ set -euo pipefail
 STALE_VERSIONS=(0.1.0 0.3.0 0.4.0)
 
 # Extended regular expressions; {V} is the version with its dots escaped. A template that ends with {V} also
-# requires that no digit follows (0.4.1 does not flag 0.4.10).
+# requires that no digit follows (0.4.1 does not flag 0.4.10); one that starts with {V}, that no digit or dot
+# precedes (0.4.1 does not flag 10.4.1 or 2.0.4.1).
 TEMPLATES=(
   '@v{V}'
   'springtune-cli-{V}'
@@ -79,6 +80,8 @@ if [ "$mode" = files ]; then printf '%s\n' "${files[@]}"; exit 0; fi
 instance() {
   local t="$1" v="${2//./\\.}"
   case "$t" in *'{V}') t="${t%\{V\}}$v([^0-9]|\$)" ;; esac
+  # A template that starts with {V} also requires that no digit or dot precedes (0.4.1 does not flag 10.4.1).
+  case "$t" in '{V}'*) t="(^|[^0-9.])$v${t#\{V\}}" ;; esac
   printf '%s' "${t//\{V\}/$v}"
 }
 

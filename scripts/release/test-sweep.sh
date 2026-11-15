@@ -122,6 +122,14 @@ rc=0; bash "$HERE/sweep-install-version.sh" 0.4.1 0.4.2 --dry-run --skip-central
   || { fail "second sweep: exit $rc"; grep '^sweep:' "$WORK/dry2.txt" | head -20 | sed 's/^/    /'; }
 echo '      - uses: pvgiang/spring-tune@v0.4.10   # a future 0.4.10 is not 0.4.1' > "$WORK/dry/docs/seed-boundary.md"
 out="$(bash "$WORK/dry/scripts/check-install-strings.sh" "$WORK/dry" 2>&1)" && pass "0.4.10 is not flagged as stale 0.4.1" || fail "0.4.10 flagged: $out"
+printf '%s\n' '    <version>10.4.1</version>' '    <springtune.version>2.0.4.1</springtune.version>' > "$WORK/dry/docs/seed-left.md"
+out="$(bash "$WORK/dry/scripts/check-install-strings.sh" "$WORK/dry" 2>&1)" && pass "10.4.1 and 2.0.4.1 are not flagged as stale 0.4.1" \
+  || fail "a longer version ending in 0.4.1 is flagged: $out"
+cp "$WORK/dry/docs/seed-left.md" "$WORK/seed-left.before"
+bash "$HERE/sweep-install-version.sh" 0.4.1 0.4.2 --dry-run --skip-central "$WORK/dry" > /dev/null 2>&1 || true
+cmp -s "$WORK/seed-left.before" "$WORK/dry/docs/seed-left.md" && pass "the sweep leaves 10.4.1 and 2.0.4.1 alone" \
+  || fail "the sweep rewrote a longer version: $(cat "$WORK/dry/docs/seed-left.md")"
+rm "$WORK/dry/docs/seed-left.md"
 echo '      - uses: pvgiang/spring-tune@v0.4.1' >> "$WORK/dry/docs/seed-boundary.md"
 bash "$WORK/dry/scripts/check-install-strings.sh" "$WORK/dry" > /dev/null 2>&1 && fail "@v0.4.1 not flagged after the sweep" \
   || pass "@v0.4.1 is flagged after the sweep"
