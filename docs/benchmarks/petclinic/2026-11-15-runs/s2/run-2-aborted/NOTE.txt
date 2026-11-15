@@ -1,0 +1,3 @@
+Aborted run (not evaluated). S2 run 2, seed 62002, started 2026-11-15 ~14:17 UTC; the session worker was restarted during the load
+(last poll t=270 s at 14:21:04 UTC), which killed run.sh, PetClinic and PostgreSQL. No driver-summary.json was written.
+Kept as recorded, excluded from the evaluation; S2 run 2 was re-run from scratch with the same seed (s2/run-2).
