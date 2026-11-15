@@ -124,7 +124,15 @@ section, and this brief.
 
 ## 7. Scope
 
-_Filled after the review._
+| In | Out (where it goes) |
+|---|---|
+| Poms 0.4.3-SNAPSHOT; a one-command install sweep that refuses until Central answers 200, keeps marked history, and stops on a stale checksum; templated stale list; pom-vs-release-notes guard | The sweep itself (0.4.2 not on Central: H1, then the next session) |
+| The Release workflow stamps the tag's `action.yml` default (dispatch path); a pushed tag must be pre-stamped; a PR job proves a stamped copy runs 0.4.2 with no `version:`; `action-tag` in *Post-release smoke* | Proof on a real tag (first stamped release 0.4.3, H9) |
+| Automatic rollback never refused or blocked on a limit read; a manual revert that raises a Hikari pool goes through the raise checks | Capping a revert at the last verified limit (row 8, rejected) |
+| Position-aware report schema check; WebFlux `/report` test; stable pseudonyms (bug fixed); `check-feedback-prefill.sh` | The rendered prefill (H5) |
+| Collector on `github.token`, PAT only for traffic and code search; `own_ci_runs_since`; stricter snapshot validator; 2026-11-13 log row with the CI arithmetic | A real collector run (H4); reducing CI's own downloads (row 3) |
+| Launch content on 0.4.1 for the new README; executable checklist (`verify-checklist.sh`, 13 PASS); deep dive #4 (ST-TOMCAT-001), every number traced and recounted | Posting (H2, H3) |
+| HIKARI hold check: step 0 finding, pre-registration before any run, 18 new PetClinic runs, offline evaluation (see §8 AC-7.5) | Docs site (row 13) |
 
 ## 8. Acceptance criteria and evidence
 
