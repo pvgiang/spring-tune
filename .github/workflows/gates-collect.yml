@@ -5,7 +5,8 @@ name: Gates collector
 # `gates-data`. It never writes to main or any other branch. See docs/adoption/gates.md#collector.
 #
 # Two jobs, so the PAT and the write permission never share a job:
-#   collect  read-only (contents: read, issues: read); the only job that sees GATES_TOKEN; uploads the snapshot.
+#   collect  read-only (contents, issues, actions: read); runs on github.token; the only job that sees GATES_TOKEN,
+#            which collect.sh uses for traffic and code search only; uploads the snapshot.
 #   store    contents: write with github.token only, no other secret; validates the snapshot, then pushes it.
 on:
   schedule:
@@ -26,6 +27,7 @@ jobs:
     permissions:
       contents: read
       issues: read
+      actions: read   # own workflow runs per release (releases[].own_ci_runs_since)
     steps:
       - name: Checkout (scripts only)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,9 +37,11 @@ jobs:
       - name: Collect
         env:
           REPO: ${{ github.repository }}
-          # GATES_TOKEN (fine-grained PAT, this repository, Administration: read + Issues/Metadata: read) unlocks
-          # traffic and code search across public repositories. Without it, GITHUB_TOKEN collects the rest.
-          GH_TOKEN: ${{ secrets.GATES_TOKEN || github.token }}
+          # Every section runs on github.token (read-only here). GATES_TOKEN (fine-grained PAT, this repository,
+          # Administration: read + Issues/Metadata: read) is used by collect.sh call by call for traffic and code
+          # search only: as GH_TOKEN for every section it was refused on stargazers (HTTP 403, iteration 7 row 6).
+          GH_TOKEN: ${{ github.token }}
+          GH_CREDENTIALS_LABEL: github.token
           GATES_TOKEN: ${{ secrets.GATES_TOKEN }}
         run: |
           if [ -z "$GATES_TOKEN" ]; then
@@ -49,6 +53,8 @@ jobs:
             echo '## Gates snapshot'
             echo '```json'
             jq '{collected_at, auth, stars: .repository.stars, downloads: .releases.total_downloads,
+                 stargazers: (.stargazers.count // .stargazers.reason),
+                 own_ci_runs_since: ([.releases.releases[]? | {(.tag): .own_ci_runs_since}] | add),
                  action_users: .action_users.count, traffic: (.traffic.reason // "collected"),
                  unavailable: [to_entries[] | select(.value | type == "object" and .available == false) | .key]}' \
               "$RUNNER_TEMP/gates-snapshot/snapshot.json"
@@ -76,29 +82,17 @@ jobs:
           name: gates-snapshot
           path: ${{ runner.temp }}/gates-snapshot
 
+      # The validator is a file of this commit (scripts only, no credentials kept), so a local run of it is the
+      # same check.
+      - name: Checkout (validator only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/gates
+          path: src
+
       - name: Validate the snapshot
-        env:
-          SNAPSHOT: ${{ runner.temp }}/gates-snapshot/snapshot.json
-        run: |
-          set -euo pipefail
-          # The snapshot crosses a trust boundary (an artifact written by the job that holds the PAT), so only
-          # a small JSON object with exactly the shape collect.sh writes is pushed.
-          test -f "$SNAPSHOT" || { echo "::error::snapshot.json missing from the artifact"; exit 1; }
-          size="$(stat -c %s "$SNAPSHOT")"
-          [ "$size" -lt 1048576 ] || { echo "::error::snapshot is $size bytes (limit 1 MB)"; exit 1; }
-          jq -e '
-            type == "object"
-            and (keys - ["schema","collected_at","repo","auth","repository","stargazers","issues","releases",
-                         "action_users","traffic","not_collected"] | length == 0)
-            and (["schema","collected_at","repo","auth","repository","stargazers","issues","releases",
-                  "action_users","traffic","not_collected"] - keys | length == 0)
-            and .schema == 1
-            and (.collected_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
-            and (.repo | type == "string")
-            and ([.repository, .stargazers, .issues, .releases, .action_users, .traffic] | all(type == "object"))
-            and (.not_collected | type == "array")
-          ' "$SNAPSHOT" >/dev/null || { echo "::error::snapshot.json does not have the shape collect.sh writes"; exit 1; }
-          echo "snapshot ok: $size bytes, collected_at $(jq -r .collected_at "$SNAPSHOT")"
+        run: src/scripts/gates/validate-snapshot.sh "$RUNNER_TEMP/gates-snapshot/snapshot.json"
 
       - name: Append to the gates-data branch
         env:
