@@ -12,9 +12,9 @@ Snapshot: **2026-11-04**. Recount on the first working day of each month and app
 |---|---|---|---|---|---|
 | **1. CI check has pull** | Teams installing | Maven Central downloads of `springtune-check-engine` (every runner pulls it: CLI jar aside, Maven and Gradle plugins resolve it) | [central.sonatype.com](https://central.sonatype.com) → *Publishing* → *Namespaces* → `io.github.winkytek` → download statistics (owner only, monthly, unique IPs and downloads per artifact) | 10+ teams (see [teams](#what-counts-as-a-team)) | **n/a**: not on Central yet ([releasing](../releasing.md)) |
 | | | Gradle Plugin Portal | Plugin page `plugins.gradle.org/plugin/io.github.winkytek.springtune`. As far as we know the Portal publishes no download counter; treat as unavailable until verified after the first publish | | **n/a**: not on the Portal yet |
-| | | GitHub release assets (CLI jar, Maven zip) | `gh api repos/pvgiang/spring-tune/releases --jq '.[] \| {tag: .tag_name, d: [.assets[] \| {name, download_count}]}'` | | **0** (v0.1.0, all three assets) |
+| | | GitHub release assets (CLI jar, Maven zip) | `gh api repos/pvgiang/spring-tune/releases --jq '.[] \| {tag: .tag_name, d: [.assets[] \| {name, download_count}]}'`. **Not an adoption signal**: dominated by our own CI ([below](#release-downloads-and-clones-are-our-own-ci)) | | 162 on 2026-11-15 (`collect.sh`), dominated by our own CI; no download can be shown to be a user |
 | | | GitHub Action users (public repos only) | `gh search code 'pvgiang/spring-tune' --extension yml --json repository --jq '[.[].repository.nameWithOwner] \| unique'` | | **0** known |
-| | Stars from company-affiliated accounts | GitHub stargazers with a `company` | `gh api --paginate repos/pvgiang/spring-tune/stargazers --jq '.[].login' \| while read u; do gh api users/$u --jq 'select(.company != null) \| [.login, .company] \| @tsv'; done` | | **0** stars in total |
+| | Stars from company-affiliated accounts | GitHub stargazers with a `company` | `gh api --paginate repos/pvgiang/spring-tune/stargazers --jq '.[].login' \| while read u; do gh api users/$u --jq 'select(.company != null) \| [.login, .company] \| @tsv'; done` | | **2** stars on 2026-11-15, both the maintainer's own accounts (`winkytek`, `pvgiang`): **0** from outside |
 | | Rule requests arriving | Issue form *Rule request* | [`is:issue label:rule-request`](https://github.com/pvgiang/spring-tune/issues?q=is%3Aissue+label%3Arule-request) · `gh issue list --state all --label rule-request --json number --jq length` | at least 1 a month from outside the project | **0** |
 | **2. Recommendations are trusted** | Accept rate of ST-REC-* recommendations | Issue form *Recommendation feedback* (outcome dropdown), triaged into an `outcome-*` label | accepted = `label:rec-feedback label:outcome-applied,outcome-edited,outcome-accepted`; all = `label:rec-feedback -label:invalid`; rate = accepted / all. Before triage: [`label:rec-feedback "rec-applied"`](https://github.com/pvgiang/spring-tune/issues?q=is%3Aissue+label%3Arec-feedback+%22rec-applied%22) and likewise `rec-edited`, `rec-accepted`, `rec-rejected`. Teams: the form's *Team* field (id `team`, added in iteration 6) names the team or organization of each report; count distinct values after merging spellings of one company by hand (see [teams](#what-counts-as-a-team)) | **≥ 30%**, judged only from **10+** reports by 3+ teams | **unknown** (0 reports) |
 | **3. Paid trigger** | Unprompted requests for fleet view, approvals, cross-service budget, audit | Issue form *Feature: fleet view / approvals / cross-service budget / audit* | teams = `gh issue list --state all --label paid-signal --json author --jq '[.[].author.login] \| unique \| length'` (then merge authors from the same company by hand); paid pilot = `label:paid-signal label:pilot-paid` (before triage: [`label:paid-signal "pilot-paid"`](https://github.com/pvgiang/spring-tune/issues?q=is%3Aissue+label%3Apaid-signal+%22pilot-paid%22)) | **3+ teams** ask, **1+** agrees to a paid pilot | **0** teams, **0** pilots |
@@ -108,6 +108,34 @@ something, and enough users to ask whether they want it.
 |---|---|---|---|---|---|---|---|
 | 2026-11-04 | n/a (not published) | 0 | 0 (0) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
 | 2026-11-09 (release-day baseline, [detail](#release-day-baseline-2026-11-09)) | published, stats owner-only: **pending** (human copies) | 0 | 0 (0) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
+| 2026-11-13 (first collector snapshot, [detail](#collector-snapshot-2026-11-13)) | stats owner-only: **pending** (human copies) | 122, **CI-dominated** (v0.4.1: 51 jar + 51 `SHA256SUMS` against 48 own CI jobs that fetched that pair, plus one that failed mid-download; [arithmetic](#release-downloads-and-clones-are-our-own-ci)) | 1 (with company: not collected, `stargazers` HTTP 403, iteration 7 row 6) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
+
+### Collector snapshot (2026-11-13)
+
+From `snapshots.jsonl` on the `gates-data` branch (one line, `collected_at` 2026-11-13T08:17:01Z, written by the
+first *Gates collector* run). Traffic covers the 14 UTC days 2026-10-30 to 2026-11-12.
+
+| Signal | Value | jq on the snapshot line |
+|---|---|---|
+| Stars | 1 (`repository.stars`). Stars with a company: **not collected**: `stargazers` was `{"available": false, "reason": "gh: Resource not accessible by personal access token (HTTP 403)"}`, because the collector ran every section on `GATES_TOKEN` (fixed in iteration 7, row 6) | `.repository.stars`, `.stargazers` |
+| Release asset downloads | 122 in total: v0.4.1 102 (`springtune-cli-0.4.1.jar` 51, `SHA256SUMS` 51, others 0), v0.4.0 20 (jar 12, `SHA256SUMS` 8), v0.3.0 0, v0.1.0 0. **CI-dominated, not users** ([arithmetic](#release-downloads-and-clones-are-our-own-ci)) | `.releases.total_downloads`, `.releases.releases[] \| [.tag, .downloads]` |
+| Views | 85, 2 unique | `.traffic.views \| [.count, .uniques]` |
+| Clones | 1,055, 82 unique. **CI-dominated, not users** (817 own CI jobs in the window, [arithmetic](#release-downloads-and-clones-are-our-own-ci)) | `.traffic.clones \| [.count, .uniques]` |
+| Referrers | `github.com` only (8 views, 1 unique): no launch channel yet | `.traffic.referrers` |
+| Action users | 0 (code search, this repository excluded) | `.action_users.count` |
+| Issues | 0 (no issue in any state; every gate label 0) | `.issues.total_issues` |
+
+The two unique viewers are not outside interest: the most viewed paths are the overview, `/pulls`, `/branches` and
+single Actions runs (`.traffic.paths`), which is how the maintainer works on the repository.
+
+**Live values on 2026-11-15** (queried around 11:00 UTC with the session's `gh` login; not a collector snapshot):
+
+| Signal | Value | Query |
+|---|---|---|
+| Stars | **2**, both the maintainer's own accounts: `winkytek` (starred 2026-11-09T11:16:22Z), `pvgiang` (2026-11-15T06:34:22Z). **0** from outside | `gh api -H "Accept: application/vnd.github.star+json" repos/pvgiang/spring-tune/stargazers --jq '.[] \| [.user.login, .starred_at]'` |
+| Release asset downloads | 162: v0.4.2 5 (one each of its five assets), v0.4.1 128 (jar 63, `SHA256SUMS` 63), v0.4.0 23, v0.3.0 3, v0.1.0 3 | `scripts/gates/collect.sh` → `.releases.releases[] \| [.tag, .downloads, .own_ci_runs_since]` |
+| Own workflow runs since each release (`own_ci_runs_since`) | v0.4.2 1, v0.4.1 51, v0.4.0 75, v0.3.0 94, v0.1.0 110 | same |
+| Repository | public; description and topics (`hikari`, `java`, `misconfiguration`, `spring-boot`) set; 0 forks | `gh api repos/pvgiang/spring-tune --jq '[.visibility, .description, .topics, .forks_count]'` |
 
 ### Release-day baseline (2026-11-09)
 
@@ -131,6 +159,46 @@ launch post. Everything below is zero, which is the point: launch effects are me
 Note: right after this snapshot, the corpus re-run downloaded `springtune-cli-0.4.0.jar` and `SHA256SUMS` of
 v0.4.0 once each through the API (around 04:47 UTC). If those two counters read 1 later, that is this download,
 not a user.
+
+## Release downloads and clones are our own CI
+
+Neither release asset downloads nor clones are an adoption signal, and no threshold uses them. Named teams
+(issues, form reports, Action users, stargazers with a company, design partners) are the only threshold signals.
+
+- **Release assets.** Three CI jobs download the CLI jar and `SHA256SUMS` from the GitHub release on purpose,
+  because the download-and-verify path is what they prove: `action-checksum` and `demo` (`uses: ./` with the
+  Action's default version) on every push and pull request, and `published-action` (`uses:
+  pvgiang/spring-tune@vX.Y.Z`) on pushes to `main`, weekly and on demand. The jar and `SHA256SUMS` of v0.4.1
+  having the same count (51 / 51) is that pair being fetched together.
+- **Clones.** Every job that runs `actions/checkout` clones the repository, and so does every agent session.
+
+The collector writes, per release, `own_ci_runs_since` (this repository's workflow runs, all workflows, created
+since the release's `published_at`) and `downloads_per_own_ci_run`, so the counter is never read alone.
+
+**Arithmetic for the 2026-11-13 snapshot.** Counted from the Actions API: for every *CI* run created between
+v0.4.1's `published_at` (2026-11-09T11:07:21Z) and the snapshot (2026-11-13T08:17:01Z), the jobs that ran
+(`gh api repos/pvgiang/spring-tune/actions/runs/<id>/jobs`), and the release version each downloading job fetched
+at that commit (`VERSION` of `action-checksum` in `ci.yml` and the `version` default of `action.yml` for `demo`,
+read with `gh api repos/pvgiang/spring-tune/contents/<file>?ref=<head_sha>`; the pinned tag for
+`published-action`).
+
+| | Runs / jobs | v0.4.1 jar + `SHA256SUMS` fetched |
+|---|---|---|
+| All own workflow runs in the window | 41 (CI 29, Content check 8, Nightly 3, Gates collector 1) | |
+| CI runs at commits pinned to 0.4.1 (`claude/iteration-6` pushes and its pull request, and `main` at 18ff9de) | 24 | `action-checksum` 23 + `demo` 24 + `published-action` 1 = **48** complete pairs, plus one `action-checksum` job (run 42638709344) whose download step failed ("unexpected end of JSON input"), so it fetched at most the jar: **48 to 49** |
+| Counter in the snapshot | | **51** pairs |
+| Residual | | 51 − 48 = **2 to 3** pairs, not attributable (local sessions also download releases; nothing shows a user) |
+
+The counter does not reconcile exactly with our own jobs either: by the same count, the CI runs at 0.4.0-pinned
+commits in that window ran 37 downloading jobs (`action-checksum` 16, `demo` 16, `published-action` 5), while
+v0.4.0's counter reads 12 (jar) / 8 (`SHA256SUMS`). Why GitHub counted fewer is not known. Either way a residual
+cannot be read as outside downloads.
+
+**Clones in the same snapshot** (traffic window 2026-10-30 to 2026-11-12): 1,055 clones, 82 unique, against
+**817** jobs of our own workflow runs that ran in those days (112 runs; skipped jobs excluded). From 2026-11-03 to
+2026-11-07 the daily clones (69, 70, 95, 8, 47) equal or nearly equal the jobs that ran (68, 68, 95, 8, 47). The
+rest (1,055 − 817 = 238, mostly on 2026-11-10 and 2026-11-11) is not attributed; agent sessions clone the
+repository too. Each fresh runner counts as a unique cloner, so the 82 uniques are not people either.
 
 ## Launch log
 
@@ -161,14 +229,18 @@ The workflow has **two jobs**, so the personal access token and the write permis
 
 | Job | Permissions | Secrets it sees | Does |
 |---|---|---|---|
-| `collect` | `contents: read`, `issues: read` | `GATES_TOKEN` if set (else `github.token`, read-only here) | runs `collect.sh`, writes the run summary, uploads the snapshot as the artifact `gates-snapshot` (`actions/upload-artifact` pinned by commit SHA, kept 7 days) |
-| `store` (`needs: collect`) | `contents: write` | `github.token` only | downloads `gates-snapshot`, **validates** it, then appends it to `gates-data` with the explicit refspec `HEAD:refs/heads/gates-data` |
+| `collect` | `contents: read`, `issues: read`, `actions: read` | `github.token` (`GH_TOKEN`, every section); `GATES_TOKEN` if set, which `collect.sh` passes to two calls only: traffic and code search | runs `collect.sh`, writes the run summary, uploads the snapshot as the artifact `gates-snapshot` (`actions/upload-artifact` pinned by commit SHA, kept 7 days) |
+| `store` (`needs: collect`) | `contents: write` | `github.token` only | downloads `gates-snapshot`, checks out `scripts/gates` (no credentials kept), **validates** the snapshot with [`validate-snapshot.sh`](../../scripts/gates/validate-snapshot.sh), then appends it to `gates-data` with the explicit refspec `HEAD:refs/heads/gates-data` |
 
-Validation in `store` (any failure stops the push): the file exists and is under 1 MB; it is a JSON object whose
-top-level keys are exactly the ones `collect.sh` writes (`schema`, `collected_at`, `repo`, `auth`, `repository`,
-`stargazers`, `issues`, `releases`, `action_users`, `traffic`, `not_collected`); `schema` is 1; `collected_at` is
-an ISO 8601 UTC instant (`YYYY-MM-DDTHH:MM:SSZ`, which also names the file); the six signal sections are objects
-and `not_collected` is an array. A compromised or buggy `collect` step can therefore only push a small, well-formed
+Validation in `store` (`scripts/gates/validate-snapshot.sh`; any failure stops the push): the file exists and is
+under 1 MB; it holds exactly one JSON value (`jq --slurp`), a JSON object whose top-level keys are exactly the ones `collect.sh` writes (`schema`,
+`collected_at`, `repo`, `auth`, `repository`, `stargazers`, `issues`, `releases`, `action_users`, `traffic`,
+`not_collected`); `schema` is 1; `collected_at` is an ISO 8601 UTC instant (`YYYY-MM-DDTHH:MM:SSZ`, which also names
+the file); `auth` is an object that names, as a string, the token of each of the six sections (`repository`,
+`stargazers`, `issues`, `releases`, `action_users`, `traffic`) and nothing else; the six signal sections are
+objects; unless `releases` is unavailable, every release has `own_ci_runs_since` and `downloads_per_own_ci_run`
+(each a number or null); and `not_collected` is an array. Snapshots written before iteration 7 (a string `auth`,
+no `own_ci_runs_since`, such as the 2026-11-13 one) fail this check; they are already stored and are not re-pushed. A compromised or buggy `collect` step can therefore only push a small, well-formed
 snapshot, never other files or refs; and a leaked write token in `store` cannot read traffic. Both jobs keep the
 `github.repository == 'pvgiang/spring-tune'` guard, so forks do nothing, and share the `gates-collect` concurrency
 group. Proven by reading the YAML and by actionlint 1.7.7 (clean); the validation was run locally against a real
@@ -178,9 +250,9 @@ over 1 MB, a section of the wrong type), all refused. A real run on GitHub is hu
 | Snapshot field | Source | Feeds |
 |---|---|---|
 | `repository` | `repos/{repo}`: stars, forks, watchers (subscribers), description, topics | gate 1 trend |
-| `stargazers` | `repos/{repo}/stargazers` with `starred_at` (star+json media type); `company` from each profile (newest 300) | gate 1: stars with a company; spikes line up with the launch log |
+| `stargazers` | `repos/{repo}/stargazers` with `starred_at` (star+json media type); `company` from each profile (newest 300); `profile_lookups_failed` counts profiles that could not be read (their company is unknown, not "none") | gate 1: stars with a company; spikes line up with the launch log |
 | `issues.by_label` | `repos/{repo}/issues?state=all` (pull requests dropped), per label: `rule-request`, `false-positive`, `rec-feedback`, `paid-signal`, `outcome-*`, `pilot-*`; each issue with `created_at`, `author`, `author_association`; `from_outside` excludes OWNER, MEMBER, COLLABORATOR | gates 1 to 4, FP rate |
-| `releases` | `repos/{repo}/releases`: `download_count` per asset, per release, and the total | gate 1 trend |
+| `releases` | `repos/{repo}/releases`: `download_count` per asset, per release, and the total; per release `own_ci_runs_since` (`repos/{repo}/actions/runs?created=>=<published_at>`, `total_count`) and `downloads_per_own_ci_run` | not a gate signal: dominated by our own CI ([above](#release-downloads-and-clones-are-our-own-ci)) |
 | `action_users` | `search/code`, `q=pvgiang/spring-tune@ path:.github/workflows`, this repository excluded | gate 1: named teams |
 | `traffic` | `traffic/views`, `traffic/clones` (per day), `traffic/popular/referrers`, `traffic/popular/paths` | launch log referrer delta |
 
@@ -196,7 +268,19 @@ recorded as unavailable. **Human step:** create a fine-grained personal access t
 `GATES_TOKEN`. Fine-grained tokens expire (at most a year): put the expiry date in your calendar, because an expired
 token loses traffic silently except for the `available: false` line.
 
-Any section that fails is written as `{"available": false, "reason": "..."}` and the rest of the snapshot is kept.
+Every section that worked carries `"available": true`; a section that fails is written as
+`{"available": false, "reason": "..."}` and the rest of the snapshot is kept. The top-level `auth` object names the
+token each section was read with, for example `{"repository": "github.token", "stargazers": "github.token",
+"issues": "github.token", "releases": "github.token", "action_users": "GATES_TOKEN", "traffic": "GATES_TOKEN"}`.
+
+**Why not the PAT for everything.** Until iteration 7 the workflow set `GH_TOKEN` to `GATES_TOKEN` whenever it
+existed, so the fine-grained PAT read every section, and GitHub refused it on `stargazers` (HTTP 403 in the
+2026-11-13 snapshot). Now `GH_TOKEN` is always `github.token`, and `collect.sh` hands `GATES_TOKEN` to the traffic
+and code search calls only. A local run with the session's `gh` login on 2026-11-15 (no `GATES_TOKEN`) gave
+`stargazers.available == true` (count 2), `own_ci_runs_since` for all five releases, and passed
+`validate-snapshot.sh`. The profile lookups (`users/<login>`) were refused by this sandbox's proxy, which the
+snapshot records as `profile_lookups_failed: 2`; on GitHub's runners they are ordinary public reads. The real run is
+human step H4 of the [iteration-7 brief](../delivery/iteration-7-brief.md).
 
 Run it locally (uses your `gh` login; traffic needs a token with admin rights on the repository):
 
@@ -210,6 +294,8 @@ Read the history:
 ```bash
 git fetch origin gates-data
 git show origin/gates-data:snapshots.jsonl | jq -r '[.collected_at, .repository.stars, .releases.total_downloads, .action_users.count // "n/a"] | @tsv'
+git show origin/gates-data:snapshots.jsonl | jq -r '.collected_at as $t | .releases.releases[]? | [$t, .tag, .downloads, .own_ci_runs_since // "n/a"] | @tsv'
+scripts/gates/validate-snapshot.sh /tmp/snapshot.json   # the store job's check, locally
 git show origin/gates-data:snapshots.jsonl | jq -r 'select(.traffic.available) | .traffic.referrers[] | [.referrer, .count, .uniques] | @tsv'
 ```
 

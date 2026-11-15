@@ -2,7 +2,9 @@
 
 The source of truth is [launch-post.md](launch-post.md); every number here is in it and traced in
 [claims.md](claims.md). If you edit a number here, edit it there and in claims.md too, then run
-`scripts/content/check-claims.sh`. Post only after [checklist.md](checklist.md) is signed off.
+`scripts/content/check-claims.sh`. Post only after [checklist.md](checklist.md) is signed off;
+`scripts/launch/verify-checklist.sh` runs its agent-checkable items. Install lines stay **0.4.1**, the version Maven
+Central serves; if 0.4.2 reaches Central before posting, the sweep runs first (checklist item L1).
 
 Order: r/java and Show HN on different days (each needs the author answering comments for the first few hours),
 dev.to as the long-form copy, a JUG talk or newsletter after the first feedback. Record each in the launch log in
@@ -53,6 +55,9 @@ in production that I know of, so please don't treat it as more than an experimen
 
 Write-up with the code, the failure arithmetic and the fixes:
 https://github.com/pvgiang/spring-tune/blob/main/docs/launch/launch-post.md
+
+The README has one path per approach (CLI, Maven, Gradle, Action, starter), each with the real output on a demo
+project: https://github.com/pvgiang/spring-tune#start-here-pick-one
 
 I'd especially like false positives and rule requests; every false positive becomes a regression test.
 ```
