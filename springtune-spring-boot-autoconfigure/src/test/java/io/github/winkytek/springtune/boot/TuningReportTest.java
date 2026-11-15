@@ -3,6 +3,7 @@ package io.github.winkytek.springtune.boot;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.winkytek.springtune.model.Knob;
+import io.github.winkytek.springtune.model.Recommendation;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +19,9 @@ class TuningReportTest {
     }
 
     @Test
-    void pseudonymsAreOrdinalsPerKindInComponentIdOrder() {
+    void pseudonymsAreOrdinalsPerKindInTheSnapshotsDiscoveryOrder() {
+        // The service lists components in discovery order (sorted by id at discovery, then fixed); the report
+        // numbers them in that order, not by their current id (which changes when an unnamed pool starts).
         TuningSnapshot snapshot = new TuningSnapshot("ADVISE", false, Instant.EPOCH,
                 new TuningSnapshot.Budget(null, null, 0.8, null),
                 List.of(component("hikari:zeta"), component("executor:b"), component("hikari:alpha"),
@@ -26,13 +29,28 @@ class TuningReportTest {
                 List.of(), List.of(), null);
         TuningReport report = TuningReport.from(snapshot, "0.4.2", "3.5.16", 17);
         assertThat(report.components()).extracting(TuningReport.Component::ref)
-                .containsExactly("executor#1", "executor#2", "hikari#1", "hikari#2");
+                .containsExactly("hikari#1", "executor#1", "hikari#2", "executor#2");
         assertThat(report.components()).extracting(TuningReport.Component::kind)
-                .containsExactly("executor", "executor", "hikari", "hikari");
+                .containsExactly("hikari", "executor", "hikari", "executor");
         assertThat(report.springtuneVersion()).isEqualTo("0.4.2");
         assertThat(report.springBootVersion()).isEqualTo("3.5.16");
         assertThat(report.javaVersion()).isEqualTo(17);
         assertThat(report.verdicts()).isEmpty();
+    }
+
+    @Test
+    void componentsSharingAnIdAreNumberedButNothingIsAttributedToThem() {
+        Recommendation rec = new Recommendation("ST-REC-HIKARI-001", "hikari.default.maximumPoolSize",
+                Recommendation.Action.INCREASE, 5, 6, "x", Map.of(), Recommendation.Confidence.LOW, List.of(),
+                Instant.EPOCH);
+        TuningSnapshot snapshot = new TuningSnapshot("ADVISE", false, Instant.EPOCH,
+                new TuningSnapshot.Budget(null, null, 0.8, null),
+                List.of(component("hikari:a"), component("hikari:default"), component("hikari:default")),
+                List.of(rec), List.of(), null);
+        TuningReport report = TuningReport.from(snapshot, "0.4.2", "3.5.16", 17);
+        assertThat(report.components()).extracting(TuningReport.Component::ref)
+                .containsExactly("hikari#1", "hikari#2", "hikari#3");
+        assertThat(report.recommendations()).singleElement().extracting(TuningReport.Rec::knob).isNull();
     }
 
     @Test
