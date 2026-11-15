@@ -40,7 +40,8 @@ The **budget cap** uses the same `ConnectionBudget` formula as CI rule ST-HIKARI
 
 ## Evaluation status: is an empty `recommendations[]` healthy? (after 0.4.1)
 
-> Arrives in the release after 0.4.1. On 0.4.1 and earlier the snapshot has no `evaluations` field.
+> Needs 0.4.2: released on GitHub, its Maven Central publication is pending (0.4.1 is on Central). On 0.4.1 and
+> earlier the snapshot has no `evaluations` field.
 
 `GET /actuator/tuning` lists, next to `recommendations`, an **`evaluations`** entry for every rule of every
 component, computed at each sampler tick **in the same pass that decides the recommendation** (one function returns
@@ -78,8 +79,8 @@ A restart starts again from hour 0 (samples are kept in memory only). In `observ
 
 ## Shareable report: `GET /actuator/tuning/report` (after 0.4.1)
 
-> Arrives in the release after 0.4.1. On 0.4.1, paste the relevant entry of plain `GET /actuator/tuning` into the
-> feedback form and replace names yourself.
+> Needs 0.4.2: released on GitHub, its Maven Central publication is pending (0.4.1 is on Central). On 0.4.1, paste
+> the relevant entry of plain `GET /actuator/tuning` into the feedback form and replace names yourself.
 
 A read operation on the same `tuning` endpoint (same exposure, same security as `GET /actuator/tuning`; any other
 path below it is 404). It returns **strictly less** than the snapshot, built only from allowlisted values; nothing is
@@ -242,7 +243,7 @@ principal is refused there too.
 | `action` | Fields | Effect |
 |---|---|---|
 | `apply` | `ruleId`, `knobId`, `expectedCurrent`, `reason` (all required); `expectedTarget` (optional, recommended) | Applies the `recommendedValue` of the matching **current** recommendation (re-evaluated at request time). No other value can be applied, and HOLD has nothing to apply. With `expectedTarget`, the apply is refused if the fresh recommendation now proposes a different value than the one you reviewed. |
-| `revert` | `knobId`, optional `reason` | Writes back the change in flight, or the last confirmed change of that knob, if the live value is still the applied one. |
+| `revert` | `knobId`, optional `reason` | Writes back the change in flight, or the last confirmed change of that knob, if the live value is still the applied one. Reverting a confirmed or kept **decrease** of a Hikari pool raises it, and is checked like a raise (see *Reverts and the server limit*). |
 | `freeze` | optional `reason` | Reverts the change in flight and refuses every further apply **until restart** (runtime kill switch). |
 
 ```bash
@@ -270,7 +271,7 @@ current state). Every request, including refusals, is audited with the caller's 
 | Optional `expectedTarget` must equal the fresh recommendation's value | `STALE_EXPECTED_TARGET` (409) |
 | Raising a Hikari pool needs `springtune.budget.*` and stays ≤ the per-instance cap | `NO_BUDGET`, `ABOVE_BUDGET_CAP` (400) |
 | Raising a Hikari pool: `database-max-connections` must not exceed what the **server** accepts from application roles, **re-read for every apply attempt** through the pool (PostgreSQL `max_connections − superuser_reserved_connections − reserved_connections`, MySQL/MariaDB `@@max_connections`; other databases are not checked and the apply plan says so) | `BUDGET_EXCEEDS_SERVER` (409) |
-| Raising a Hikari pool: that re-read must succeed within the pool's `connectionTimeout` (at most 30 s). Fails closed: a failed or unanswered read refuses the raise and names the last known value and when it was read; a DECREASE is never refused for it | `SERVER_LIMIT_UNKNOWN` (409) |
+| Raising a Hikari pool: that re-read must succeed within the pool's `connectionTimeout` (at most 30 s). Fails closed: a failed or unanswered read refuses the raise and names the last known value and when it was read; a DECREASE is never refused for it. A manual `revert` of a confirmed or kept decrease is a raise too; SpringTune's own rollback of the change in flight is not checked (below) | `SERVER_LIMIT_UNKNOWN` (409) |
 | Step: `abs(new − current) ≤ max(1, ceil(current × max-step))` | `STEP_LIMIT` (400) |
 | Growth: `new` within `[startup / max-growth-factor, startup × max-growth-factor]` | `GROWTH_LIMIT` (400) |
 | Counters cover the `baseline` window before the change | `BASELINE_NOT_COVERED` (409) |
@@ -279,6 +280,32 @@ Only the knob writers (`HikariPoolWriter`, `ExecutorPoolWriter`) call size sette
 build if any other class does. Write order keeps components valid at every step: Hikari grows `maximumPoolSize` then
 `minimumIdle` and shrinks `minimumIdle` first; executors grow `maxPoolSize` then `corePoolSize` and shrink
 `corePoolSize` first.
+
+### Reverts and the server limit
+
+A revert of a decrease raises the pool again. Who reverts decides how it is checked (decision of iteration 7, row 8):
+
+- **SpringTune's own rollback of the change in flight** (verdict REGRESSED, fast fail, INCONCLUSIVE with
+  `on-inconclusive=revert`, and also a manual `revert` or a `freeze` while the change is still being verified) is the
+  safety path. It is **never refused and never waits for a limit read**: it restores the value that held minutes
+  ago, and only if the live value is still the applied one. Its audit entry says so: `"serverLimit":
+  "NOT_READ_ROLLBACK"`, a reason line *Server connection limit not read for this rollback*, and `serverLimit=` on the
+  `springtune.audit` log line.
+- **A manual `revert` of a confirmed or kept decrease** of a Hikari pool is a new decision to raise it. It takes the
+  **same fresh limit read as an apply that raises** (outside the controller lock, bounded by the pool's
+  `connectionTimeout`, at most 30 s) and is refused like one: `SERVER_LIMIT_UNKNOWN` when the read fails or does not
+  answer, `BUDGET_EXCEEDS_SERVER` when `database-max-connections` is above the server's limit, `NO_BUDGET` without a
+  budget, `ABOVE_BUDGET_CAP` above the per-instance cap. A refused revert changes nothing and is audited; it can be
+  retried, and the operator can always change the configuration and redeploy, so no one is locked in.
+- A manual revert that lowers the pool (the revert of a confirmed raise), and any revert of an executor knob, reads
+  nothing and is unchanged.
+
+Rejected alternative: never refuse a revert, but cap it at the last verified limit. That would write a value nobody
+recommended or reviewed. Tests: `ChangeControllerTest` (automatic and inconclusive rollback with an unreadable limit
+succeed with no read; a manual revert of a confirmed decrease is refused with `SERVER_LIMIT_UNKNOWN` or
+`BUDGET_EXCEEDS_SERVER`, and succeeds with a fresh sufficient read; the read runs outside the lock and does not block
+the sampler tick). Replacing the read in the revert path with a no-read value makes three of them fail. Apply mode
+stays experimental.
 
 ### Verification and automatic revert
 
