@@ -50,6 +50,7 @@ for f in "${files[@]}"; do
     function check(ver, what) {
       if (ver != want) printf "%d: %s names version %s, expected %s  [install version]\n", NR, what, ver, want
     }
+    /sweep: keep/ { next }   # a line kept as history by scripts/release/sweep-install-version.sh
     {
       line = $0
       # Action ref: pvgiang/spring-tune@v1.2.3 (a branch or SHA ref is reported too)

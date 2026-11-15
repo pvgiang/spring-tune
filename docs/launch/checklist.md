@@ -67,31 +67,10 @@ The posts install **0.4.1**, which is on Maven Central. They do not wait for 0.4
 
 ## Run log
 
-`scripts/launch/verify-checklist.sh` on 2026-11-15, around 13:50 UTC, on the iteration-7 branch before merge (exit 0).
-Re-run it on the day of posting; this run does not sign anything off. L13 passes on traffic; `stargazers` in that
-snapshot is still the pre-fix 403 (brief H4). Negative checks run the same day on a copy of the content: a changed
-SHA-256 in the post and a link to a missing file each gave FAIL (exit 1), and an unreachable Central gave NO-CHECK
-for L1 and L4 to L7 (exit 1).
-
-```text
-PASS     L1   0.4.2 is released on GitHub but not on Central (HTTP 404): the post stays on 0.4.1
-PASS     L2   repository pvgiang/spring-tune is public
-PASS     L3   description set (241 chars), 4 topics
-PASS     L4   CLI jar 0.4.1: HTTP 200 (https://repo1.maven.org/maven2/io/github/winkytek/springtune/springtune-check-cli/0.4.1/springtune-check-cli-0.4.1-all.jar)
-PASS     L5   Maven plugin 0.4.1: HTTP 200 (https://repo1.maven.org/maven2/io/github/winkytek/springtune/springtune-maven-plugin/0.4.1/springtune-maven-plugin-0.4.1.pom)
-PASS     L6   Gradle plugin marker 0.4.1: HTTP 200 (https://repo1.maven.org/maven2/io/github/winkytek/springtune/io.github.winkytek.springtune.gradle.plugin/0.4.1/io.github.winkytek.springtune.gradle.plugin-0.4.1.pom)
-PASS     L7   CLI SHA-256 in the post = v0.4.1 SHA256SUMS (springtune-cli-0.4.1.jar) = Central .sha256 (3f3726f752ae7605ee0687ac9a1f2158585928bc593cb90b95d45e4b140b599e)
-PASS     L8   8 links in launch-post.md and variants.md answer HTTP 200
-PASS     L9   README on main has 'Start here: pick one' and five numbered paths
-PASS     L10  check-claims: OK (9 files, install version 0.4.1, no banned wording)
-PASS     L11  CI on main (6b3fa10, run 43704573116) success; demo, README snippets (Central) and published Action: 7 of 7 green
-PASS     L12  labels false-positive and rule-request exist; their issue forms are on the default branch
-PASS     L13  latest gates snapshot (2026-11-13T08:17:01Z): traffic collected (stargazers.available=false)
-
-HUMAN (not checked here, see docs/launch/checklist.md): H1 claims trace recount, H2 apply wording, H3 links and
-issue forms in an anonymous browser, H4 composites, H5 launch-log rows, H6 sign-off, H7 posting.
-verify-checklist: 13 PASS, 0 FAIL, 0 NO-CHECK
-```
+Each run of `scripts/launch/verify-checklist.sh` that is kept as evidence goes, verbatim, into
+[`docs/adoption/launch-checklist-runs/`](../adoption/launch-checklist-runs/): the first is
+[2026-11-15](../adoption/launch-checklist-runs/2026-11-15.md) (13 PASS, 0 FAIL, 0 NO-CHECK). Re-run it on the day of
+posting; a past run signs nothing off.
 
 ## Resolved since the first drafts (2026-11-09)
 
@@ -100,8 +79,8 @@ Kept for the record; none blocks the launch any more.
 - The repository was private: it is **public** (L2).
 - 0.4.1 was not on Maven Central: it is, and the CLI jar's SHA-256 on Central equals the one in the post and in the
   v0.4.1 release's `SHA256SUMS` (L4, L7).
-- The `v0.4.0` tag's Action defaulted to the 0.1.0 CLI without a checksum: the posts use `@v0.4.1`, which verifies
-  the jar, with `version: "0.4.1"` because that tag's own `action.yml` defaults to CLI 0.4.0
+- The `v0.4.0` tag's Action defaulted to the 0.1.0 CLI without a checksum: the posts use `@v0.4.1`, which verifies <!-- sweep: keep -->
+  the jar, with `version: "0.4.1"` because that tag's own `action.yml` defaults to CLI 0.4.0 <!-- sweep: keep -->
   ([v0.4.1 notes](../releases/v0.4.1.md)).
 - README and case study said "45 of 45 … wait up to 30 s"; they now say 44 up to 30 s and 1 waits 10 s.
 - The README tagline used a banned word; `scripts/content/check-claims.sh README.md` is clean.
