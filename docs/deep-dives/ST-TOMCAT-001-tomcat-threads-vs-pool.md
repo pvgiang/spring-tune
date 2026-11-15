@@ -30,10 +30,12 @@ The lock was one table. The outage was the whole service, because the number of 
 connection was not bounded by anything except Tomcat's own maximum.
 
 The same story with a bounded configuration: `threads.max` 100, `maximum-pool-size` 20 (if the database's
-connection budget allows it, see [ST-HIKARI-004](../rules/ST-HIKARI-004.md)), `connectionTimeout` 2 s, and the
-actuator on its own port. The pool now serves 10 slow database requests per second; the other 30 per second wait
-at most 2 s each, so about 60 threads are parked at any moment (30 × 2). That leaves 20 of the 100 threads for the
-cached requests, which take a few milliseconds each and so keep only a few threads busy. The database screens fail fast with
+connection budget allows it, see [ST-HIKARI-004](../rules/ST-HIKARI-004.md)), `connectionTimeout` 1 s, and the
+actuator on its own port. The pool now serves 10 slow database requests per second; the other 30 per second fail
+after 1 s. HikariCP hands connections to waiting threads in arrival order, so every database request, served or
+not, waits close to the full timeout: about 40 threads are parked at any moment (40 × 1 s) and 20 hold a
+connection. That leaves 40 of the 100 threads for the cached requests, which take a few milliseconds each and so
+keep only a few threads busy. (With a 2 s timeout the same arithmetic parks 80 and leaves none.) The database screens fail fast with
 a clear error, the rest of the service keeps answering, and the health probe runs on a separate server.
 
 ## How often it shows up
@@ -83,7 +85,7 @@ spring:
   datasource:
     hikari:
       maximum-pool-size: 20       # only within the database's connection budget, across all replicas
-      connection-timeout: 2000    # ms; a request that cannot get a connection fails fast (ST-HIKARI-001)
+      connection-timeout: 1000    # ms; a request that cannot get a connection fails fast (ST-HIKARI-001)
 management:
   server:
     port: 8081                    # actuator on its own server and threads: probes keep answering
@@ -149,7 +151,7 @@ rules:
 suppress:
   - rule: ST-TOMCAT-001
     module: catalogue-service
-    reason: "95% of requests are served from the cache; connectionTimeout is 2 s"
+    reason: "95% of requests are served from the cache; connectionTimeout is 1 s"
 ```
 
 ## See it fail
