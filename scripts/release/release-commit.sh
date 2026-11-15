@@ -9,7 +9,8 @@
 #   dispatch  The tag must not exist yet. In a separate worktree at BUILT_SHA, stamp-action-version.sh VERSION; if
 #             that changes action.yml, commit it as github-actions[bot] (one file, parent BUILT_SHA), else use
 #             BUILT_SHA itself. Check the commit (parent, `git diff --name-only BUILT_SHA <commit>` == action.yml,
-#             at most the version input's 2 lines, default == VERSION), tag it (annotated) and push only
+#             at most the version input's 2 lines, action.yml byte-equal to stamping BUILT's, default ==
+#             VERSION), tag it (annotated) and push only
 #             refs/tags/vVERSION. Nothing is pushed to a branch. If the tag already exists (a re-run after the tag
 #             push), it is reused only if it passes the same checks.
 #   push      The tag was pushed by a person and cannot be re-pointed: exit 1 unless action.yml at BUILT_SHA already
@@ -43,6 +44,19 @@ check_release_commit() {  # check_release_commit SHA
       || { echo "::error::release commit $sha changes more than action.yml: $(git diff --name-only "$BUILT" "$sha" | tr '\n' ' ')"; return 1; }
     [ "$(git diff -U0 "$BUILT" "$sha" -- action.yml | grep -c '^[-+][^-+]' || true)" -le 4 ] \
       || { echo "::error::release commit $sha changes more than the version input's lines in action.yml"; return 1; }
+    # Byte for byte what the stamp script makes of the built commit's action.yml (a line count alone would accept
+    # a commit that stamps the default and changes one other line, such as a pinned action).
+    local want
+    want="$(mktemp)"
+    git show "$BUILT:action.yml" > "$want"
+    bash "$HERE/stamp-action-version.sh" "$VERSION" "$want" > /dev/null \
+      || { rm -f "$want"; echo "::error::could not stamp the built commit's action.yml with $VERSION"; return 1; }
+    if ! git show "$sha:action.yml" | cmp -s - "$want"; then
+      rm -f "$want"
+      echo "::error::action.yml at $sha is not what stamp-action-version.sh makes of the built commit's ($VERSION)"
+      return 1
+    fi
+    rm -f "$want"
   fi
   [ "$(default_of "$sha")" = "$VERSION" ] \
     || { echo "::error::action.yml at $sha defaults to CLI '$(default_of "$sha")', not $VERSION"; return 1; }

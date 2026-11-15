@@ -54,8 +54,8 @@ From 0.4.3 the Release workflow stamps the tag ([`scripts/release/release-commit
 2. In a separate worktree at that commit, [`stamp-action-version.sh X.Y.Z`](../scripts/release/stamp-action-version.sh)
    sets the `version` input's `default:` (and its "e.g." example) and checks that nothing else changed.
 3. Commit that one file as `github-actions[bot]`, parent `$GITHUB_SHA`. Check: one commit, `git diff --name-only
-   $GITHUB_SHA <commit>` is `action.yml`, at most the two lines of the version input changed, the default reads
-   `X.Y.Z`.
+   $GITHUB_SHA <commit>` is `action.yml`, at most the two lines of the version input changed, the file is byte for
+   byte what the stamp script makes of the built commit's `action.yml`, the default reads `X.Y.Z`.
 4. Tag it (`vX.Y.Z`, annotated) and push **only the tag** with the job's token (`contents: write`; the repository
    has a branch ruleset and no tag ruleset). No branch moves: the release commit is reachable from the tag only. A
    push made with the job's token starts no workflow, so the tag push does not start a second release.

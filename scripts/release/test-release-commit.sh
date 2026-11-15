@@ -25,7 +25,7 @@ git "${G[@]}" init -q "$WORK/repo"
 cd "$WORK/repo"
 cp "$ROOT/action.yml" action.yml
 mkdir -p docs/releases
-for v in 9.9.9 9.9.7 9.9.6 9.9.5; do echo "notes $v" > "docs/releases/v$v.md"; done
+for v in 9.9.9 9.9.7 9.9.6 9.9.5 9.9.4; do echo "notes $v" > "docs/releases/v$v.md"; done
 echo "notes" > "docs/releases/v$(awk '/^inputs:/ {i=1; next} i && /^  version:/ {v=1; next} v && /^    default:/ {gsub(/[" ]|default:/, ""); print; exit}' action.yml).md"
 git add -A
 git "${G[@]}" commit -q -m built
@@ -82,6 +82,18 @@ git push -q origin "HEAD:refs/tags/v9.9.6" 2> /dev/null
 git checkout -q --detach "$BUILT"
 run 1 "dispatch 9.9.6 when v9.9.6 exists on a commit that also adds a file" 9.9.6 "$BUILT" dispatch
 grep -q 'changes more than action.yml' "$WORK/out.txt" && pass "names the extra change" || fail "message: $(cat "$WORK/out.txt")"
+
+# 5b. An existing tag on a one-file commit that stamps the default but also changes another action.yml line (here
+#     the setup-java pin), with the description left alone so that only 2 lines differ: refused.
+git checkout -q --detach "$BUILT"
+bash "$HERE/stamp-action-version.sh" 9.9.4 action.yml > /dev/null
+sed -i -e "s/e\.g\. 9\.9\.4/e.g. $DEFAULT/" -e 's/setup-java@[0-9a-f]\{40\}/setup-java@0000000000000000000000000000000000000bad/' action.yml
+git add -A
+git "${G[@]}" commit -q -m "stamp and swap the setup-java pin"
+git push -q origin "HEAD:refs/tags/v9.9.4" 2> /dev/null
+git checkout -q --detach "$BUILT"
+run 1 "dispatch 9.9.4 when v9.9.4 exists on a commit that stamps the default and swaps the setup-java pin" 9.9.4 "$BUILT" dispatch
+grep -q 'is not what stamp-action-version.sh makes' "$WORK/out.txt" && pass "names the difference from the stamped action.yml" || fail "message: $(cat "$WORK/out.txt")"
 
 # 6. Pushed tags.
 run 1 "push mode: tag on a commit defaulting to $DEFAULT, releasing 9.9.9" 9.9.9 "$BUILT" push
