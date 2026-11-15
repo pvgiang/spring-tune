@@ -108,7 +108,7 @@ something, and enough users to ask whether they want it.
 |---|---|---|---|---|---|---|---|
 | 2026-11-04 | n/a (not published) | 0 | 0 (0) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
 | 2026-11-09 (release-day baseline, [detail](#release-day-baseline-2026-11-09)) | published, stats owner-only: **pending** (human copies) | 0 | 0 (0) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
-| 2026-11-13 (first collector snapshot, [detail](#collector-snapshot-2026-11-13)) | stats owner-only: **pending** (human copies) | 122, **CI-dominated** (v0.4.1: 51 jar + 51 `SHA256SUMS` against 49 own CI jobs that fetched that pair; [arithmetic](#release-downloads-and-clones-are-our-own-ci)) | 1 (with company: not collected, `stargazers` HTTP 403, iteration 7 row 6) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
+| 2026-11-13 (first collector snapshot, [detail](#collector-snapshot-2026-11-13)) | stats owner-only: **pending** (human copies) | 122, **CI-dominated** (v0.4.1: 51 jar + 51 `SHA256SUMS` against 48 own CI jobs that fetched that pair, plus one that failed mid-download; [arithmetic](#release-downloads-and-clones-are-our-own-ci)) | 1 (with company: not collected, `stargazers` HTTP 403, iteration 7 row 6) | 0 | 0 / 0 | 0 / 0 | 0 (0) |
 
 ### Collector snapshot (2026-11-13)
 
@@ -185,9 +185,9 @@ read with `gh api repos/pvgiang/spring-tune/contents/<file>?ref=<head_sha>`; the
 | | Runs / jobs | v0.4.1 jar + `SHA256SUMS` fetched |
 |---|---|---|
 | All own workflow runs in the window | 41 (CI 29, Content check 8, Nightly 3, Gates collector 1) | |
-| CI runs at commits pinned to 0.4.1 (`claude/iteration-6` pushes and its pull request, and `main` at 18ff9de) | 24 | `action-checksum` 24 + `demo` 24 + `published-action` 1 = **49** pairs |
+| CI runs at commits pinned to 0.4.1 (`claude/iteration-6` pushes and its pull request, and `main` at 18ff9de) | 24 | `action-checksum` 23 + `demo` 24 + `published-action` 1 = **48** complete pairs, plus one `action-checksum` job (run 42638709344) whose download step failed ("unexpected end of JSON input"), so it fetched at most the jar: **48 to 49** |
 | Counter in the snapshot | | **51** pairs |
-| Residual | | 51 − 49 = **2** pairs, not attributable (local sessions also download releases; nothing shows a user) |
+| Residual | | 51 − 48 = **2 to 3** pairs, not attributable (local sessions also download releases; nothing shows a user) |
 
 The counter does not reconcile exactly with our own jobs either: by the same count, the CI runs at 0.4.0-pinned
 commits in that window ran 37 downloading jobs (`action-checksum` 16, `demo` 16, `published-action` 5), while
@@ -233,7 +233,7 @@ The workflow has **two jobs**, so the personal access token and the write permis
 | `store` (`needs: collect`) | `contents: write` | `github.token` only | downloads `gates-snapshot`, checks out `scripts/gates` (no credentials kept), **validates** the snapshot with [`validate-snapshot.sh`](../../scripts/gates/validate-snapshot.sh), then appends it to `gates-data` with the explicit refspec `HEAD:refs/heads/gates-data` |
 
 Validation in `store` (`scripts/gates/validate-snapshot.sh`; any failure stops the push): the file exists and is
-under 1 MB; it is a JSON object whose top-level keys are exactly the ones `collect.sh` writes (`schema`,
+under 1 MB; it holds exactly one JSON value (`jq --slurp`), a JSON object whose top-level keys are exactly the ones `collect.sh` writes (`schema`,
 `collected_at`, `repo`, `auth`, `repository`, `stargazers`, `issues`, `releases`, `action_users`, `traffic`,
 `not_collected`); `schema` is 1; `collected_at` is an ISO 8601 UTC instant (`YYYY-MM-DDTHH:MM:SSZ`, which also names
 the file); `auth` is an object that names, as a string, the token of each of the six sections (`repository`,
