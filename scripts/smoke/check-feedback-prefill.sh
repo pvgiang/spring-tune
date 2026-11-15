@@ -20,7 +20,7 @@ form="${FEEDBACK_FORM:-}"
 url=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --form) form="${2:?--form needs a path}"; shift 2 ;;
+    --form) [ $# -ge 2 ] || { echo "--form needs a path" >&2; exit 2; }; form="$2"; shift 2 ;;
     -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) url="$1"; shift ;;
   esac
@@ -76,6 +76,8 @@ check(bool(ids), "the form has field ids")
 parts = urlsplit(url)
 check(parts.scheme == "https" and parts.netloc == "github.com"
       and parts.path == "/pvgiang/spring-tune/issues/new", "URL is the repository's new-issue page (" + parts.path + ")")
+check(parts.fragment == "" and "#" not in url,
+      "URL has no fragment (an unencoded # cuts the prefill short in the browser)")
 query = parse_qsl(parts.query, keep_blank_values=True, strict_parsing=False)
 keys = [k for k, _ in query]
 check(len(keys) == len(set(keys)), "no query key repeats (" + ", ".join(keys) + ")")
