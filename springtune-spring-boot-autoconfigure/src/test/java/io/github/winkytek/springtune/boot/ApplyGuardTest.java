@@ -172,6 +172,32 @@ class ApplyGuardTest {
                 Optional.of(unread), List.of(lower), Optional.of(13), 100, settings, NOW).approved()).isTrue();
     }
 
+    /** Iteration 7 row 8: a rollback's "not read" status never approves a raise, and a revert is judged like one. */
+    @Test
+    void rollbackStatusRefusesAnyRaiseAndARevertRaiseIsCheckedLikeAnApply() {
+        KnobFacts rollback = new KnobFacts(KNOB, WritableKnob.Kind.HIKARI, 10, 10, null, true,
+                ServerConnectionLimit.notReadForRollback());
+        Decision raise = ApplyGuard.checkApply(apply(10), ok, Optional.of(rollback),
+                List.of(rec(Action.INCREASE, 10, 11)), Optional.of(13), 13, settings, NOW);
+        assertThat(raise.refusal().code()).isEqualTo(Code.SERVER_LIMIT_UNKNOWN);
+
+        assertThat(ApplyGuard.checkHikariRaise(8, 10, Optional.of(13), 20,
+                ServerConnectionLimit.notRead("no answer"), "revert")).map(r -> r.code())
+                .contains(Code.SERVER_LIMIT_UNKNOWN);
+        assertThat(ApplyGuard.checkHikariRaise(8, 10, Optional.of(13), 20,
+                ServerConnectionLimit.skippedForDecrease(), "revert")).map(r -> r.code())
+                .contains(Code.SERVER_LIMIT_UNKNOWN);
+        assertThat(ApplyGuard.checkHikariRaise(8, 10, Optional.empty(), null,
+                ServerConnectionLimit.notApplicable(), "revert")).map(r -> r.code()).contains(Code.NO_BUDGET);
+        ServerConnectionLimit ten = new ServerConnectionLimit(ServerConnectionLimit.Status.KNOWN, 10, "PostgreSQL",
+                "= 10");
+        assertThat(ApplyGuard.checkHikariRaise(8, 10, Optional.of(13), 20, ten, "revert")).map(r -> r.code())
+                .contains(Code.BUDGET_EXCEEDS_SERVER);
+        assertThat(ApplyGuard.checkHikariRaise(8, 14, Optional.of(13), 10, ten, "revert")).map(r -> r.code())
+                .contains(Code.ABOVE_BUDGET_CAP);
+        assertThat(ApplyGuard.checkHikariRaise(8, 10, Optional.of(13), 10, ten, "revert")).isEmpty();
+    }
+
     /** Iteration 6 row 8: a read skipped because the apply was judged a decrease never lets a raise through. */
     @Test
     void readSkippedForADecreaseRefusesAnyRaise() {
