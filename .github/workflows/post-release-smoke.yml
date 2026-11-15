@@ -4,7 +4,8 @@ name: Post-release smoke
 # Central and the Gradle Plugin Portal, with empty local repositories and no mavenLocal(). See
 # docs/releasing.md#post-release-smoke. Run it by hand (Actions > Post-release smoke > Run workflow) after the
 # Plugin Portal workflow, or call it from another workflow. Each job first waits (up to 30 min) until the files
-# are visible on Central/the Portal; the builds themselves are never retried.
+# are visible on Central/the Portal; the builds themselves are never retried. The `action-tag` job runs the
+# GitHub Action at the tag vVERSION without a `version:` input (meaningful from 0.4.3, the first stamped tag).
 on:
   workflow_dispatch:
     inputs:
@@ -85,3 +86,59 @@ jobs:
             ${{ runner.temp }}/smoke-gradle/*.txt
           if-no-files-found: ignore
           retention-days: 14
+
+  # The tag runs its own CLI (iteration-7 brief row 2): the tag vVERSION, checked out into a directory as a user's
+  # `uses: pvgiang/spring-tune@vVERSION` fetches it, runs on the demo with NO `version:` input and must write SARIF
+  # from CLI VERSION. This proves the stamp only for tags made by the stamping Release workflow (dispatch), i.e.
+  # from 0.4.3 on. The v0.4.2 and older tags default to the previous release's CLI, so this job fails for them.
+  action-tag:
+    name: "Action: the tag without version: runs its own CLI"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Release number only
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          v="${VERSION#v}"
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::invalid version '$VERSION'"; exit 1; }
+          echo "TAG_VERSION=$v" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ env.TAG_VERSION }}
+          path: .st-tag
+          persist-credentials: false
+      - name: The tagged action.yml's default
+        run: |
+          awk '/^inputs:/ {i=1; next} i && /^[^ ]/ {i=0} i && /^  version:/ {v=1; next} v && /^  [^ ]/ {v=0}
+            v && /^    default:/ {print; exit}' .st-tag/action.yml
+          echo "tag v$TAG_VERSION is commit $(git -C .st-tag rev-parse HEAD)"
+      - name: Run the tag on the demo, no version input (must fail with exit code 1)
+        id: tag
+        continue-on-error: true
+        uses: ./.st-tag
+        with:
+          path: examples/broken-config-ci
+          output: tag-reports
+      - name: Expect exit code 1 and the demo's findings, written by the tag's CLI
+        env:
+          EXIT_CODE: ${{ steps.tag.outputs.exit-code }}
+          SARIF: ${{ steps.tag.outputs.sarif }}
+        run: |
+          if [ "$EXIT_CODE" != "1" ]; then
+            echo "::error::Action at v$TAG_VERSION: exit code '$EXIT_CODE', expected 1"
+            exit 1
+          fi
+          # The demo and assert-sarif.py come from the default branch's checkout.
+          python3 scripts/action/assert-sarif.py --tool-version "$TAG_VERSION" --exact "$SARIF" \
+            ST-HIKARI-001=src/main/resources/application.yml:9 \
+            ST-HIKARI-002=src/main/resources/application.yml:1 \
+            ST-TOMCAT-001=src/main/resources/application.yml:15 \
+            ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10 \
+            ST-TX-001=src/main/resources/application.yml:1
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: action-tag-reports
+          path: tag-reports/
+          if-no-files-found: warn

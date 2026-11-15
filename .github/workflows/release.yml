@@ -1,10 +1,16 @@
 name: Release
 
 # Two ways to release; both build, test and publish a GitHub Release with notes from docs/releases/v<version>.md:
-#   1. push a tag:   git tag -a v0.1.0 -m "SpringTune 0.1.0" && git push origin v0.1.0
-#   2. Actions > Release > Run workflow, enter the version; the tag is created on the selected commit.
+#   1. Actions > Release > Run workflow, enter the version (the normal path). After the build and tests, the job
+#      makes a one-file release commit on top of the built commit, in which action.yml's `version` default is the
+#      released version (scripts/release/stamp-action-version.sh), pushes it as the tag vX.Y.Z and creates the
+#      release on that tag. So `uses: pvgiang/spring-tune@vX.Y.Z` (or its commit SHA) runs CLI X.Y.Z without a
+#      `version:` input. The release commit is reachable only from the tag; main keeps the README's pin.
+#   2. push a tag:   git tag -a vX.Y.Z -m "SpringTune X.Y.Z" && git push origin vX.Y.Z
+#      A pushed tag cannot be re-pointed, so the job fails unless the tagged action.yml already defaults to X.Y.Z.
 # Maven Central (job 'maven-central') runs only when the repository secrets in docs/releasing.md exist;
-# without them the job is skipped and the release is GitHub-only, as before.
+# without them the job is skipped and the release is GitHub-only, as before. It builds from the built commit and
+# the staged artifacts; it does not read action.yml. See docs/releasing.md.
 on:
   push:
     tags: ["v*"]
@@ -83,14 +89,33 @@ jobs:
           (cd dist && sha256sum * > SHA256SUMS)
           java -jar dist/springtune-cli-$VERSION.jar --version | grep -q "SpringTune $VERSION"
 
+      # The tag's tree must run its own CLI (iteration-7 brief row 2). Dispatch: a release commit whose parent is the
+      # built commit and whose only change is action.yml's version default (and its "e.g." example), pushed as the
+      # tag with this job's token (contents: write; actions/checkout keeps the token in the local git config, and
+      # the repository has a branch ruleset but no tag ruleset). A push made with the job's token starts no
+      # workflow, so this tag push does not run this workflow a second time. Nothing is pushed to a branch.
+      # Pushed tag: it cannot be re-pointed here, so it must already be stamped.
+      - name: Release commit and tag (action.yml defaults to this version)
+        id: stamp
+        env:
+          MODE: ${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'push' }}
+        # The script is the built commit's own (the stamp script with it); see its header for every check.
+        run: scripts/release/release-commit.sh "$VERSION" "$GITHUB_SHA" "$MODE"
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          STAMPED_SHA: ${{ steps.stamp.outputs.sha }}
         run: |
+          set -euo pipefail
           NOTES="docs/releases/${TAG}.md"
           test -f "$NOTES"
-          # On workflow_dispatch the tag does not exist yet; --target creates it on the built commit.
-          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "SpringTune $VERSION" --notes-file "$NOTES"
+          # The tag exists on origin in both paths: --verify-tag refuses to create one, so the release is on the
+          # stamped commit and never on a tag gh would make from the default branch.
+          gh release create "$TAG" dist/* --verify-tag --title "SpringTune $VERSION" --notes-file "$NOTES"
+          target="$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)"
+          [ "$target" = "$STAMPED_SHA" ] || { echo "::error::release $TAG resolves to $target, expected $STAMPED_SHA"; exit 1; }
+          echo "Release $TAG is on $target"
 
   maven-central:
     name: Publish to Maven Central

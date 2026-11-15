@@ -411,6 +411,10 @@ jobs:
           sarif_file: ${{ steps.springtune.outputs.sarif }}
 ```
 
+**Which CLI runs.** From `v0.4.3` on, `@vX.Y.Z` and its commit SHA run CLI X.Y.Z without `version:` (the Release
+workflow sets the tag's default). `@v0.4.2` and older need `version:`, as above: their default is the previous
+release's CLI. An explicit `version:` always wins ([details](docs/ci-integration.md)).
+
 **Step 2: open a pull request.** You get:
 
 - the job log, with the same text report as [the CLI](#1-cli);
