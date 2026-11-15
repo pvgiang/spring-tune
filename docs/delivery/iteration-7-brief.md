@@ -66,6 +66,15 @@ Planner (PM/architect) proposed, PO/SRE skeptic attacked, the lead decided.
 | 12 | PO/SRE vs handoff | Deep dive #4 moves no gate while three are unposted. | **In, cut first.** The 2-week cadence is a §17 commitment, and the posts go out with H2. Rule: **ST-TOMCAT-001** (25 corpus findings, the largest group without a deep dive), every number traced in `claims.md` and recounted by a reviewer. |
 | 13 | Both | Docs site. | **Still cut** (no new evidence; iteration-5 row 3 stands). |
 
+**Addendum to row 7 (lead, 2026-11-15 ~23:10 UTC, after S1 ×3 and S2 run 1, before any S3, S3′, S4 or S5 run).**
+Implementer D found, after its pre-registration, that the two SLO bucket gauges are a decaying ~60 s window read as
+two separate snapshots. In 13 of 64 polls `le:0.5` reads higher than `le:1h`, which one snapshot cannot do. So the
+P_share input measured here is not the estimator an implementation would compute from one `takeSnapshot()`.
+Decision, made before the remaining data exists:
+- **P_share is reported, but as "not validated"** whatever its table says.
+- **The rule may change in this iteration only if P_max meets the bar.** P_max reads a single gauge.
+- Every other part of row 7 stands as registered.
+
 ### Must not claim
 
 - That 0.4.2 is on Maven Central, or any 0.4.2 install line, before H1 returns 200.
