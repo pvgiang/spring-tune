@@ -52,7 +52,7 @@ final class ReportChecks {
     /** The longest feedback URL the report generates ({@code TuningReport.MAX_URL_LENGTH}). */
     static final int MAX_FEEDBACK_URL = 8000;
     private static final Pattern TITLE = Pattern.compile(
-            "^\\[recommendation\\] ST-REC-[A-Z]+-\\d{3}: (INCREASE|DECREASE|HOLD) \\d+ to \\d+$");
+            "^\\[recommendation\\] ST-REC-(HIKARI-00[1-4]|EXEC-001): (INCREASE|DECREASE|HOLD) \\d+ to \\d+$");
 
     /** A class of leaf value: what a JSON path may hold (besides {@code null}). */
     private record Leaf(String name, Predicate<Object> test) {

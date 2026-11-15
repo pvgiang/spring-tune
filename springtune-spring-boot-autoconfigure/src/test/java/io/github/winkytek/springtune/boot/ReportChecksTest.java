@@ -61,6 +61,19 @@ class ReportChecksTest {
                 .doesNotThrowAnyException();
     }
 
+    /** The feedback URL's title holds a rule id too: only SpringTune's own, like every other rule-id path. */
+    @Test
+    void anUnknownRuleIdInTheFeedbackTitleFailsTheSchemaCheck() {
+        String url = "https://github.com/pvgiang/spring-tune/issues/new?template=3-recommendation-feedback.yml"
+                + "&title=%5Brecommendation%5D+ST-REC-ORDERSDB-001%3A+INCREASE+1+to+2";
+        assertThatThrownBy(() -> ReportChecks.assertSchema("{\"format\":\"springtune-report/1\","
+                + "\"recommendations\":[{\"feedbackUrl\":\"" + url + "\"}]}"))
+                .hasMessageContaining("ST-REC-ORDERSDB-001");
+        assertThatCode(() -> ReportChecks.assertSchema("{\"format\":\"springtune-report/1\","
+                + "\"recommendations\":[{\"feedbackUrl\":\"" + url.replace("ORDERSDB", "HIKARI") + "\"}]}"))
+                .doesNotThrowAnyException();
+    }
+
     @Test
     void theTrapPortIsCaughtWhereverItStandsAsANumberOfItsOwn() {
         assertThatThrownBy(() -> ReportChecks.assertNoHostileValue("{\"x\":\"db:5432\"}"))
