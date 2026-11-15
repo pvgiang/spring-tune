@@ -90,7 +90,9 @@ jobs:
   # The tag runs its own CLI (iteration-7 brief row 2): the tag vVERSION, checked out into a directory as a user's
   # `uses: pvgiang/spring-tune@vVERSION` fetches it, runs on the demo with NO `version:` input and must write SARIF
   # from CLI VERSION. This proves the stamp only for tags made by the stamping Release workflow (dispatch), i.e.
-  # from 0.4.3 on. The v0.4.2 and older tags default to the previous release's CLI, so this job fails for them.
+  # from 0.4.3 on. The v0.4.2 and older tags default to the previous release's CLI: for those the job checks that
+  # documented state (the tag's default is not VERSION), says so in a notice and runs nothing, so that the smoke run
+  # for 0.4.2 (H1) can be green. From 0.4.3 on, a tag that does not default to VERSION fails.
   action-tag:
     name: "Action: the tag without version: runs its own CLI"
     runs-on: ubuntu-latest
@@ -110,17 +112,30 @@ jobs:
           persist-credentials: false
       - name: The tagged action.yml's default
         run: |
-          awk '/^inputs:/ {i=1; next} i && /^[^ ]/ {i=0} i && /^  version:/ {v=1; next} v && /^  [^ ]/ {v=0}
-            v && /^    default:/ {print; exit}' .st-tag/action.yml
-          echo "tag v$TAG_VERSION is commit $(git -C .st-tag rev-parse HEAD)"
+          set -euo pipefail
+          default="$(awk '/^inputs:/ {i=1; next} i && /^[^ ]/ {i=0} i && /^  version:/ {v=1; next} v && /^  [^ ]/ {v=0}
+            v && /^    default:/ {gsub(/[" '"'"']|default:/, ""); print; exit}' .st-tag/action.yml)"
+          echo "tag v$TAG_VERSION is commit $(git -C .st-tag rev-parse HEAD); its action.yml defaults to CLI '$default'"
+          first_stamped=0.4.3   # the first release whose tag the Release workflow stamps (iteration-7 brief row 2)
+          if [ "$default" = "$TAG_VERSION" ]; then
+            echo "RUN_TAG=true" >> "$GITHUB_ENV"
+          elif [ "$(printf '%s\n%s\n' "$TAG_VERSION" "$first_stamped" | sort -V | head -1)" != "$first_stamped" ]; then
+            echo "::notice::v$TAG_VERSION predates the stamped tags (from v$first_stamped): it defaults to CLI $default, as documented; nothing to run"
+            echo "RUN_TAG=false" >> "$GITHUB_ENV"
+          else
+            echo "::error::v$TAG_VERSION's action.yml defaults to CLI '$default', not $TAG_VERSION: the tag was not stamped"
+            exit 1
+          fi
       - name: Run the tag on the demo, no version input (must fail with exit code 1)
         id: tag
+        if: env.RUN_TAG == 'true'
         continue-on-error: true
         uses: ./.st-tag
         with:
           path: examples/broken-config-ci
           output: tag-reports
       - name: Expect exit code 1 and the demo's findings, written by the tag's CLI
+        if: env.RUN_TAG == 'true'
         env:
           EXIT_CODE: ${{ steps.tag.outputs.exit-code }}
           SARIF: ${{ steps.tag.outputs.sarif }}
@@ -137,7 +152,7 @@ jobs:
             ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10 \
             ST-TX-001=src/main/resources/application.yml:1
       - uses: actions/upload-artifact@v7
-        if: always()
+        if: always() && env.RUN_TAG == 'true'
         with:
           name: action-tag-reports
           path: tag-reports/

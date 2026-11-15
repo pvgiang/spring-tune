@@ -74,7 +74,8 @@ pin), and tag that commit. The dispatch path does all of this for you.
 Proof: on every pull request, the `action-stamped` job in `ci.yml` stamps a copy of the PR's Action with a
 released CLI other than `main`'s default and runs it with no `version:`; `demo` keeps proving the unstamped default.
 After a release, `action-tag` in *Post-release smoke* checks out the tag and runs it with no `version:`. That is
-proven for the first time by the 0.4.3 release; for `v0.4.2` and older it fails by design. The release-commit logic
+proven for the first time by the 0.4.3 release; for `v0.4.2` and older it only checks that the tag defaults to
+another CLI (as documented), says so in a notice and runs nothing, so the 0.4.2 smoke run (H1) can be green. The release-commit logic
 is tested against a local bare repository by `scripts/release/test-release-commit.sh`; the real push and
 `gh release create` against GitHub happen only in the Release workflow.
 
