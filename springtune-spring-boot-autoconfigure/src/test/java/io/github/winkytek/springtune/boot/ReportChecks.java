@@ -61,7 +61,13 @@ final class ReportChecks {
         feedbackUrls(parse(body), texts);
         for (String text : texts) {
             for (String forbidden : FORBIDDEN) {
-                assertThat(text).as("report must not contain %s", forbidden).doesNotContain(forbidden);
+                if (forbidden.chars().allMatch(Character::isDigit)) {
+                    // A number (the port) only as a number of its own: its digits also occur inside timestamps.
+                    assertThat(Pattern.compile("(?<!\\d)" + forbidden + "(?!\\d)").matcher(text).find())
+                            .as("report must not contain %s", forbidden).isFalse();
+                } else {
+                    assertThat(text).as("report must not contain %s", forbidden).doesNotContain(forbidden);
+                }
             }
             assertThat(IPV4.matcher(text).find()).as("IPv4 address in %s", text).isFalse();
         }
