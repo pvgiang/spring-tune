@@ -1,0 +1,12 @@
+{
+  "scenario": "S2",
+  "run": 3,
+  "rate_per_second": 1200,
+  "seed": 62003,
+  "load_seconds": 450,
+  "poll_seconds": 30,
+  "app_args": "--spring.datasource.hikari.maximum-pool-size=2 --management.metrics.distribution.slo.hikaricp.connections.usage=500ms,1h",
+  "springtune_version": "0.4.3-SNAPSHOT",
+  "lock_holder": null,
+  "slow_query": null
+}
