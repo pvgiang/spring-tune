@@ -1,8 +1,11 @@
 # Roadmap
 
-> **Current release: 0.4.1** (2026-11-09; 0.4.0 was the first on Maven Central, 0.4.1's Central publication is a
-> pending human step). The steps below were written after 0.3.0 and keep their status notes; step 3, adoption, is the
-> current work ([iteration-5 brief](delivery/iteration-5-brief.md), [iteration-6 brief](delivery/iteration-6-brief.md)).
+> **Current release: 0.4.2** (2026-11-15, on GitHub; its Maven Central publication is a pending human step, so
+> install lines stay on 0.4.1, which is on Central). The steps below were written after 0.3.0 and keep their status
+> notes; step 3, adoption, is the current work ([iteration-5](delivery/iteration-5-brief.md),
+> [iteration-6](delivery/iteration-6-brief.md) and [iteration-7](delivery/iteration-7-brief.md) briefs). The launch
+> (step 3, first row) has not happened yet: it can be posted on 0.4.1 from the
+> [launch checklist](launch/checklist.md).
 
 Where SpringTune stands against the [plan](business-and-implementation-plan.md), and what comes next, in order.
 Each step names its exit signal, so progress is measured by evidence rather than by features shipped.
