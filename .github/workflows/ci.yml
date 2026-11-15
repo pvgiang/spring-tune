@@ -130,15 +130,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: README, docs and examples show the current release only
+      - name: README, docs and examples show the current release only; pom above the last release
         run: scripts/check-install-strings.sh
+
+  # The release scripts (iteration-7 brief rows 1 and 2): the Action stamp, the templated stale-version list, the
+  # pom-version guard, and the install-version sweep as a dry run on a copy of this tree (--skip-central), after
+  # which the install-strings guard and the claims check must pass. No network: Central's answers are faked there.
+  release-scripts:
+    name: "Release scripts: stamp, sweep dry run, stale-list and pom guards"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: stamp-action-version.sh
+        run: scripts/release/test-stamp.sh
+      - name: sweep-install-version.sh and check-install-strings.sh
+        run: scripts/release/test-sweep.sh
+      - name: release-commit.sh (the Release workflow's tag step, against a local bare origin)
+        run: scripts/release/test-release-commit.sh
 
   action-checksum:
     name: "Action: checksum verification (real and tampered jar)"
     runs-on: ubuntu-latest
     env:
-      # 0.4.1's SHA256SUMS also lists the SBOM, the Maven repository zip and LICENSE.txt: only the jar's line counts.
-      VERSION: "0.4.1"
+      # The release's SHA256SUMS also lists the SBOM, the Maven repository zip and LICENSE.txt: only the jar's line counts.
+      VERSION: "0.4.1"   # sweep: current
     steps:
       - uses: actions/checkout@v7
       - name: Download the released CLI jar and SHA256SUMS
@@ -176,6 +191,7 @@ jobs:
         env:
           EXIT_CODE: ${{ steps.demo.outputs.exit-code }}
           SARIF: ${{ steps.demo.outputs.sarif }}
+          TOOL_VERSION: "0.4.1"   # sweep: current (main's action.yml default)
         run: |
           # 2 is a failed download or checksum, or a configuration error: a broken demo, not the expected red.
           if [ "$EXIT_CODE" != "1" ]; then
@@ -183,7 +199,7 @@ jobs:
             exit 1
           fi
           # --exact: a new or moved finding fails too, since the demo README lists every finding (ST-TX-001 is INFO).
-          python3 scripts/action/assert-sarif.py --tool-version 0.4.1 --exact "$SARIF" \
+          python3 scripts/action/assert-sarif.py --tool-version "$TOOL_VERSION" --exact "$SARIF" \
             ST-HIKARI-001=src/main/resources/application.yml:9 \
             ST-HIKARI-002=src/main/resources/application.yml:1 \
             ST-TOMCAT-001=src/main/resources/application.yml:15 \
@@ -194,6 +210,65 @@ jobs:
         with:
           name: demo-reports
           path: demo-reports/
+          if-no-files-found: warn
+
+  # The release stamp, proven on the pull request (iteration-7 brief row 2): a copy of this PR's Action, stamped by
+  # the script release.yml uses for a tag's release commit with a released CLI other than main's default, runs
+  # with NO `version:` input and must run that CLI. `demo` keeps proving the unstamped default. What this cannot
+  # prove: a real tag. That is the `action-tag` job of post-release-smoke.yml, from the first stamped release on.
+  action-stamped:
+    name: "Action: a stamped copy runs its own CLI without version:"
+    runs-on: ubuntu-latest
+    env:
+      # A released CLI whose jar is on its GitHub release, and never main's default. The sweep sets it to the
+      # release it moves away from.
+      STAMP_VERSION: "0.4.2"   # sweep: from
+    steps:
+      - uses: actions/checkout@v7
+      - name: Copy the Action (action.yml and scripts/action) and stamp the copy
+        run: |
+          set -euo pipefail
+          rm -rf .st-stamped
+          mkdir -p .st-stamped/scripts
+          cp action.yml .st-stamped/
+          cp -r scripts/action .st-stamped/scripts/
+          scripts/release/stamp-action-version.sh "$STAMP_VERSION" .st-stamped/action.yml
+          main_default="$(awk '/^inputs:/ {i=1; next} i && /^[^ ]/ {i=0} i && /^  version:/ {v=1; next} v && /^  [^ ]/ {v=0}
+            v && /^    default:/ {gsub(/[" ]|default:/, ""); print; exit}' action.yml)"
+          if [ "$main_default" = "$STAMP_VERSION" ]; then
+            echo "::error::STAMP_VERSION $STAMP_VERSION equals main's default: this job would prove nothing"
+            exit 1
+          fi
+          # The copy differs from action.yml in the version input's description and default lines only.
+          diff action.yml .st-stamped/action.yml || true
+          test "$( (diff action.yml .st-stamped/action.yml || true) | grep -c '^>')" -le 2
+      - name: Run the stamped copy on the demo, no version input (must fail with exit code 1)
+        id: stamped
+        continue-on-error: true
+        uses: ./.st-stamped
+        with:
+          path: examples/broken-config-ci
+          output: stamped-reports
+      - name: Expect exit code 1 and the demo's findings, written by the stamped CLI
+        env:
+          EXIT_CODE: ${{ steps.stamped.outputs.exit-code }}
+          SARIF: ${{ steps.stamped.outputs.sarif }}
+        run: |
+          if [ "$EXIT_CODE" != "1" ]; then
+            echo "::error::stamped Action exit code '$EXIT_CODE', expected 1"
+            exit 1
+          fi
+          python3 scripts/action/assert-sarif.py --tool-version "$STAMP_VERSION" --exact "$SARIF" \
+            ST-HIKARI-001=src/main/resources/application.yml:9 \
+            ST-HIKARI-002=src/main/resources/application.yml:1 \
+            ST-TOMCAT-001=src/main/resources/application.yml:15 \
+            ST-HTTP-001=src/main/java/com/example/orders/InventoryClient.java:10 \
+            ST-TX-001=src/main/resources/application.yml:1
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stamped-reports
+          path: stamped-reports/
           if-no-files-found: warn
 
   # Executes the README's install snippets against Maven Central with empty local repositories. Not on every pull
@@ -251,11 +326,11 @@ jobs:
         run: SMOKE_WORK="$RUNNER_TEMP/readme-$MODE" scripts/smoke/readme-snippets.sh "$MODE"
 
   # The published tag, used as the README shows it. `uses:` cannot be read from the README, so the version is
-  # repeated here; install-strings checks that the README pins the Action's default version. Runs while the
-  # repository is private: the v0.4.1 Action downloads the release through the REST API with the workflow token
-  # (the v0.4.0 tag's Action used anonymous curl, which gets 404 on a private repository).
+  # repeated here (lines with a "sweep: current" comment are moved by scripts/release/sweep-install-version.sh);
+  # install-strings checks that the README pins the Action's default version. The Action downloads the release
+  # through the REST API with the workflow token.
   published-action:
-    name: "README snippets: pvgiang/spring-tune@v0.4.1 on the demo"
+    name: "README snippets: pvgiang/spring-tune@v0.4.1 on the demo"   # sweep: current
     if: >-
       github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
@@ -265,22 +340,24 @@ jobs:
       - name: Run the published Action on the demo (must fail with exit code 1)
         id: published
         continue-on-error: true
-        uses: pvgiang/spring-tune@v0.4.1
+        uses: pvgiang/spring-tune@v0.4.1   # sweep: current
+        # version: passed as the README does: tags before v0.4.3 default to the previous release's CLI.
         with:
-          version: "0.4.1"          # the v0.4.1 tag's own default is CLI 0.4.0 (docs/releases/v0.4.1.md)
+          version: "0.4.1"   # sweep: current
           path: examples/broken-config-ci
           output: published-reports
-      - name: Expect exit code 1 and the documented findings, written by CLI 0.4.1
+      - name: Expect exit code 1 and the documented findings, written by the pinned CLI
         env:
           EXIT_CODE: ${{ steps.published.outputs.exit-code }}
           SARIF: ${{ steps.published.outputs.sarif }}
+          TOOL_VERSION: "0.4.1"   # sweep: current
         run: |
           if [ "$EXIT_CODE" != "1" ]; then
             echo "::error::published Action exit code '$EXIT_CODE', expected 1"
             exit 1
           fi
           # --exact: a new or moved finding fails too, since the demo README lists every finding (ST-TX-001 is INFO).
-          python3 scripts/action/assert-sarif.py --tool-version 0.4.1 --exact "$SARIF" \
+          python3 scripts/action/assert-sarif.py --tool-version "$TOOL_VERSION" --exact "$SARIF" \
             ST-HIKARI-001=src/main/resources/application.yml:9 \
             ST-HIKARI-002=src/main/resources/application.yml:1 \
             ST-TOMCAT-001=src/main/resources/application.yml:15 \
