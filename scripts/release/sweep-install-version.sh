@@ -25,9 +25,12 @@
 #     "# sweep: from" set to FROM (the stamped-copy job must run a release other than main's default);
 #   - scripts/content/check-claims.sh: the EXPECTED= line only (default version of the claims check);
 #   - scripts/check-install-strings.sh: FROM appended to STALE_VERSIONS.
-# (4) Every changed line is printed. (5) ROOT's check-install-strings.sh and check-claims.sh must pass; the sweep
-# exits 1 otherwise. Review the printed lines before committing: a measurement written as an install string (a
-# jar name in a provenance note) is rewritten too, and must then be put back as prose.
+# (4) Every changed line is printed. Lines containing "sweep: keep" (history written as an install string; the
+# install-strings guard ignores them too) are never rewritten, and neither is a ci.yml line so marked. A rewritten
+# line that carries a SHA-256 (a checksum snippet or a provenance note: the hash is FROM's) stops the sweep before
+# anything is written (exit 1; a warning with --dry-run): fix it by hand or mark it, then re-run. (5) ROOT's
+# check-install-strings.sh and check-claims.sh must pass; the sweep exits 1 otherwise. Review the printed lines
+# before committing: an unmarked measurement written as an install string is rewritten too.
 #
 # Tested by scripts/release/test-sweep.sh (CI job "Release scripts"). Exit 2 on usage errors.
 set -euo pipefail
@@ -104,12 +107,13 @@ stamped=false
 
 tfile="$(mktemp)"; printf '%s\n' "${templates[@]}" > "$tfile"
 trap 'rm -f "$tfile"' EXIT
-python3 -I - "$ROOT" "$FROM" "$TO" "$stamped" "$tfile" "${files[@]}" <<'PY'
+python3 -I - "$ROOT" "$FROM" "$TO" "$stamped" "$tfile" "$dry" "${files[@]}" <<'PY'
 import re
 import sys
 
-root, frm, to, stamped, tfile, *files = sys.argv[1:]
+root, frm, to, stamped, tfile, dry, *files = sys.argv[1:]
 stamped = stamped == "true"
+dry = dry == "true"
 F = re.escape(frm)
 
 
@@ -122,7 +126,9 @@ def compile_template(t):
 
 
 templates = [c for c in (compile_template(t.rstrip("\n")) for t in open(tfile, encoding="utf-8")) if c]
-lag = re.compile(rf"\bv{F}(`?(?: tag|'s tag)[^0-9\n]*?)(\d+\.\d+\.\d+)")
+# "the vFROM tag defaults to CLI P" / "the vFROM tag's own default is still CLI P": a default must be named between
+# the tag and the version, so "ships from the `vFROM` tag on; the `vP` tag's Action" (history) is not taken for one.
+lag = re.compile(rf"\bv{F}(`?(?: tag|'s tag)[^0-9\n]*?\bdefault[^0-9\n]*?)(\d+\.\d+\.\d+)")
 captures = [
     (re.compile(rf"SpringTune {F}:"), f"SpringTune {to}:"),
     (re.compile(rf"captured with {F}(?![0-9])"), f"captured with {to}"),
@@ -136,7 +142,13 @@ link_text = re.compile(rf"\[v{F}( GitHub)? release\]")
 notes_on_lag_line = re.compile(rf"releases/v{F}\.md")
 
 
+KEEP = "sweep: keep"  # a historical or measurement line written as an install string: never rewritten
+SHA256 = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])")
+
+
 def sweep_line(line, path):
+    if KEEP in line:
+        return line
     out = line
     if lag.search(out):
         out = lag.sub(lambda m: f"v{to}{m.group(1)}{to if stamped else frm}", out)
@@ -150,18 +162,30 @@ def sweep_line(line, path):
     return out
 
 
+pending = {}   # path -> new content; written only after every check below passed
+hashed = []    # rewritten lines that carry a SHA-256 (of FROM's file, which TO's file does not have)
+
+
 def rewrite(path, fn):
     full = f"{root}/{path}"
     with open(full, encoding="utf-8", newline="") as f:
         lines = f.read().splitlines(keepends=True)
     new = [fn(l) for l in lines]
     if new != lines:
-        with open(full, "w", encoding="utf-8", newline="") as f:
-            f.write("".join(new))
+        pending[path] = "".join(new)
         for i, (a, b) in enumerate(zip(lines, new)):
             if a != b:
                 print(f"sweep: {path}:{i + 1}:\n    - {a.strip()}\n    + {b.strip()}")
+                if SHA256.search(b):
+                    hashed.append(f"{path}:{i + 1}")
     return sum(a != b for a, b in zip(lines, new))
+
+
+def content(path):
+    if path in pending:
+        return pending[path]
+    with open(f"{root}/{path}", encoding="utf-8") as f:
+        return f.read()
 
 
 total = 0
@@ -175,6 +199,8 @@ ver = re.compile(r"(?<![0-9])\d+\.\d+\.\d+(?![0-9])")
 
 
 def ci_line(line):
+    if KEEP in line:
+        return line
     if "# sweep: current" in line:
         return re.sub(rf"(?<![0-9]){F}(?![0-9])", to, line)
     if "# sweep: from" in line:
@@ -187,7 +213,7 @@ total += rewrite(".github/workflows/ci.yml", ci_line)
 # check-claims.sh: its default expected version, nothing else.
 claims = re.compile(r'^(EXPECTED="\$\{EXPECTED_VERSION:-)[0-9][0-9A-Za-z.+-]*(\}")')
 n = rewrite("scripts/content/check-claims.sh", lambda l: claims.sub(lambda m: m.group(1) + to + m.group(2), l))
-if n != 1 and f'EXPECTED_VERSION:-{to}}}"' not in open(f"{root}/scripts/content/check-claims.sh").read():
+if n != 1 and f'EXPECTED_VERSION:-{to}}}"' not in content("scripts/content/check-claims.sh"):
     sys.exit("sweep: scripts/content/check-claims.sh has no EXPECTED=\"${EXPECTED_VERSION:-X.Y.Z}\" line")
 total += n
 
@@ -204,8 +230,21 @@ def stale_line(line):
 
 
 total += rewrite("scripts/check-install-strings.sh", stale_line)
-if f" {frm}" not in [l for l in open(f"{root}/scripts/check-install-strings.sh") if l.startswith("STALE_VERSIONS=(")][0]:
+if f" {frm}" not in [l for l in content("scripts/check-install-strings.sh").splitlines() if l.startswith("STALE_VERSIONS=(")][0]:
     sys.exit("sweep: could not add FROM to STALE_VERSIONS in scripts/check-install-strings.sh")
+
+# A rewritten line with a SHA-256 now names TO's file next to FROM's hash (a checksum line that fails, or a provenance
+# note that is false). Put TO's hash in by hand, or mark the line "sweep: keep" if it records the past; then re-run.
+sys.stdout.flush()
+for where in hashed:
+    kind = "warning" if dry else "error"
+    print(f"::{kind}::{where}: the sweep would name {to}'s file next to a SHA-256 of {frm}'s: update that line by hand "
+          f"(TO's jar and SHA-256), or mark it 'sweep: keep' if it records the past", file=sys.stderr)
+if hashed and not dry:
+    sys.exit(f"sweep: {len(hashed)} line(s) pair a jar name with a SHA-256; nothing was changed")
+for path, text in pending.items():
+    with open(f"{root}/{path}", "w", encoding="utf-8", newline="") as f:
+        f.write(text)
 print(f"sweep: {total} line(s) rewritten outside action.yml")
 PY
 

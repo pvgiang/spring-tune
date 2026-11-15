@@ -127,6 +127,37 @@ bash "$WORK/dry/scripts/check-install-strings.sh" "$WORK/dry" > /dev/null 2>&1 &
   || pass "@v0.4.1 is flagged after the sweep"
 
 # ---------------------------------------------------------------------------------------------------------------
+# 2b. Provenance (review of iteration 7): a historical line marked "sweep: keep" is neither rewritten nor flagged; a
+#     sentence about which tag first shipped something is not a "the vX tag defaults to CLI" comment; a line that
+#     pairs a jar name with a SHA-256 is not silently given the new jar name next to the old hash.
+copy_tree "$WORK/prov"
+kept='| 0.4.1 on Central | open: `springtune-check-cli-0.4.1.pom` returned 404 on 2026-11-09 | <!-- sweep: keep -->'
+kept_yml='        version: "0.4.1"   # sweep: keep (what the 2026-11-09 run used)'
+history='(your own build) is not verified. The verification ships from the `v0.4.1` tag on; the `v0.4.0` tag'"'"'s Action'
+lag='    version: "0.4.1"   # pass it: the v0.4.1 tag defaults to CLI 0.4.0'
+printf '%s\n%s\n%s\n%s\n' "$kept" "$kept_yml" "$history" "$lag" > "$WORK/prov/docs/seed-provenance.md"
+rc=0; bash "$HERE/sweep-install-version.sh" 0.4.1 0.4.2 --dry-run --skip-central "$WORK/prov" > "$WORK/prov.txt" 2>&1 || rc=$?
+[ "$rc" -eq 0 ] && pass "dry run with keep-marked lines exits 0" || { fail "dry run with keep-marked lines: exit $rc"; sed 's/^/    /' "$WORK/prov.txt"; }
+grep -qxF -- "$kept" "$WORK/prov/docs/seed-provenance.md" && grep -qxF -- "$kept_yml" "$WORK/prov/docs/seed-provenance.md" \
+  && pass "lines marked 'sweep: keep' are not rewritten" || fail "a keep-marked line was rewritten: $(head -2 "$WORK/prov/docs/seed-provenance.md")"
+grep -qxF -- "$history" "$WORK/prov/docs/seed-provenance.md" && pass "'ships from the v0.4.1 tag on' is not taken for a lag comment" \
+  || fail "history line rewritten: $(sed -n 3p "$WORK/prov/docs/seed-provenance.md")"
+grep -qxF -- '    version: "0.4.2"   # pass it: the v0.4.2 tag defaults to CLI 0.4.1' "$WORK/prov/docs/seed-provenance.md" \
+  && pass "a real lag comment is still swept" || fail "lag comment: $(sed -n 4p "$WORK/prov/docs/seed-provenance.md")"
+copy_tree "$WORK/hash"
+hash_line='echo "3f3726f752ae7605ee0687ac9a1f2158585928bc593cb90b95d45e4b140b599e  springtune-check-cli-0.4.1-all.jar" | sha256sum -c -'
+echo "$hash_line" > "$WORK/hash/docs/seed-hash.md"
+echo 'SpringTune 0.4.2: 1 module(s)' >> "$WORK/hash/docs/readme-runs/check-runs.txt"
+: > "$WORK/hash/docs/readme-runs/build-plugins-0.4.2.txt"
+sum_before="$(tree_sum "$WORK/hash")"
+rc=0; bash "$HERE/sweep-install-version.sh" 0.4.1 0.4.2 --skip-central "$WORK/hash" > "$WORK/hash.txt" 2>&1 || rc=$?
+[ "$rc" -eq 1 ] && grep -q 'SHA-256' "$WORK/hash.txt" && pass "a jar name next to a SHA-256: the sweep refuses (exit 1)" \
+  || { fail "jar name next to a SHA-256: exit $rc"; grep -i 'sha\|seed-hash' "$WORK/hash.txt" | sed 's/^/    /'; }
+[ "$(tree_sum "$WORK/hash")" = "$sum_before" ] && pass "and changes nothing" || fail "the refused sweep changed files"
+rc=0; bash "$HERE/sweep-install-version.sh" 0.4.1 0.4.2 --dry-run --skip-central "$WORK/hash" > "$WORK/hash2.txt" 2>&1 || rc=$?
+grep -q '::warning.*SHA-256' "$WORK/hash2.txt" && pass "dry run: warns about the SHA-256 line" || fail "dry run: no SHA-256 warning (exit $rc)"
+
+# ---------------------------------------------------------------------------------------------------------------
 # 3. Refusals. A stub curl prints the HTTP code given in FAKE_CODE.
 mkdir -p "$WORK/bin"
 printf '#!/usr/bin/env bash\nprintf "%%s" "$FAKE_CODE"\n[ "$FAKE_CODE" != 000 ]\n' > "$WORK/bin/curl"

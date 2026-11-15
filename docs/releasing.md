@@ -97,8 +97,11 @@ defaults to CLI" comments, the README's capture header and output banners, `acti
 script), the `ci.yml` lines marked `# sweep: current`, the `STAMP_VERSION` of `action-stamped` (set to `P`), the
 default of `scripts/content/check-claims.sh`, and appends `P` to `STALE_VERSIONS`. It prints every changed line and
 finishes with the install-strings guard and the claims check. Prose that names the version a measurement was made
-with matches none of the templates and stays; but a measurement written as an install string (a jar name in a
-provenance note) is rewritten too, so read the printed lines before committing.
+with matches none of the templates and stays. A historical line written as an install string (a jar name in a
+provenance note, what a dated `curl` returned) must carry `sweep: keep` (`<!-- sweep: keep -->` at the end of a
+Markdown line, `# sweep: keep` in YAML): the sweep leaves it and the guard ignores it. A rewritten line that carries a
+SHA-256 stops the sweep before anything is written, because the hash would still be the previous release's: put the
+new hash in by hand, or mark the line. Read the printed lines before committing.
 `--dry-run --skip-central COPY` runs it on a copy without asking Central; the `release-scripts` CI job does that
 on every pull request (`scripts/release/test-sweep.sh`).
 

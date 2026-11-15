@@ -50,6 +50,10 @@ TEMPLATES=(
   'springtune-spring-boot-starter:{V}'
   'springtune-limiter:{V}'
 )
+# A line that records the past (a measurement, a provenance note, what a dated check returned) may carry an old
+# install string if it is marked with this text, e.g. `<!-- sweep: keep -->` at the end of a Markdown line or
+# `# sweep: keep` in YAML. The sweep never rewrites such a line either. Use it for history only, never for a snippet.
+KEEP='sweep: keep'
 # Fixed strings, not per version: the Maven repository zip is not an install path any more (Central is).
 FIXED=('springtune-maven-repo-0.')
 
@@ -87,14 +91,14 @@ report() {  # report LABEL HITS
 }
 for v in "${STALE_VERSIONS[@]}"; do
   for t in "${TEMPLATES[@]}"; do
-    if hits="$(grep -nE -- "$(instance "$t" "$v")" "${files[@]}")"; then
+    if hits="$(grep -nE -- "$(instance "$t" "$v")" "${files[@]}" | grep -vF -- "$KEEP")"; then
       label="${t//\{V\}/$v}"
       report "${label//\\/}" "$hits"
     fi
   done
 done
 for pattern in "${FIXED[@]}"; do
-  if hits="$(grep -nF -- "$pattern" "${files[@]}")"; then report "$pattern" "$hits"; fi
+  if hits="$(grep -nF -- "$pattern" "${files[@]}" | grep -vF -- "$KEEP")"; then report "$pattern" "$hits"; fi
 done
 
 # 2. The Action's default (the `version` input under `inputs:`) is the README's pin.
