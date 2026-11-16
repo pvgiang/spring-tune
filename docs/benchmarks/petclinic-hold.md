@@ -218,7 +218,7 @@ poll also carries a `hold` object with the extra meters.
 | S5 | 2 | 65002 | 3 | HIKARI-001 INCREASE 2 → 3 | **HOLD 2 → 2** | 100%, 100%, 100% | INCREASE 2 → 3 | 0.00%, 0.00%, 0.00% |
 | S5 | 3 | 65003 | 3 | HIKARI-001 INCREASE 2 → 3 | **HOLD 2 → 2** | 100%, 100%, 100% | INCREASE 2 → 3 | 0.00%, 0.00%, 0.00% |
 
-HOLD here means ST-REC-HIKARI-002 HOLD. Every window had 8 to 11 polls, so no candidate fell back.
+HOLD here means ST-REC-HIKARI-002 HOLD. Every window of a poll with an INCREASE had 10 or 11 polls, so no candidate fell back. (The `of 8`, `of 9` in the script's P_max inputs count the waiting polls of the window, not the window.)
 
 ### Against the bar
 
@@ -247,15 +247,15 @@ and the scenarios `S1 S2 S3 S3P S4 S5`.
   - `system.cpu.usage` was 0.85–0.87 in the evaluated polls, and the driver skipped 13–29% of scheduled requests
     at its in-flight cap. The CPU caveat of petclinic.md still applies.
 - **S3: still the miss.** ST-REC-HIKARI-001 INCREASE 10 → 13 in 11 of 11.
-  - Evidence: waiting 83–87%, mean hold 141–146 ms, mean acquire 761–817 ms.
+  - Evidence: waiting 83–87%, mean hold 141–146 ms, mean acquire 761–779 ms.
 - **S3′**: INCREASE 10 → 13 in 3 of 9 evaluated polls (run 1: 2 of 3, run 3: 1 of 3), no recommendation in the
   other 6. Run 2 gave none at all.
-  - When it fired: waiting 81–97%, mean hold 139–141 ms, mean acquire 463–469 ms.
+  - When it fired: waiting 81–90%, mean hold 139–141 ms, mean acquire 463–469 ms.
   - So S3′ catches the miss in 2 of 3 runs. In the quiet polls the window was presumably below the 80% waiting
     threshold. That share is not published when nothing fires, so it is not shown here.
 - **S4**: ST-REC-HIKARI-003 DECREASE 10 → 2 in 9 of 9, as registered.
 - **S5**: ST-REC-HIKARI-001 INCREASE 2 → 3 in 9 of 9, as predicted.
-  - Evidence: waiting 90–97%, mean hold "1 ms", mean acquire 25–50 ms.
+  - Evidence: waiting 90–97%, mean hold "1 ms", mean acquire 25–49 ms.
   - All 7 slow edits of each run answered 302, and the usage `MAX` in the evaluated polls was 3.01–3.02 s.
 
 **The acquire/hold ratio on the new runs** confirms the step-0 rejection. From the evidence above:
@@ -263,7 +263,7 @@ and the scenarios `S1 S2 S3 S3P S4 S5`.
 | Scenario | acquire / hold |
 |---|---|
 | S2 run 2 | 5–6 (hold rounded to "1 ms") |
-| S3 | 5.2–5.7 |
+| S3 | 5.2–5.5 |
 | S3′ | 3.3–3.4 |
 
 So S2, where the pool really is the narrow point, gives the same ratio as the lock.
