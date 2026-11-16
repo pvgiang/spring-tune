@@ -181,7 +181,8 @@ Added after the runs. The step-1 section above is unchanged (compare this file a
 - **P_max fails.** It gives HOLD instead of the right INCREASE in every evaluated poll of all three S5 runs.
 - **P_share** passes the scenario part of the table, but it is **not validated**. Its measured input is inconsistent
   (see *Deviations*). The lead decided this in the brief's row-7 addendum (commit `878cc32`, 2026-11-15 23:09 UTC),
-  before any S3, S3′, S4 or S5 run.
+  after S1 ×3 and S2 run 1 had been seen and before any S3, S3′, S4 or S5 run. That is a change to how one
+  candidate's result is read, made after part of the data existed; it is listed under *Deviations*.
 - **The rule is not changed.** `HikariAdvisor` and the other four classes are untouched. **S3 still misses**: the
   unchanged rule recommended ST-REC-HIKARI-001 INCREASE 10 → 13 in 11 of 11 evaluated polls. The known limitation
   stays.
@@ -193,8 +194,8 @@ Added after the runs. The step-1 section above is unchanged (compare this file a
 - Every run used the same PetClinic jar. The starter's autoconfigure jar inside it has SHA-256 `249646af…131b`
   (identical in all 18 `environment.txt`), built from `86357dd`.
 - `run.sh` and `LoadDriver.java` are unchanged between the pre-registration commit `6f1d188` and the last run.
-  `environment.txt` records a different `spring_tune_commit` per run only because each run's raw data was committed
-  as it finished.
+  `environment.txt` records `6f1d188` as `spring_tune_commit` for S1 runs 1–3 and S2 run 1, and a later commit for
+  each run after that, only because from S2 run 2 on each run's raw data was committed as it finished.
 
 Raw data is in [`petclinic/2026-11-15-runs/`](petclinic/2026-11-15-runs/), laid out like the 2026-11-09 runs. Each
 poll also carries a `hold` object with the extra meters.
@@ -225,13 +226,16 @@ HOLD here means ST-REC-HIKARI-002 HOLD. Every window of a poll with an INCREASE 
 | Bar item | Unchanged rule | P_max | P_share |
 |---|---|---|---|
 | S3: no INCREASE, 3 of 3 | fail (0 of 3) | pass (3 of 3) | pass (3 of 3) |
-| S3′: no INCREASE, 3 of 3 | fail (1 of 3) | pass (3 of 3) | pass (3 of 3) |
+| S3′: no INCREASE, 3 of 3 | fail (1 of 3) | pass (3 of 3)¹ | pass (3 of 3)¹ |
 | S2: INCREASE 2 → 3 in every evaluated poll, 3 of 3 | pass | pass | pass |
 | S5: INCREASE 2 → 3 in every evaluated poll, 3 of 3 | pass | **fail (0 of 3)** | pass |
 | S1: no recommendation, 3 of 3 | pass | pass | pass |
 | S4: unchanged, 3 of 3 | (DECREASE 10 → 2 as registered, 3 of 3) | pass | pass |
 | Scenario part of the bar | — | **fail** | pass on paper; **not validated** |
 | Tests part of the bar | — | not reached | not run (no implementation) |
+
+¹ S3′ run 2 passes for every rule, the unchanged one included, because the unchanged rule gave no INCREASE in it.
+The candidates' S3′ result rests on the 3 polls of runs 1 and 3 that carried an INCREASE.
 
 **Reproduce:** `python3 -I scripts/petclinic/evaluate-hold.py docs/benchmarks/petclinic/2026-11-15-runs --polls`
 from the repository root. Without the argument it reads these runs; `--polls` adds every evaluated poll with the
@@ -251,7 +255,7 @@ and the scenarios `S1 S2 S3 S3P S4 S5`.
 - **S3′**: INCREASE 10 → 13 in 3 of 9 evaluated polls (run 1: 2 of 3, run 3: 1 of 3), no recommendation in the
   other 6. Run 2 gave none at all.
   - When it fired: waiting 81–90%, mean hold 139–141 ms, mean acquire 463–469 ms.
-  - So S3′ catches the miss in 2 of 3 runs. In the quiet polls the window was presumably below the 80% waiting
+  - So the unchanged rule reproduces the miss under S3′ in 2 of 3 runs. In the quiet polls the window was presumably below the 80% waiting
     threshold. That share is not published when nothing fires, so it is not shown here.
 - **S4**: ST-REC-HIKARI-003 DECREASE 10 → 2 in 9 of 9, as registered.
 - **S5**: ST-REC-HIKARI-001 INCREASE 2 → 3 in 9 of 9, as predicted.
@@ -307,6 +311,14 @@ lock in one of three S2 runs, so it cannot separate the two.
   - **16 polls show checkouts above 500 ms while the usage `MAX` was ≤ 0.5 s**: S1 6, S2 10, others 0.
   - This was found after the runs began (S2 run 1). The poll code was not changed mid-series, to keep the inputs
     fixed. It invalidates P_share's measured share, as described above. The pre-registration did not foresee it.
+- **`evaluate-hold.py` was written after part of the data existed.** The pre-registration fixed its definitions,
+  but the script itself was first committed in `fddd62f` (2026-11-15 23:07 UTC), together with the raw data of S1
+  runs 1–3 and S2 run 1, i.e. after those four runs had been seen and before S2 run 2 started (23:07:53). Its only
+  later change (in the results commit) adds the bucket-consistency table, which is not part of the bar. Every
+  threshold and window in it is the pre-registered one.
+- **The row-7 addendum came after S1 ×3 and S2 run 1.** The lead's decision that P_share is "not validated" whatever
+  its table says (`878cc32`, 23:09 UTC) was made once the bucket inconsistency had been seen in those four runs. It
+  can only make the reading stricter: it removes P_share as a route to a rule change and leaves the bar unchanged.
 - **Where failed polls fall.** The pre-registration counts a failed poll as "no recommendation". A failed read has
   no `generatedAt`, so `evaluate-hold.py` places it by its slot on the wall-clock schedule: evaluated when
   `elapsed_seconds` is in [360, 450]. **No poll failed in any of the 18 runs**, so this rule decided nothing.
