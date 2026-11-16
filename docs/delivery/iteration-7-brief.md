@@ -121,6 +121,10 @@ section, and this brief.
 | R13 | Gates reviewer | gates.md's "49 pairs" counted one `action-checksum` job whose download died after 2.5 s (run 42638709344). | **Fixed:** 48–49 pairs against the counter's 51; the residual is 2–3. The clones vs jobs figures (817 jobs, residual 238) reproduce exactly. |
 | R14 | Gates reviewer | Every deep-dive #4 number recounted with independent scripts: 25 findings, 7 repos, all INFO, 16 in two tutorial collections, 25 of 25 also ST-HIKARI-001, 38 modules split 25 / 5 / 4 / 4, pool sizes 20, 20, 20, 30, 25 HikariCP modules without Tomcat. The `GATES_TOKEN` scoping, the history `jq` queries over old and new snapshots, and `verify-checklist.sh` mutations (each turns an item FAIL or NO-CHECK and makes the run exit 1) were checked. | All match. Not proven: a bogus `GH_TOKEN` test (the sandbox proxy supplies credentials). Low, open: L13 has no age check on the snapshot (follow-up). |
 | R15 | Implementer D | **After pre-registering, D found the SLO bucket gauges are a decaying window read as two snapshots:** in 13 of 64 polls `le:0.5` > `le:1h`. P_share's measured input is therefore not what an implementation would compute. | **Lead decision recorded before any S3/S3′/S4/S5 run** (§4 addendum, commit `878cc32`): P_share is reported as not validated, and the rule may change in this iteration only through P_max. |
+| R16 | Benchmark reviewer | Five figures in `petclinic-hold.md` did not match the raw polls: window size 8–11 (the windows carrying an INCREASE have 10–11 polls), S3 mean acquire 761–817 ms (data: 761–779), S3′ waiting 81–97 % (81–90), S5 acquire 25–50 ms (25–49), S3 acquire/hold 5.2–5.7 (5.24–5.51). Reproduced with an independent extractor over the raw files. | **Fixed** (`6de63bd`). |
+| R17 | Benchmark reviewer | The new-runs acquire/hold table showed only S2 run 2 (ratio 5–6, "same as the lock"). The other runs: S2 run 1 69–74, run 3 19–20, S5 25–49. | **Fixed** (`13c46a7`): every run shown. The ratio overlaps the lock in 1 of 3 S2 runs and varies more than tenfold between seeds, which strengthens the step-0 rejection. |
+| R18 | Benchmark reviewer | Undisclosed timing: `evaluate-hold.py` and the row-7 addendum were committed after S1 ×3 and S2 run 1 had been seen (both before S2 run 2). "Each run records a different commit" was false: S1 ×3 and S2 run 1 all record `6f1d188`. S3′ run 2 passes for every rule only because no INCREASE fired in it. | **Fixed** (`bb2b035`): two deviation bullets, a footnote on the bar table, corrected wording. The pre-registration section stays byte-identical to `6f1d188`. |
+| R19–R24 | Benchmark reviewer | `evaluate-hold.py` matches every registered definition. The only post-run change is the consistency table, which sits outside the bar. Pre-registration at 13:43:52 predates the first run (driver at 13:45:49). An independent recount gives 288 polls with 0 failed, the same per-scenario outcomes, and 23 inconsistent bucket pairs. The jar SHA is identical in all 18 runs. Deviations are disclosed, there are no latency or throughput claims, and no main code was changed. Both guards pass. | No defect. Not verifiable: the 70-second plumbing run, whose output was discarded (disclosed). The lead re-ran the evaluation on the merged branch and got the same bar table. |
 
 ## 7. Scope
 
@@ -151,4 +155,14 @@ section, and this brief.
 
 ## 9. Follow-ups for iteration 8
 
-_Filled at the end._
+1. **After H1 (0.4.2 on Central):** run `scripts/release/sweep-install-version.sh 0.4.1 0.4.2`. It stops at the launch post's checksum line (`docs/launch/launch-post.md`), which must be updated by hand to the 0.4.2 jar's SHA-256 first.
+2. **After H9 (0.4.3 via dispatch):** the first stamped release. `action-tag` in *Post-release smoke* is the only proof that a tag runs its own CLI with no `version:` (AC-7.2's last column).
+3. **HIKARI S3 miss is still open.** The unchanged rule recommends INCREASE 10 → 13 in S3, where the pool is not the bottleneck.
+   - P_max fails S5: a single long checkout a minute pins the decaying MAX.
+   - P_share needs an estimator that reads both buckets from one snapshot, such as one `/actuator/metrics` histogram read, or the in-process `HistogramSnapshot`. It then needs a new pre-registration and fresh runs; the 2026-11-15 data cannot validate it.
+   - The acquire/hold ratio stays rejected (R17).
+4. R5: make `release.yml` refuse a four-part version as early as `release-commit.sh` does.
+5. Gates L13: give the snapshot an age check, so that a stale snapshot fails the checklist.
+6. Run actionlint on `.github/workflows/gates-collect.yml`. It was not linted in this iteration; the other three workflows were.
+7. The launch checklist numbers its own human items (for example H6 is the sign-off and H7 the posting), and these numbers do not match the brief's H1–H9. Give one of them a different prefix.
+8. The gates collector's first run on `github.token` (H4) should confirm `stargazers.available == true` in CI, not only locally.
