@@ -26,7 +26,29 @@ There is no telemetry.
 
 All snippets use **SpringTune 0.4.1**, groupId `io.github.winkytek.springtune`
 ([release notes](docs/releases/v0.4.1.md)). The CLI, Maven plugin and Gradle plugin run the same 13
-[rules](docs/rules/README.md) and give the same findings.
+[rules](docs/rules/README.md). They give the same findings, except on the Gradle builds described in
+[Supported project structures](#supported-project-structures).
+
+### Supported project structures
+
+The check reads the repository's files; it does not run your build. **A module** is any directory with
+`src/main/resources[/config]/application*.{yml,yaml,properties}`, or a `@SpringBootApplication` class under
+`src/main/java`. Discovery skips hidden directories, `target`, `build`, `out`, `bin` and `node_modules`.
+
+| Structure | Supported | Differences |
+|---|---|---|
+| Single-module Maven or Gradle project | Yes | None |
+| Multi-module Maven (parent `pom.xml` with `<modules>`) | Yes | The CLI analyzes every module in one run and writes one report. The Maven plugin analyzes each reactor module on its own and writes a report per module (`target/springtune`), skipping modules with no Spring Boot configuration. Dependencies declared in a parent POM are seen only when the parent is in an ancestor directory; an external corporate parent and `<dependencyManagement>` are not read. |
+| Multi-project Gradle (`settings.gradle(.kts)` with `include`) | Yes | The plugin runs `springtuneCheck` in each project it is applied to. |
+| Gradle with dependencies in a version catalog (`libs.versions.toml`), convention plugins (`buildSrc`) or a BOM | **Gradle plugin only** | The CLI, and the Action which runs it, read `build.gradle(.kts)` literally and miss these dependencies and the Spring Boot version. Rules for Tomcat, HikariCP or OpenFeign then stay silent unless the configuration names them, for example `server.tomcat.*` or `spring.datasource.*`. The Gradle plugin adds the resolved runtime classpath and Boot version, so it sees them. |
+| Monorepo with several services and shared libraries | Yes | Run from the repository root so report paths match for SARIF. A service also sees the code of the in-repo libraries it depends on (for example an `AsyncConfigurer` or a `@Bean DataSource`). |
+| No build file at all (only `src/main/resources/application.yml`) | Yes, config rules only | The Spring Boot version is unknown, and technologies are detected from the configuration alone. |
+| Kotlin sources | Partly | Configuration rules apply. Source rules read only `.java` files. A Kotlin-only app is found only through its `application.*` files. |
+| Non-standard layout (resources outside `src/main/resources`, Maven `<resources>` overrides, Gradle `sourceSets`) | No | The module is not discovered: discovery and `-m DIR` both expect `src/main/resources` and `src/main/java`. Keep the production configuration in the standard place. |
+| Configuration outside the repository (environment variables, config server, `spring.config.import`) | Not read | Values set only there are invisible, and rules that report a *missing* property are skipped when the module imports remote configuration. |
+
+Details: [how configuration is resolved](docs/check.md#how-configuration-is-resolved) and
+[known limitations](docs/check.md#known-limitations).
 
 Every output in this README is real and was captured with 0.4.1 on
 [`examples/broken-config-ci`](examples/broken-config-ci), a small service with four deliberate mistakes. Long
