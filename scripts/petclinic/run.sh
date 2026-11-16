@@ -6,6 +6,13 @@
 #   scripts/petclinic/run.sh env                   # print the environment record (nproc, java, PostgreSQL, SHAs)
 #   scripts/petclinic/run.sh calibrate             # S2 rate calibration (pool 2, 100..1200 req/s, 40 s each)
 #   scripts/petclinic/run.sh run S1|S2|S3|S4 <n>   # one scenario run: fresh PostgreSQL + app, load, polls, stop
+#   scripts/petclinic/run.sh run S3P|S5 <n>        # hold-check scenarios (docs/benchmarks/petclinic-hold.md)
+#
+# HOLD_CHECK=1 (docs/benchmarks/petclinic-hold.md): every run also starts the app with an SLO histogram on
+# hikaricp.connections.usage (500ms and 1h boundaries), and every poll also records the usage and acquire timers'
+# COUNT/TOTAL_TIME/MAX, the two SLO bucket gauges and hikaricp.connections.pending. Polls are then scheduled on the
+# wall clock (one every POLL_SECONDS from the start of the load, none after its end) instead of sleeping
+# POLL_SECONDS after each poll.
 #
 # Environment:
 #   WORK               work directory for the PetClinic checkout and logs (default: $TMPDIR/springtune-petclinic)
@@ -80,6 +87,14 @@ environment() {
     echo "springtune_autoconfigure_sha256: $(sha256sum "$resolved/springtune-spring-boot-autoconfigure-$SPRINGTUNE_VERSION.jar" | cut -d' ' -f1)"
   fi
   echo "spring_tune_commit: $(git -C "$REPO_ROOT" rev-parse HEAD)"
+  # The starter as packaged into the PetClinic jar (a later local `mvn install` of the same SNAPSHOT cannot change it)
+  local embedded
+  embedded="$(unzip -Z1 "$(jar)" 2>/dev/null | grep 'springtune-spring-boot-autoconfigure-.*\.jar$' | head -n 1 || true)"
+  if [ -n "$embedded" ]; then
+    echo "springtune_autoconfigure_in_petclinic_jar: $embedded sha256 $(unzip -p "$(jar)" "$embedded" | sha256sum | cut -d' ' -f1)"
+  fi
+  echo "hold_check: ${HOLD_CHECK:-0}"
+  echo "loadavg_at_start: $(cut -d" " -f1-3 /proc/loadavg)"
 }
 
 pg_start() {
@@ -132,12 +147,12 @@ locker_stop() {
 cleanup() { locker_stop; app_stop; pg_stop; }
 trap cleanup EXIT
 
-# S3: an external psql session holds ACCESS EXCLUSIVE on owners for 2.85 s of every 3 s.
+# S3: an external psql session holds ACCESS EXCLUSIVE on owners for 2.85 s of every 3 s (S3P: 1.9 s of every 2 s).
 locker_start() {
-  local seconds="$1" script="$WORK/locker.sql" i
+  local seconds="$1" hold="${2:-2.85}" gap="${3:-0.15}" cycle="${4:-3}" script="$WORK/locker.sql" i
   : >"$script"
-  for i in $(seq 1 $(( seconds / 3 + 20 ))); do
-    echo "BEGIN; LOCK TABLE owners IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(2.85); COMMIT; SELECT pg_sleep(0.15);" >>"$script"
+  for i in $(seq 1 $(( seconds / cycle + 20 ))); do
+    echo "BEGIN; LOCK TABLE owners IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep($hold); COMMIT; SELECT pg_sleep($gap);" >>"$script"
   done
   "$PG_BIN/psql" -q -X -h 127.0.0.1 -p "$PG_PORT" -U petclinic -d petclinic -f "$script" >/dev/null 2>"$WORK/locker.err" &
   LOCKER_PID=$!
@@ -150,6 +165,72 @@ trim_snapshot() {
   jq --arg t "$1" '{elapsed_seconds: ($t | tonumber), mode, generatedAt, budget,
       components: [.components[] | {id, samples, signals, knobs: [.knobs[]? | {id, currentValue}]}],
       recommendations, applyPlans}'
+}
+
+# S5: every UPDATE of owners sleeps 3 s in the database. The load is read-only except the driver's one owner edit a
+# minute (--slow-edit-every 60), so exactly that request holds a pool connection for about 3 s.
+slow_update_install() {
+  "$PG_BIN/psql" -q -X -h 127.0.0.1 -p "$PG_PORT" -U petclinic -d petclinic -v ON_ERROR_STOP=1 \
+    -c 'CREATE OR REPLACE FUNCTION springtune_slow_update() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(3); RETURN NEW; END $$' \
+    -c 'CREATE TRIGGER springtune_slow_update BEFORE UPDATE ON owners FOR EACH ROW EXECUTE FUNCTION springtune_slow_update()'
+  log "slow-update trigger installed on owners"
+}
+
+metric_json() { # name [tag] -> {"STAT": value, ...} or null
+  local q=""; [ -n "${2:-}" ] && q="?tag=$2"
+  local body; body="$(curl -fsS "$BASE/actuator/metrics/$1$q" 2>/dev/null || true)"
+  if [ -n "$body" ]; then
+    printf '%s' "$body" | jq -c '[.measurements[] | {key: .statistic, value: .value}] | from_entries' 2>/dev/null || echo null
+  else
+    echo null
+  fi
+}
+
+hold_poll() { # one poll's extra metrics, fetched in parallel, as one JSON object
+  local d="$1"
+  metric_json hikaricp.connections.usage >"$d/m.usage" &
+  metric_json hikaricp.connections.acquire >"$d/m.acquire" &
+  metric_json hikaricp.connections.usage.histogram le:0.5 >"$d/m.le05" &
+  metric_json hikaricp.connections.usage.histogram le:3600 >"$d/m.le3600" &
+  metric_json hikaricp.connections.pending >"$d/m.pending" &
+  wait
+  jq -nc --arg at "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" --slurpfile u "$d/m.usage" --slurpfile a "$d/m.acquire" \
+     --slurpfile b05 "$d/m.le05" --slurpfile binf "$d/m.le3600" --slurpfile p "$d/m.pending" \
+    '{metrics_read_at: $at, usage: $u[0], acquire: $a[0], usage_le_500ms: $b05[0].VALUE, usage_le_1h: $binf[0].VALUE,
+      pending_now: $p[0].VALUE}'
+}
+
+poll_loop_hold() {
+  local dir="$1" seconds="$2" k=0 t0 now due tmp
+  tmp="$(mktemp -d)"
+  t0="$(date +%s)"
+  : >"$dir/polls.jsonl"
+  while [ $((k * POLL_SECONDS)) -le "$seconds" ]; do
+    due=$((t0 + k * POLL_SECONDS)); now="$(date +%s)"
+    if [ "$now" -gt $((due + POLL_SECONDS / 2)) ]; then k=$((k + 1)); continue; fi   # too late for this slot
+    if [ "$now" -lt "$due" ]; then sleep $((due - now)); fi
+    local t=$((k * POLL_SECONDS)) snap cpu extra
+    curl -fsS "$BASE/actuator/tuning" >"$tmp/snap" 2>/dev/null &
+    local p1=$!
+    curl -fsS "$BASE/actuator/metrics/system.cpu.usage" >"$tmp/cpu" 2>/dev/null &
+    local p2=$!
+    extra="$(hold_poll "$tmp")"
+    wait "$p1" "$p2" || true
+    snap="$(cat "$tmp/snap" 2>/dev/null || true)"; [ -n "$snap" ] || snap='{}'
+    cpu="$(jq '.measurements[0].value' "$tmp/cpu" 2>/dev/null || true)"; [ -n "$cpu" ] || cpu=null
+    : >"$tmp/snap"; : >"$tmp/cpu"
+    if [ "$snap" != '{}' ]; then
+      printf '%s' "$snap" | trim_snapshot "$t" \
+        | jq -c --argjson cpu "$cpu" --argjson x "$extra" '. + {system_cpu_usage: $cpu, hold: $x}' >>"$dir/polls.jsonl"
+      printf '%s' "$snap" >"$dir/last-snapshot-full.json"
+    else
+      jq -nc --arg t "$t" '{elapsed_seconds: ($t | tonumber), error: "GET /actuator/tuning failed"}' >>"$dir/polls.jsonl"
+    fi
+    local recs; recs="$(tail -n 1 "$dir/polls.jsonl" | jq -r '[.recommendations[]? | "\(.ruleId) \(.action) \(.currentValue)->\(.recommendedValue)"] | join(", ")')"
+    log "t=${t}s cpu=${cpu} max=$(printf '%s' "$extra" | jq -c '.usage.MAX') recommendations: [${recs}]"
+    k=$((k + 1))
+  done
+  rm -rf "$tmp"
 }
 
 poll_loop() {
@@ -180,8 +261,16 @@ run_scenario() {
         args=(--spring.datasource.hikari.maximum-pool-size=2) ;;
     S3) rate=50;  seed=$((63000 + n)) ;;
     S4) rate=5;   seed=$((64000 + n)); args=(--springtune.hikari.low-utilization-window=5m) ;;
+    S3P) rate=50; seed=$((63100 + n)) ;;
+    S5) rate="${S2_RATE:?S5 needs S2_RATE (the registered S2 rate)}"; seed=$((65000 + n))
+        args=(--spring.datasource.hikari.maximum-pool-size=2) ;;
     *) echo "run.sh: unknown scenario $scenario" >&2; exit 2 ;;
   esac
+  if [ "${HOLD_CHECK:-0}" = 1 ]; then
+    args+=(--management.metrics.distribution.slo.hikaricp.connections.usage=500ms,1h)
+  fi
+  local driver_args=()
+  if [ "$scenario" = S5 ]; then driver_args=(--slow-edit-every 60); fi
   local dir="$OUT/$(echo "$scenario" | tr 'A-Z' 'a-z')/run-$n"
   mkdir -p "$dir"
   environment >"$dir/environment.txt"
@@ -190,15 +279,19 @@ run_scenario() {
         --arg v "$SPRINGTUNE_VERSION" \
     '{scenario: $s, run: $n, rate_per_second: $rate, seed: $seed, load_seconds: $load, poll_seconds: $poll,
       app_args: $args, springtune_version: $v,
-      lock_holder: (if $s == "S3" then "LOCK TABLE owners IN ACCESS EXCLUSIVE MODE for 2.85 s of every 3 s" else null end)}' \
+      lock_holder: (if $s == "S3" then "LOCK TABLE owners IN ACCESS EXCLUSIVE MODE for 2.85 s of every 3 s"
+                    elif $s == "S3P" then "LOCK TABLE owners IN ACCESS EXCLUSIVE MODE for 1.9 s of every 2 s" else null end),
+      slow_query: (if $s == "S5" then "one POST /owners/1/edit every 60 s (first at 30 s); a BEFORE UPDATE trigger on owners sleeps 3 s" else null end)}' \
     >"$dir/scenario.json"
   pg_start "pg-$scenario-$n"
   app_start "$WORK/app-$scenario-$n.log" "${args[@]}"
-  [ "$scenario" = S3 ] && locker_start "$LOAD_SECONDS"
+  if [ "$scenario" = S3 ]; then locker_start "$LOAD_SECONDS"; fi
+  if [ "$scenario" = S3P ]; then locker_start "$LOAD_SECONDS" 1.9 0.1 2; fi
+  if [ "$scenario" = S5 ]; then slow_update_install; fi
   java "$HERE/LoadDriver.java" --base "$BASE" --rate "$rate" --duration "$LOAD_SECONDS" --seed "$seed" \
-    --out "$dir/driver-summary.json" >"$WORK/driver-$scenario-$n.log" 2>&1 &
+    ${driver_args[@]+"${driver_args[@]}"} --out "$dir/driver-summary.json" >"$WORK/driver-$scenario-$n.log" 2>&1 &
   local driver=$!
-  poll_loop "$dir" "$LOAD_SECONDS"
+  if [ "${HOLD_CHECK:-0}" = 1 ]; then poll_loop_hold "$dir" "$LOAD_SECONDS"; else poll_loop "$dir" "$LOAD_SECONDS"; fi
   wait "$driver" || log "driver exited non-zero"
   locker_stop
   grep -E "SpringTune|springtune" "$WORK/app-$scenario-$n.log" | grep -v DEBUG | head -n 20 >"$dir/app-springtune-log.txt" || true
