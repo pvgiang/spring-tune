@@ -200,6 +200,28 @@ def main():
     print("(The tests part of the bar applies only to a candidate that is implemented; the unchanged rule's S4 "
           "item is trivially 'unchanged'.)")
 
+    # Supplementary, not part of the bar (added after the first runs, see the results): are the two bucket gauges
+    # consistent with each other and with MAX? Over every poll (not only evaluated ones) with both buckets and MAX.
+    print()
+    print("| Scenario | Polls with buckets | le 0.5 > le 1h (impossible in one snapshot) | le 1h > le 0.5 while usage MAX <= 0.5 s |")
+    print("|---|---|---|---|")
+    for s, d in SCENARIOS:
+        tot = neg = phantom = 0
+        for n in RUNS:
+            path = os.path.join(root, d, f"run-{n}", "polls.jsonl")
+            if not os.path.exists(path) or data[(s, n)] is None:
+                continue
+            for line in open(path):
+                p = json.loads(line)
+                b05, b1h = buckets(p)
+                mx = usage_max(p)
+                if b05 is None or b1h is None or mx is None:
+                    continue
+                tot += 1
+                neg += b05 > b1h
+                phantom += (b1h > b05 and mx <= SLOW_USAGE_S)
+        print(f"| {s} | {tot} | {neg} | {phantom} |")
+
     if show_polls:
         print()
         print("| Scenario | Run | generatedAt | window polls | waiting | usage MAX s | le 0.5 / le 1h | unchanged "

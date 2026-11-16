@@ -171,3 +171,161 @@ recommendation and each candidate's, and the bar per candidate. Only if a candid
 implemented in `HikariAdvisor` (with the fallback, evidence fields and documented confidence), tests first, and S3
 re-run with 3 seeds (63001–63003) on the changed starter. Otherwise the rule is not changed and the negative result
 is published here.
+
+## Results (runs 2026-11-15 13:45 to 2026-11-16 00:55 UTC)
+
+Added after the runs. The step-1 section above is unchanged (compare this file at commit `6f1d188`).
+
+**Verdict.** Against the pre-registered bar:
+
+- **P_max fails.** It gives HOLD instead of the right INCREASE in every evaluated poll of all three S5 runs.
+- **P_share** passes the scenario part of the table, but it is **not validated**. Its measured input is inconsistent
+  (see *Deviations*). The lead decided this in the brief's row-7 addendum (commit `878cc32`, 2026-11-15 23:09 UTC),
+  before any S3, S3′, S4 or S5 run.
+- **The rule is not changed.** `HikariAdvisor` and the other four classes are untouched. **S3 still misses**: the
+  unchanged rule recommended ST-REC-HIKARI-001 INCREASE 10 → 13 in 11 of 11 evaluated polls. The known limitation
+  stays.
+
+**What ran.**
+
+- All 18 pre-registered runs completed: 6 scenarios × 3 seeds, 16 polls each, no failed poll. The aborted S2 run
+  described below is a 19th, incomplete run and is not evaluated.
+- Every run used the same PetClinic jar. The starter's autoconfigure jar inside it has SHA-256 `249646af…131b`
+  (identical in all 18 `environment.txt`), built from `86357dd`.
+- `run.sh` and `LoadDriver.java` are unchanged between the pre-registration commit `6f1d188` and the last run.
+  `environment.txt` records a different `spring_tune_commit` per run only because each run's raw data was committed
+  as it finished.
+
+Raw data is in [`petclinic/2026-11-15-runs/`](petclinic/2026-11-15-runs/), laid out like the 2026-11-09 runs. Each
+poll also carries a `hold` object with the extra meters.
+
+### Per run (evaluated polls only)
+
+| Scenario | Run | Seed | Evaluated polls | Unchanged rule | P_max | P_max: share of waiting window polls with MAX > 0.5 s | P_share | P_share: window share > 500 ms |
+|---|---|---|---|---|---|---|---|---|
+| S1 | 1 / 2 / 3 | 6100n | 3 / 3 / 3 | none | none | n/a | none | n/a |
+| S2 | 1 | 62001 | 3 | HIKARI-001 INCREASE 2 → 3 | INCREASE 2 → 3 | 0%, 0%, 0% | INCREASE 2 → 3 | 1.56%, −0.30%, −0.37% |
+| S2 | 2 | 62002 | 4 | HIKARI-001 INCREASE 2 → 3 | INCREASE 2 → 3 | 33%, 25%, 22%, 11% | INCREASE 2 → 3 | −3.32%, −1.01%, 0.93%, −1.08% |
+| S2 | 3 | 62003 | 3 | HIKARI-001 INCREASE 2 → 3 | INCREASE 2 → 3 | 0%, 0%, 0% | INCREASE 2 → 3 | 0.00%, 0.00%, 0.00% |
+| S3 | 1 | 63001 | 4 | HIKARI-001 INCREASE 10 → 13 | HOLD | 100% ×4 | HOLD | 5.05%, 5.11%, 5.17%, 5.14% |
+| S3 | 2 | 63002 | 4 | HIKARI-001 INCREASE 10 → 13 | HOLD | 100% ×4 | HOLD | 13.80%, 12.48%, 12.08%, 7.05% |
+| S3 | 3 | 63003 | 3 | HIKARI-001 INCREASE 10 → 13 | HOLD | 100% ×3 | HOLD | 5.20%, 5.30%, 5.30% |
+| S3′ | 1 | 63101 | 3 | INCREASE 10 → 13 in 2 polls, none in 1 | HOLD in those 2 | 100%, 100% | HOLD in those 2 | 7.89%, 7.86% |
+| S3′ | 2 | 63102 | 3 | none | none | n/a | none | n/a |
+| S3′ | 3 | 63103 | 3 | none in 2 polls, INCREASE 10 → 13 in 1 | HOLD in that 1 | 100% | HOLD in that 1 | 10.41% |
+| S4 | 1 / 2 / 3 | 6400n | 3 / 3 / 3 | HIKARI-003 DECREASE 10 → 2 | same | n/a | same | n/a |
+| S5 | 1 | 65001 | 3 | HIKARI-001 INCREASE 2 → 3 | **HOLD 2 → 2** | 100%, 100%, 100% | INCREASE 2 → 3 | 0.00%, 0.00%, 0.00% |
+| S5 | 2 | 65002 | 3 | HIKARI-001 INCREASE 2 → 3 | **HOLD 2 → 2** | 100%, 100%, 100% | INCREASE 2 → 3 | 0.00%, 0.00%, 0.00% |
+| S5 | 3 | 65003 | 3 | HIKARI-001 INCREASE 2 → 3 | **HOLD 2 → 2** | 100%, 100%, 100% | INCREASE 2 → 3 | 0.00%, 0.00%, 0.00% |
+
+HOLD here means ST-REC-HIKARI-002 HOLD. Every window had 8 to 11 polls, so no candidate fell back.
+
+### Against the bar
+
+| Bar item | Unchanged rule | P_max | P_share |
+|---|---|---|---|
+| S3: no INCREASE, 3 of 3 | fail (0 of 3) | pass (3 of 3) | pass (3 of 3) |
+| S3′: no INCREASE, 3 of 3 | fail (1 of 3) | pass (3 of 3) | pass (3 of 3) |
+| S2: INCREASE 2 → 3 in every evaluated poll, 3 of 3 | pass | pass | pass |
+| S5: INCREASE 2 → 3 in every evaluated poll, 3 of 3 | pass | **fail (0 of 3)** | pass |
+| S1: no recommendation, 3 of 3 | pass | pass | pass |
+| S4: unchanged, 3 of 3 | (DECREASE 10 → 2 as registered, 3 of 3) | pass | pass |
+| Scenario part of the bar | — | **fail** | pass on paper; **not validated** |
+| Tests part of the bar | — | not reached | not run (no implementation) |
+
+**Reproduce:** `python3 -I scripts/petclinic/evaluate-hold.py docs/benchmarks/petclinic/2026-11-15-runs --polls`
+from the repository root. Without the argument it reads these runs; `--polls` adds every evaluated poll with the
+candidates' inputs. To collect new runs, follow petclinic.md's reproduce block, with `HOLD_CHECK=1 S2_RATE=1200`
+and the scenarios `S1 S2 S3 S3P S4 S5`.
+
+### What the unchanged rule did
+
+- **S1**: no recommendation in 9 of 9 evaluated polls, as registered and as on 2026-11-09.
+- **S2**: ST-REC-HIKARI-001 INCREASE 2 → 3 in 10 of 10, as registered and as on 2026-11-09. This time every
+  evaluated poll fell within the load, because the polls are scheduled on the wall clock.
+  - Evidence: `samplesWithWaitingThreads` 84–100%, mean hold "1 ms", mean acquire 5–74 ms.
+  - `system.cpu.usage` was 0.85–0.87 in the evaluated polls, and the driver skipped 13–29% of scheduled requests
+    at its in-flight cap. The CPU caveat of petclinic.md still applies.
+- **S3: still the miss.** ST-REC-HIKARI-001 INCREASE 10 → 13 in 11 of 11.
+  - Evidence: waiting 83–87%, mean hold 141–146 ms, mean acquire 761–817 ms.
+- **S3′**: INCREASE 10 → 13 in 3 of 9 evaluated polls (run 1: 2 of 3, run 3: 1 of 3), no recommendation in the
+  other 6. Run 2 gave none at all.
+  - When it fired: waiting 81–97%, mean hold 139–141 ms, mean acquire 463–469 ms.
+  - So S3′ catches the miss in 2 of 3 runs. In the quiet polls the window was presumably below the 80% waiting
+    threshold. That share is not published when nothing fires, so it is not shown here.
+- **S4**: ST-REC-HIKARI-003 DECREASE 10 → 2 in 9 of 9, as registered.
+- **S5**: ST-REC-HIKARI-001 INCREASE 2 → 3 in 9 of 9, as predicted.
+  - Evidence: waiting 90–97%, mean hold "1 ms", mean acquire 25–50 ms.
+  - All 7 slow edits of each run answered 302, and the usage `MAX` in the evaluated polls was 3.01–3.02 s.
+
+**The acquire/hold ratio on the new runs** confirms the step-0 rejection. From the evidence above:
+
+| Scenario | acquire / hold |
+|---|---|
+| S2 run 2 | 5–6 (hold rounded to "1 ms") |
+| S3 | 5.2–5.7 |
+| S3′ | 3.3–3.4 |
+
+So S2, where the pool really is the narrow point, gives the same ratio as the lock.
+
+### Why each candidate came out as it did
+
+- **P_max** did what it was built for in S3 and S3′: the usage `MAX` was 2.85–2.86 s and 1.91–1.92 s in every
+  evaluated poll. But it fails S5, as pre-registered.
+  - One 3-s checkout a minute keeps the decaying `MAX` above 0.5 s all the time. The `MAX` lasted 2–2.5 minutes in
+    the plumbing check, and was 3.01–3.02 s in every evaluated S5 poll.
+  - So P_max blocks a raise the scenario says is right. This is the skeptic's objection of row 7, now measured.
+- **P_share** separated the scenarios in the table: 5–14% in S3, 8–10% in S3′, 0.00% in S5, and −3.3% to 1.6% in
+  S2. But its input is not what it claims to be (next section). Negative shares and the S3 run-2 range of 7–14%
+  are artefacts of reading two gauges at two moments. A rule fitted to these numbers would be fitted to that noise.
+  - An implementation would read one histogram snapshot (`Timer.takeSnapshot()`), which is not the estimator
+    evaluated here.
+  - Per the row-7 addendum it is reported as **not validated** and not implemented.
+
+### Deviations from the pre-registration
+
+- **Aborted S2 run 2, re-run with the same seed.** The first S2 run 2 (seed 62002, first poll 2026-11-15 14:16:32
+  UTC) was killed by a worker restart after 10 polls (last at t = 270 s). No `driver-summary.json` was written.
+  - It is kept as [`s2/run-2-aborted/`](petclinic/2026-11-15-runs/s2/run-2-aborted/), with a `NOTE.txt`, and not
+    evaluated.
+  - S2 run 2 was re-run from a fresh PostgreSQL and application with the same seed (`s2/run-2`, 23:07–23:15 UTC).
+    The remaining runs followed in order.
+  - A gap of about 8.8 hours separates S2 run 1 from the rest. The machine and the jar were the same (hash above).
+- **A 70-second plumbing run after the pre-registration commit.** At 13:44–13:45 UTC, after `6f1d188`, `run.sh run
+  S5 1` ran once with `LOAD_SECONDS=70 S2_RATE=50` and output outside the repository, to check the new poll code.
+  - It used seed 65001, at 50 req/s instead of 1,200, for 70 s instead of 450, so no window was covered.
+  - Its output was discarded. It is not one of the 18 runs, and nothing in the results comes from it.
+- **The two bucket gauges are inconsistent.** Each poll reads `le:0.5` and `le:1h` as two separate HTTP requests
+  for two gauges of a rotating, decaying histogram. A rotation between the two reads gives counts from different
+  moments. Counted over all 288 polls of the 18 runs (`evaluate-hold.py`'s consistency table):
+  - **23 polls have `le:0.5` > `le:1h`**, impossible within one snapshot: S1 6, S2 10, S3 6, S3′ 1, S4 0, S5 0.
+  - **16 polls show checkouts above 500 ms while the usage `MAX` was ≤ 0.5 s**: S1 6, S2 10, others 0.
+  - This was found after the runs began (S2 run 1). The poll code was not changed mid-series, to keep the inputs
+    fixed. It invalidates P_share's measured share, as described above. The pre-registration did not foresee it.
+- **Where failed polls fall.** The pre-registration counts a failed poll as "no recommendation". A failed read has
+  no `generatedAt`, so `evaluate-hold.py` places it by its slot on the wall-clock schedule: evaluated when
+  `elapsed_seconds` is in [360, 450]. **No poll failed in any of the 18 runs**, so this rule decided nothing.
+- **Wall-clock polls.** As registered, these replace petclinic.md's sleep-after-poll loop. No slot was skipped:
+  every run has 16 polls.
+
+### Step 4
+
+**Not done, by the pre-registration.** P_max does not meet the bar (S5 fails 0 of 3). P_share is not validated,
+and per the row-7 addendum only P_max could change the rule in this iteration. The tests part of the bar is
+therefore not reached, and no main code was changed. With the rule unchanged, the pre-registered re-run of S3 on a
+changed starter does not apply. The unchanged rule's S3 result above (INCREASE 10 → 13 in 11 of 11) is the answer
+to "does S3 still miss": **yes**.
+
+What a next attempt would need, as a note, not a result:
+
+- P_max with a time-weighted rather than decaying max, which is not available from Micrometer's timer.
+- Or P_share read from one histogram snapshot inside the starter, pre-registered and evaluated anew on runs that
+  record that same estimator.
+
+### Limitations
+
+- Everything in petclinic.md's limitations applies.
+- The candidates were evaluated on 30-s polls against a 5-minute window, while the starter samples every 10 s.
+- The S3′ duty cycle was chosen once and not varied.
+- Three seeds per scenario.
+- No latency, throughput or "faster" figure is reported. The driver records counts only.
