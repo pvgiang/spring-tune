@@ -33,6 +33,12 @@ import java.util.Map;
  *                   decrease, a refusal, nothing measured). Recorded only: it never changes the verdict and never
  *                   triggers a revert
  * @param capacity   one plain-language line explaining {@code capacityObtained}, or {@code null}
+ * @param serverLimit for a Hikari knob: how the database server's connection limit was treated for the latest write
+ *                   this entry records, as a status name: {@code KNOWN} (read fresh and checked), {@code NOT_APPLICABLE}
+ *                   (no budget), {@code UNSUPPORTED}, {@code SKIPPED_FOR_DECREASE} (the write lowered the pool, so no
+ *                   read was needed) or {@code NOT_READ_ROLLBACK} (SpringTune's own rollback of a change in flight,
+ *                   which never reads the limit and is never refused). {@code null} for other knobs, refusals and
+ *                   freezes
  */
 public record ChangeAuditEntry(
         String id,
@@ -51,13 +57,22 @@ public record ChangeAuditEntry(
         Map<String, String> evidence,
         Instant finishedAt,
         Boolean capacityObtained,
-        String capacity) {
+        String capacity,
+        String serverLimit) {
 
     public ChangeAuditEntry(String id, Instant at, String action, String who, String why, String ruleId, String knobId,
             Map<String, Long> before, Map<String, Long> after, Outcome outcome, String verdict, String code,
             List<String> reasons, Map<String, String> evidence, Instant finishedAt) {
         this(id, at, action, who, why, ruleId, knobId, before, after, outcome, verdict, code, reasons, evidence,
-                finishedAt, null, null);
+                finishedAt, null, null, null);
+    }
+
+    public ChangeAuditEntry(String id, Instant at, String action, String who, String why, String ruleId, String knobId,
+            Map<String, Long> before, Map<String, Long> after, Outcome outcome, String verdict, String code,
+            List<String> reasons, Map<String, String> evidence, Instant finishedAt, Boolean capacityObtained,
+            String capacity) {
+        this(id, at, action, who, why, ruleId, knobId, before, after, outcome, verdict, code, reasons, evidence,
+                finishedAt, capacityObtained, capacity, null);
     }
 
     public ChangeAuditEntry {
@@ -75,7 +90,13 @@ public record ChangeAuditEntry(
     ChangeAuditEntry finish(Outcome outcome, String verdict, List<String> reasons, Map<String, String> evidence,
             Instant finishedAt, Boolean capacityObtained, String capacity) {
         return new ChangeAuditEntry(id, at, action, who, why, ruleId, knobId, before, after, outcome, verdict, code,
-                reasons, evidence, finishedAt, capacityObtained, capacity);
+                reasons, evidence, finishedAt, capacityObtained, capacity, serverLimit);
+    }
+
+    /** This entry with {@code serverLimit} replaced. */
+    ChangeAuditEntry withServerLimit(String status) {
+        return new ChangeAuditEntry(id, at, action, who, why, ruleId, knobId, before, after, outcome, verdict, code,
+                reasons, evidence, finishedAt, capacityObtained, capacity, status);
     }
 
 

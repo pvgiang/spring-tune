@@ -52,6 +52,11 @@ public class LoadDriver {
         int maxInFlight = Integer.parseInt(opts.getOrDefault("max-in-flight", "2000"));
         long timeoutS = Long.parseLong(opts.getOrDefault("timeout", "30"));
         String out = opts.get("out");
+        // S5 (docs/benchmarks/petclinic-hold.md): one owner edit every N seconds (0 = off), first at N/2 s. Sent
+        // outside the seeded schedule and outside the in-flight cap; draws nothing from the seeded Random, so the
+        // seeded GET sequence is unchanged. The database makes each of these UPDATEs slow (a trigger installed by
+        // run.sh), so each one holds a pool connection for about 3 s.
+        long slowEditEveryS = Long.parseLong(opts.getOrDefault("slow-edit-every", "0"));
 
         System.out.printf("LoadDriver: base=%s rate=%.1f/s duration=%ds seed=%d max-in-flight=%d timeout=%ds%n",
                 base, rate, durationS, seed, maxInFlight, timeoutS);
@@ -75,6 +80,29 @@ public class LoadDriver {
         Instant startedAt = Instant.now();
         long start = System.nanoTime();
         long end = start + TimeUnit.SECONDS.toNanos(durationS);
+        Map<String, AtomicLong> slowEdits = new ConcurrentHashMap<>();
+        java.util.concurrent.ScheduledExecutorService slowEditor = null;
+        if (slowEditEveryS > 0) {
+            slowEditor = Executors.newSingleThreadScheduledExecutor();
+            AtomicInteger editNo = new AtomicInteger();
+            slowEditor.scheduleAtFixedRate(() -> {
+                if (System.nanoTime() >= end) {
+                    return;
+                }
+                // alternate the telephone so Hibernate sees a change and issues the UPDATE
+                String phone = editNo.getAndIncrement() % 2 == 0 ? "6085551024" : "6085551023";
+                String form = "id=1&firstName=George&lastName=Franklin&address=110+W.+Liberty+St.&city=Madison"
+                        + "&telephone=" + phone;
+                HttpRequest edit = HttpRequest.newBuilder(URI.create(base + "/owners/1/edit"))
+                        .timeout(Duration.ofSeconds(timeoutS))
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .POST(HttpRequest.BodyPublishers.ofString(form)).build();
+                slowEdits.computeIfAbsent("sent", k -> new AtomicLong()).incrementAndGet();
+                client.sendAsync(edit, HttpResponse.BodyHandlers.discarding()).whenComplete((response, failure) ->
+                        slowEdits.computeIfAbsent(failure != null ? "error" : String.valueOf(response.statusCode()),
+                                k -> new AtomicLong()).incrementAndGet());
+            }, slowEditEveryS * 500, slowEditEveryS * 1000, TimeUnit.MILLISECONDS);
+        }
         double nextOffsetNs = 0;
         long scheduled = 0;
         while (true) {
@@ -123,6 +151,9 @@ public class LoadDriver {
                 inFlight.decrementAndGet();
             });
         }
+        if (slowEditor != null) {
+            slowEditor.shutdownNow();
+        }
         long drainUntil = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutS + 5);
         while (inFlight.get() > 0 && System.nanoTime() < drainUntil) {
             Thread.sleep(100);
@@ -146,7 +177,11 @@ public class LoadDriver {
         json.append("  \"max_observed_in_flight\": ").append(maxObservedInFlight).append(",\n");
         json.append("  \"scheduled_by_kind\": ").append(toJson(byKind)).append(",\n");
         json.append("  \"responses_by_status\": ").append(toJson(byStatus)).append(",\n");
-        json.append("  \"errors_by_type\": ").append(toJson(errors)).append("\n");
+        json.append("  \"errors_by_type\": ").append(toJson(errors)).append(slowEditEveryS > 0 ? ",\n" : "\n");
+        if (slowEditEveryS > 0) {
+            json.append("  \"slow_edit_every_seconds\": ").append(slowEditEveryS).append(",\n");
+            json.append("  \"slow_edits\": ").append(toJson(slowEdits)).append("\n");
+        }
         json.append("}\n");
         System.out.print(json);
         if (out != null) {

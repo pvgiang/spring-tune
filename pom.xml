@@ -7,7 +7,7 @@
 
     <groupId>io.github.winkytek.springtune</groupId>
     <artifactId>springtune-parent</artifactId>
-    <version>0.4.2-SNAPSHOT</version>
+    <version>0.4.3-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>SpringTune</name>

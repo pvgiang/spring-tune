@@ -1,0 +1,16 @@
+date_utc: 2026-11-16T00:09:08Z
+nproc: 4
+memory: 15Gi
+cpu: Intel(R) Xeon(R) Processor @ 2.10GHz
+kernel: 6.18.44-fc-v470
+java: openjdk version "21.0.12.1" 2026-08-18 OpenJDK Runtime Environment (build 21.0.12.1+1-1-24.04.4-Ubuntu) OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-24.04.4-Ubuntu, mixed mode, sharing) 
+postgresql: postgres (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+petclinic: https://github.com/spring-projects/spring-petclinic.git @ 500158f732419217507c7656904b8e6aa1bcc0d6
+petclinic_boot: 4.1.0
+springtune_starter: io.github.winkytek.springtune:springtune-spring-boot-starter:0.4.3-SNAPSHOT
+springtune_resolved_from: 
+springtune_autoconfigure_sha256: 249646afcd107b53a00fa1c091c451cf7679ecc4c1d136ca18f42944771b131b
+spring_tune_commit: 1b73ace52c270103c9562693d11e0734260669a1
+springtune_autoconfigure_in_petclinic_jar: BOOT-INF/lib/springtune-spring-boot-autoconfigure-0.4.3-SNAPSHOT.jar sha256 249646afcd107b53a00fa1c091c451cf7679ecc4c1d136ca18f42944771b131b
+hold_check: 1
+loadavg_at_start: 0.22 0.96 1.50

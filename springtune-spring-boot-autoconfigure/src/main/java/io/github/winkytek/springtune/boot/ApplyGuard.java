@@ -151,6 +151,50 @@ final class ApplyGuard {
         }
     }
 
+    /**
+     * The checks every write that raises a Hikari pool passes, whoever asked for it: an apply of a recommendation and a
+     * manual revert of a confirmed or kept decrease (a new decision to raise). Only SpringTune's own rollback of a
+     * change in flight skips them ({@link ServerConnectionLimit.Status#NOT_READ_ROLLBACK}). A raise needs a budget, a
+     * limit read fresh for this request ({@code NOT_READ}, {@code SKIPPED_FOR_DECREASE} and {@code NOT_READ_ROLLBACK}
+     * are refused with {@code SERVER_LIMIT_UNKNOWN}), a budget the server honours and a target within the cap.
+     *
+     * @param what {@code apply} or {@code revert}, for the messages
+     */
+    static Optional<Refusal> checkHikariRaise(long current, long target, Optional<Integer> budgetCap,
+            Integer databaseMaxConnections, ServerConnectionLimit server, String what) {
+        if (budgetCap.isEmpty()) {
+            return Optional.of(new Refusal(Code.NO_BUDGET, "Raising maximumPoolSize needs a connection budget:"
+                    + " set springtune.budget.database-max-connections and max-replicas."));
+        }
+        if (server != null && server.status() == ServerConnectionLimit.Status.NOT_READ) {
+            return Optional.of(new Refusal(Code.SERVER_LIMIT_UNKNOWN, "The database server's connection limit could"
+                    + " not be re-read for this " + what + " (" + server.detail() + "), so database-max-connections="
+                    + databaseMaxConnections + " cannot be checked against it. Raising the pool is refused until"
+                    + " it can be read; retry when a connection is available."));
+        }
+        if (server != null && (server.status() == ServerConnectionLimit.Status.SKIPPED_FOR_DECREASE
+                || server.status() == ServerConnectionLimit.Status.NOT_READ_ROLLBACK)) {
+            // Fail closed: the read was skipped because this write was judged not to need it. If it raises now, that
+            // judgement is wrong or stale, and a raise is never approved without a fresh limit.
+            return Optional.of(new Refusal(Code.SERVER_LIMIT_UNKNOWN, "The database server's connection limit was not"
+                    + " read for this " + what + " (" + server.detail() + "), but it raises the pool (" + current
+                    + " -> " + target + "). Raising is refused without a fresh read; retry."));
+        }
+        if (server != null && server.known() && databaseMaxConnections != null
+                && databaseMaxConnections > server.limit()) {
+            return Optional.of(new Refusal(Code.BUDGET_EXCEEDS_SERVER, "springtune.budget.database-max-connections="
+                    + databaseMaxConnections + " is more than the database server accepts (" + server.detail()
+                    + "), so the per-instance cap of " + budgetCap.get() + " is not safe. Set"
+                    + " database-max-connections to at most " + server.limit() + " (minus what other services"
+                    + " use) before raising the pool."));
+        }
+        if (target > budgetCap.get()) {
+            return Optional.of(new Refusal(Code.ABOVE_BUDGET_CAP, target + " is above the per-instance connection"
+                    + " budget cap of " + budgetCap.get() + "."));
+        }
+        return Optional.empty();
+    }
+
     private static boolean blank(String value) {
         return value == null || value.isBlank();
     }
@@ -250,35 +294,10 @@ final class ApplyGuard {
                     + " does not match the current recommendation (" + target + "); review it again.");
         }
         if (knob.kind() == WritableKnob.Kind.HIKARI && target > current) {
-            if (budgetCap.isEmpty()) {
-                return Decision.refuse(Code.NO_BUDGET, "Raising maximumPoolSize needs a connection budget:"
-                        + " set springtune.budget.database-max-connections and max-replicas.");
-            }
-            ServerConnectionLimit server = knob.serverLimit();
-            if (server != null && server.status() == ServerConnectionLimit.Status.NOT_READ) {
-                return Decision.refuse(Code.SERVER_LIMIT_UNKNOWN, "The database server's connection limit could not"
-                        + " be re-read for this apply (" + server.detail() + "), so database-max-connections="
-                        + databaseMaxConnections + " cannot be checked against it. Raising the pool is refused until"
-                        + " it can be read; retry when a connection is available.");
-            }
-            if (server != null && server.status() == ServerConnectionLimit.Status.SKIPPED_FOR_DECREASE) {
-                // Fail closed: the read was skipped because this apply was judged not to raise the pool. If it raises
-                // now, that judgement is wrong or stale, and a raise is never approved without a fresh limit.
-                return Decision.refuse(Code.SERVER_LIMIT_UNKNOWN, "The database server's connection limit was not"
-                        + " read for this apply (" + server.detail() + "), but the recommendation raises the pool ("
-                        + current + " -> " + target + "). Raising is refused without a fresh read; retry.");
-            }
-            if (server != null && server.known() && databaseMaxConnections != null
-                    && databaseMaxConnections > server.limit()) {
-                return Decision.refuse(Code.BUDGET_EXCEEDS_SERVER, "springtune.budget.database-max-connections="
-                        + databaseMaxConnections + " is more than the database server accepts (" + server.detail()
-                        + "), so the per-instance cap of " + budgetCap.get() + " is not safe. Set"
-                        + " database-max-connections to at most " + server.limit() + " (minus what other services"
-                        + " use) before raising the pool.");
-            }
-            if (target > budgetCap.get()) {
-                return Decision.refuse(Code.ABOVE_BUDGET_CAP, target + " is above the per-instance connection budget"
-                        + " cap of " + budgetCap.get() + ".");
+            Optional<Refusal> raise = checkHikariRaise(current, target, budgetCap, databaseMaxConnections,
+                    knob.serverLimit(), "apply");
+            if (raise.isPresent()) {
+                return new Decision(raise.get(), null);
             }
         }
         long step = maxStep(current, settings.getMaxStep());

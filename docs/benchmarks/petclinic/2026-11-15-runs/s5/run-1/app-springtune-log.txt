@@ -1,0 +1,2 @@
+2026-11-16T00:32:09.695Z  INFO 27652 --- [           main] o.s.s.petclinic.PetClinicApplication     : Starting PetClinicApplication v4.0.0-SNAPSHOT using Java 21.0.12.1 with PID 27652 (/var/tmp/springtune-petclinic-d/spring-petclinic/target/spring-petclinic-4.0.0-SNAPSHOT.jar started by root in /home/user/spring-tune/.claude/worktrees/agent-ad431f85208333294)
+2026-11-16T00:32:14.951Z  INFO 27652 --- [io-18087-exec-4] i.g.w.springtune.boot.TuningService      : SpringTune advise mode: watching [executor:applicationTaskExecutor, hikari:HikariPool-1] (read-only)

@@ -46,7 +46,15 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
          * request the guard refuses anyway). Never cached; {@link ApplyGuard} refuses <b>any</b> raise that carries it
          * ({@code SERVER_LIMIT_UNKNOWN}), so a recommendation that turned into a raise can never pass unchecked.
          */
-        SKIPPED_FOR_DECREASE
+        SKIPPED_FOR_DECREASE,
+        /**
+         * Deliberately not read for a rollback: SpringTune's own revert of a change in flight (a verification verdict
+         * of REGRESSED or INCONCLUSIVE with {@code on-inconclusive=revert}, a manual revert while it is verified, or a
+         * freeze) restores the value that held minutes ago, only if the live value is still the applied one, and is
+         * never refused or delayed by a read. Recorded in the audit entry ({@link ChangeAuditEntry#serverLimit()}).
+         * Never cached; {@link ApplyGuard} refuses any raise that carries it, like {@link #SKIPPED_FOR_DECREASE}.
+         */
+        NOT_READ_ROLLBACK
     }
 
     ServerConnectionLimit(Status status, Integer limit, String product, String detail) {
@@ -65,6 +73,12 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
     static ServerConnectionLimit skippedForDecrease() {
         return new ServerConnectionLimit(Status.SKIPPED_FOR_DECREASE, null, null, "not read for this apply: it was"
                 + " evaluated as not raising the pool");
+    }
+
+    /** See {@link Status#NOT_READ_ROLLBACK}. */
+    static ServerConnectionLimit notReadForRollback() {
+        return new ServerConnectionLimit(Status.NOT_READ_ROLLBACK, null, null, "not read for this rollback: it restores"
+                + " the value that held before the change in flight and is never refused");
     }
 
     static ServerConnectionLimit notApplicable() {
@@ -136,7 +150,8 @@ record ServerConnectionLimit(Status status, Integer limit, String product, Strin
                     + " raise is refused if it cannot be read (SERVER_LIMIT_UNKNOWN)";
             case UNSUPPORTED -> "server limit not checked: " + detail;
             case NOT_APPLICABLE -> "server limit not checked: " + detail;
-            case SKIPPED_FOR_DECREASE -> "server limit not read: " + detail + "; a raise needs a fresh read";
+            case SKIPPED_FOR_DECREASE, NOT_READ_ROLLBACK -> "server limit not read: " + detail
+                    + "; a raise needs a fresh read";
         };
     }
 }

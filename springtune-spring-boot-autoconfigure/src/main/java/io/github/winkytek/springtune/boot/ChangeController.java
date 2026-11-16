@@ -57,6 +57,14 @@ import org.apache.commons.logging.LogFactory;
  * ({@link WritableKnob#serverLimit()}) <b>outside</b> this object's lock, so a slow read (bounded by the pool's
  * {@code connectionTimeout}, at most 30 s, both for the wait and for the read's own network timeout) never delays
  * the sampler tick. Only a raise reads it; a decrease is decided without a read.
+ *
+ * <p>Reverts are split by who reverts (iteration 7 row 8). SpringTune's own rollback of the change in flight (verdict
+ * REGRESSED, INCONCLUSIVE with {@code on-inconclusive=revert}, fast fail, a manual revert or a freeze while it is
+ * verified) is the safety path: it is never refused and never waits for a limit read. It restores a value that held
+ * minutes ago, only if the live value is still the applied one, and its audit entry says the limit was not read
+ * ({@code serverLimit: NOT_READ_ROLLBACK}). A manual revert of a <b>confirmed or kept</b> change that raises a Hikari
+ * pool (the revert of a decrease) is a new decision to raise: it takes the same fresh limit read as an apply that
+ * raises (outside the lock, same bound) and is refused like one ({@link ApplyGuard#checkHikariRaise}).
  */
 final class ChangeController {
 
@@ -187,16 +195,48 @@ final class ChangeController {
                 return apply(request, caller.name(), now, evaluate(request, now), server);
             }
         }
+        if (refusal.isEmpty() && request.normalizedAction().equals("revert")) {
+            // A manual revert of a confirmed or kept change that raises a Hikari pool reads the limit like a raise:
+            // the first hold decides whether it raises; if it does, read outside the lock and decide again, fresh.
+            synchronized (this) {
+                if (!manualRevertRaisesHikariPool(request.knobId()) || budgetCap.isEmpty()) {
+                    return revert(request, caller.name(), clock.instant(), null);
+                }
+            }
+            ServerConnectionLimit server = serverLimitFor(request.knobId());
+            synchronized (this) {
+                return revert(request, caller.name(), clock.instant(), server);
+            }
+        }
         synchronized (this) {
             Instant now = clock.instant();
             if (refusal.isPresent()) {
                 return refuse(request, caller, refusal.get(), now);
             }
-            return switch (request.normalizedAction()) {
-                case "revert" -> revert(request, caller.name(), now);
-                default -> freeze(request, caller.name(), now);
-            };
+            return freeze(request, caller.name(), now);
         }
+    }
+
+    /**
+     * Whether a manual revert of this knob now would write back a confirmed or kept change's before value that is
+     * above the live value of a Hikari pool (a new raise). A revert of the change in flight is a rollback and never
+     * counts. Called with the lock held.
+     */
+    private boolean manualRevertRaisesHikariPool(String knobId) {
+        if (inFlight != null && inFlight.knob().knobId().equals(knobId)) {
+            return false;
+        }
+        Applied last = applied.get(knobId);
+        Optional<WritableKnob> knob = knob(knobId);
+        if (last == null || knob.isEmpty() || knob.get().kind() != WritableKnob.Kind.HIKARI) {
+            return false;
+        }
+        return last.before().get(knob.get().writer().setting()) > knob.get().current();
+    }
+
+    /** The audit's {@code serverLimit} for a write of this knob: the status for a Hikari pool, otherwise null. */
+    private static String serverLimitStatus(WritableKnob knob, ServerConnectionLimit server) {
+        return knob.kind() == WritableKnob.Kind.HIKARI && server != null ? server.status().name() : null;
     }
 
     /**
@@ -309,13 +349,15 @@ final class ChangeController {
                 states.put(target.knobId(), new KnobState(State.REVERT_FAILED, now, null));
             }
             ChangeAuditEntry entry = record(new ChangeAuditEntry(nextId(), now, "apply", who, request.reason(),
-                    rec.ruleId(), target.knobId(), before, after, outcome, null, null, reasons, Map.of(), now));
+                    rec.ruleId(), target.knobId(), before, after, outcome, null, null, reasons, Map.of(), now, null,
+                    null, serverLimitStatus(target, server)));
             return new ChangeResponse(409, outcome.name(), String.join(" ", reasons), entry);
         }
         reasons.add("Ephemeral: lost on restart. Verifying for " + Format.duration(settings.getVerificationWindow())
                 + " after a " + Format.duration(settings.getWarmup()) + " warmup.");
         ChangeAuditEntry entry = record(new ChangeAuditEntry(nextId(), now, "apply", who, request.reason(),
-                rec.ruleId(), target.knobId(), before, after, Outcome.VERIFYING, null, null, reasons, Map.of(), null));
+                rec.ruleId(), target.knobId(), before, after, Outcome.VERIFYING, null, null, reasons, Map.of(), null,
+                null, null, serverLimitStatus(target, server)));
         inFlight = new InFlight(target, entry, now, baseline, before, after);
         maxHeld = -1;
         demandWhileShort = false;
@@ -325,7 +367,12 @@ final class ChangeController {
                 + " -> " + after.get(target.writer().setting()) + "; verifying.", entry);
     }
 
-    private ChangeResponse revert(ChangeRequest request, String who, Instant now) {
+    /**
+     * @param server the limit read for this revert outside the lock, or {@code null} when the first hold found that it
+     *               does not raise a Hikari pool (a revert that raises after all then carries
+     *               {@code SKIPPED_FOR_DECREASE} and is refused: fail closed)
+     */
+    private ChangeResponse revert(ChangeRequest request, String who, Instant now, ServerConnectionLimit server) {
         String why = "Manual revert by " + who + (request.reason() == null ? "" : ": " + request.reason());
         if (inFlight != null && inFlight.knob().knobId().equals(request.knobId())) {
             ChangeAuditEntry entry = finishByRevert(why, null, List.of(why), Map.of(), now);
@@ -344,11 +391,27 @@ final class ChangeController {
             return refuse(request, new Caller(who, true), new Refusal(Code.NOTHING_TO_REVERT, "The live value " + live
                     + " is no longer the applied value " + appliedValue + "; SpringTune leaves it alone."), now);
         }
+        long restored = last.before().get(target.writer().setting());
+        ServerConnectionLimit limit = server;
+        if (target.kind() == WritableKnob.Kind.HIKARI && restored > live) {
+            // A new decision to raise the pool: judged like an apply that raises.
+            if (limit == null) {
+                limit = ServerConnectionLimit.skippedForDecrease();
+            }
+            Optional<Refusal> raise = ApplyGuard.checkHikariRaise(live, restored, budgetCap,
+                    properties.getBudget().getDatabaseMaxConnections(), limit, "revert");
+            if (raise.isPresent()) {
+                return refuse(request, new Caller(who, true), raise.get(), now);
+            }
+        } else if (limit == null) {
+            limit = notReadFor(target.knobId(), "the revert lowers the pool");
+        }
         List<String> reasons = new ArrayList<>(List.of(why));
         Outcome outcome = restore(target, last.before(), last.after(), reasons, now);
         applied.remove(request.knobId());
         ChangeAuditEntry entry = record(new ChangeAuditEntry(nextId(), now, "revert", who, request.reason(),
-                last.ruleId(), target.knobId(), last.after(), last.before(), outcome, null, null, reasons, Map.of(), now));
+                last.ruleId(), target.knobId(), last.after(), last.before(), outcome, null, null, reasons, Map.of(), now,
+                null, null, serverLimitStatus(target, limit)));
         return new ChangeResponse(outcome == Outcome.REVERTED ? 200 : 409, outcome == Outcome.REVERTED ? "OK"
                 : outcome.name(), String.join(" ", reasons), entry);
     }
@@ -531,8 +594,14 @@ final class ChangeController {
         List<String> reasons = new ArrayList<>();
         reasons.add(cause);
         reasons.addAll(details.stream().filter(d -> !d.equals(cause)).toList());
+        boolean pool = change.knob().kind() == WritableKnob.Kind.HIKARI && budgetCap.isPresent();
+        if (pool) {
+            reasons.add("Server connection limit not read for this rollback (NOT_READ_ROLLBACK): it restores the value"
+                    + " that held before the change and is never refused.");
+        }
         Outcome outcome = restore(change.knob(), change.before(), change.after(), reasons, now);
-        return finish(change, outcome, verdict == null ? null : verdict.name(), reasons, evidence, now);
+        return finish(change, outcome, verdict == null ? null : verdict.name(), reasons, evidence, now,
+                pool ? ServerConnectionLimit.Status.NOT_READ_ROLLBACK.name() : null);
     }
 
     /**
@@ -570,14 +639,21 @@ final class ChangeController {
 
     private ChangeAuditEntry finish(InFlight change, Outcome outcome, String verdict, List<String> reasons,
             Map<String, String> evidence, Instant now) {
+        return finish(change, outcome, verdict, reasons, evidence, now, null);
+    }
+
+    /** @param serverLimit replaces the entry's {@code serverLimit} when not {@code null} (a rollback) */
+    private ChangeAuditEntry finish(InFlight change, Outcome outcome, String verdict, List<String> reasons,
+            Map<String, String> evidence, Instant now, String serverLimit) {
         CapacityResult capacity = capacityResult(change);
         List<String> all = new ArrayList<>(reasons);
         if (capacity.obtained() != null) {
             all.add(capacity.line());
         }
         inFlight = null;
-        return record(change.entry().finish(outcome, verdict, all, evidence, now, capacity.obtained(),
-                capacity.line()));
+        ChangeAuditEntry done = change.entry().finish(outcome, verdict, all, evidence, now, capacity.obtained(),
+                capacity.line());
+        return record(serverLimit == null ? done : done.withServerLimit(serverLimit));
     }
 
     private String ruleIdOf(InFlight change) {
@@ -652,6 +728,7 @@ final class ChangeController {
                 + (entry.before().isEmpty() ? "" : " before=" + entry.before() + " after=" + entry.after())
                 + (entry.verdict() != null ? " verdict=" + entry.verdict() : "")
                 + (entry.capacityObtained() != null ? " capacityObtained=" + entry.capacityObtained() : "")
+                + (entry.serverLimit() != null ? " serverLimit=" + entry.serverLimit() : "")
                 + " why=\"" + (entry.why() == null ? "" : entry.why()) + "\" reasons=" + entry.reasons()
                 + (entry.evidence().isEmpty() ? "" : " evidence=" + entry.evidence());
         // Caller-supplied text (why, ruleId, knobId, principal) must not start a forged log line.

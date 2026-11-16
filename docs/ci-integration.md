@@ -37,11 +37,20 @@ is a project it fails on.
 the GitHub REST API with the workflow's token, input `token`; set it to `""`, or give a token that cannot read
 the release, and it falls back to anonymous `curl` over HTTPS, which needs this repository to be public; the token
 is never passed to the CLI), and checks the jar's line with `sha256sum -c` ([`scripts/action/verify-sha256.sh`](../scripts/action/verify-sha256.sh)) before
-running it. A mismatch, a missing `SHA256SUMS` or jar line, or a `version` that is not a release number (such as
-`0.4.1`) stops the step with exit code 2 and the jar never runs. A jar passed through the `jar` input (your own build) is not verified. The verification
-ships from the `v0.4.1` tag on. That tag's `action.yml` defaults to CLI 0.4.0 (the 0.4.1 jar did not exist when it
-was written; see the [v0.4.1 notes](releases/v0.4.1.md)), so pass `version: "0.4.1"` as above. The `v0.4.0` tag's
-Action defaults to CLI 0.1.0 and downloads the jar without checking it: move to `@v0.4.1`.
+running it. A mismatch, a missing `SHA256SUMS` or jar line, or a `version` that is not a release number
+(`MAJOR.MINOR.PATCH`) stops the step with exit code 2 and the jar never runs. A jar passed through the `jar` input
+(your own build) is not verified. The verification ships from the `v0.4.1` tag on; the `v0.4.0` tag's Action
+downloads the jar without checking it.
+
+**Which CLI a tag runs without `version:`.** From **v0.4.3** on, `pvgiang/spring-tune@vX.Y.Z`, and the same tag
+pinned by its commit SHA, run CLI X.Y.Z when you pass no `version:`. The Release workflow makes this so: after the
+build and tests it commits `action.yml` with its `version` default set to X.Y.Z on top of the built commit (one
+file, two lines), and the tag `vX.Y.Z` points to that commit ([releasing](releasing.md#the-action-stamp)).
+**`@v0.4.2` and older need `version:`**: each of those tags defaults to the previous release's CLI (`v0.4.2` → 0.4.1,
+`v0.4.1` → 0.4.0, `v0.4.0` → 0.1.0), because the default was written before the release existed. An explicit
+`version:` always wins, on any tag. Pinning by SHA: use the commit the tag points to (`git ls-remote
+https://github.com/pvgiang/spring-tune refs/tags/vX.Y.Z^{}`), not a commit on `main`, whose `action.yml` defaults to
+the version the README pins.
 
 Findings then appear as code scanning alerts on the exact `file:line`. Suppressed findings are uploaded with
 `suppressions[].justification`, so the reason stays visible. `partialFingerprints` keep alerts stable when

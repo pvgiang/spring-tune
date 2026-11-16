@@ -1,0 +1,2 @@
+2026-11-15T23:38:30.097Z  INFO 18937 --- [           main] o.s.s.petclinic.PetClinicApplication     : Starting PetClinicApplication v4.0.0-SNAPSHOT using Java 21.0.12.1 with PID 18937 (/var/tmp/springtune-petclinic-d/spring-petclinic/target/spring-petclinic-4.0.0-SNAPSHOT.jar started by root in /home/user/spring-tune/.claude/worktrees/agent-ad431f85208333294)
+2026-11-15T23:38:36.321Z  INFO 18937 --- [io-18087-exec-2] i.g.w.springtune.boot.TuningService      : SpringTune advise mode: watching [executor:applicationTaskExecutor, hikari:HikariPool-1] (read-only)

@@ -1,0 +1,12 @@
+{
+  "scenario": "S3P",
+  "run": 3,
+  "rate_per_second": 50,
+  "seed": 63103,
+  "load_seconds": 450,
+  "poll_seconds": 30,
+  "app_args": "--management.metrics.distribution.slo.hikaricp.connections.usage=500ms,1h",
+  "springtune_version": "0.4.3-SNAPSHOT",
+  "lock_holder": "LOCK TABLE owners IN ACCESS EXCLUSIVE MODE for 1.9 s of every 2 s",
+  "slow_query": null
+}

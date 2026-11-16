@@ -937,4 +937,189 @@ class ChangeControllerTest {
         org.assertj.core.api.Assertions.assertThatIllegalArgumentException().isThrownBy(this::newController)
                 .withMessageContaining("max-step");
     }
+
+    // ------------------------------------------------------------------ reverts and the server limit (iteration 7 row 8)
+
+    /** Applies a decrease 10 -> 8 (no read needed) with a budget of 20 and returns the apply response. */
+    private ChangeResponse applyDecrease() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        decreaseTo = 8L;
+        ticks(31);
+        ChangeResponse lowered = controller.handle(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L, "idle"),
+                OPS);
+        assertThat(lowered.status()).as(lowered.message()).isEqualTo(200);
+        assertThat(lowered.change().serverLimit()).isEqualTo("SKIPPED_FOR_DECREASE");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 8L);
+        assertThat(serverReads).hasValue(0);
+        return lowered;
+    }
+
+    /** Confirms the decrease (kept when the verdict is inconclusive) so it is no longer in flight. */
+    private void confirmDecrease() {
+        properties.getApply().setOnInconclusive(SpringTuneProperties.Apply.OnInconclusive.KEEP);
+        applyDecrease();
+        ticks(34);
+        assertThat(controller.audit().get(0).outcome()).isIn(Outcome.CONFIRMED, Outcome.KEPT_INCONCLUSIVE);
+        assertThat(controller.state(KNOB)).isEqualTo(State.CONFIRMED);
+    }
+
+    private ChangeResponse manualRevert() {
+        return controller.handle(new ChangeRequest("revert", null, KNOB, null, "back to config"), OPS);
+    }
+
+    @Test
+    void automaticRevertOfADecreaseIsNeverRefusedAndNeverReadsTheLimit() {
+        applyDecrease();
+        // The server limit cannot be read at all from now on.
+        serverLimit = ServerConnectionLimit.notRead("no answer within connectionTimeout (250 ms)");
+        ticks(3); // warmup
+        timeoutsPerTick = 5; // fast fail (R1): the smaller pool times out
+        ticks(2);
+        ChangeAuditEntry done = controller.audit().get(0);
+        assertThat(done.action()).isEqualTo("apply");
+        assertThat(done.outcome()).isEqualTo(Outcome.REVERTED);
+        assertThat(done.verdict()).isEqualTo("REGRESSED");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+        assertThat(serverReads).as("server-limit reads for an automatic revert").hasValue(0);
+        assertThat(done.serverLimit()).isEqualTo("NOT_READ_ROLLBACK");
+        assertThat(done.reasons()).anyMatch(r -> r.contains("not read for this rollback (NOT_READ_ROLLBACK)"));
+        assertThat(ChangeController.auditLine(done)).contains("serverLimit=NOT_READ_ROLLBACK");
+    }
+
+    @Test
+    void inconclusiveRevertOfADecreaseIsNeverRefusedEither() {
+        applyDecrease();
+        serverLimit = ServerConnectionLimit.notRead("no answer within connectionTimeout (250 ms)");
+        acquiresPerTick = 1; // traffic vanished: INCONCLUSIVE, and on-inconclusive=revert (the default)
+        ticks(34);
+        ChangeAuditEntry done = controller.audit().get(0);
+        assertThat(done.outcome()).isEqualTo(Outcome.REVERTED);
+        assertThat(done.verdict()).isEqualTo("INCONCLUSIVE");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+        assertThat(serverReads).hasValue(0);
+        assertThat(done.serverLimit()).isEqualTo("NOT_READ_ROLLBACK");
+    }
+
+    @Test
+    void manualRevertOrFreezeOfTheChangeInFlightIsARollbackToo() {
+        applyDecrease();
+        serverLimit = ServerConnectionLimit.notRead("no answer within connectionTimeout (250 ms)");
+        ChangeResponse revert = manualRevert();
+        assertThat(revert.status()).as(revert.message()).isEqualTo(200);
+        assertThat(revert.change().serverLimit()).isEqualTo("NOT_READ_ROLLBACK");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+        assertThat(serverReads).hasValue(0);
+
+        clock.advance(Duration.ofMinutes(61));
+        ticks(31);
+        assertThat(controller.handle(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L, "idle"), OPS)
+                .status()).isEqualTo(200);
+        assertThat(controller.handle(new ChangeRequest("freeze", null, null, null, "incident"), OPS).status())
+                .isEqualTo(200);
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+        assertThat(controller.audit()).filteredOn(e -> e.action().equals("apply"))
+                .allMatch(e -> "NOT_READ_ROLLBACK".equals(e.serverLimit()));
+        assertThat(serverReads).hasValue(0);
+    }
+
+    @Test
+    void manualRevertOfAConfirmedDecreaseWithAnUnknownLimitIsRefused() {
+        confirmDecrease();
+        serverLimit = ServerConnectionLimit.notRead("no answer within connectionTimeout (250 ms) at "
+                + clock.instant() + "; last known limit 20, read at 2026-01-01T00:00:00Z");
+        ChangeResponse revert = manualRevert();
+        assertThat(revert.status()).as(revert.message()).isEqualTo(409);
+        assertThat(revert.code()).isEqualTo("SERVER_LIMIT_UNKNOWN");
+        assertThat(revert.message()).contains("re-read for this revert").contains("last known limit 20");
+        assertThat(revert.change().outcome()).isEqualTo(Outcome.REFUSED);
+        assertThat(revert.change().action()).isEqualTo("revert");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 8L);
+        assertThat(serverReads).hasValue(1);
+        assertThat(serverReadUnderLock).as("re-read while holding the controller lock").isFalse();
+
+        // A limit below the configured budget refuses it like a raise.
+        serverLimit = known(10, clock.instant());
+        ChangeResponse exceeds = manualRevert();
+        assertThat(exceeds.code()).as(exceeds.message()).isEqualTo("BUDGET_EXCEEDS_SERVER");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 8L);
+        assertThat(serverReads).hasValue(2);
+    }
+
+    @Test
+    void manualRevertOfAConfirmedDecreaseWithAFreshSufficientLimitIsApplied() {
+        confirmDecrease();
+        serverLimit = known(20, clock.instant());
+        ChangeResponse revert = manualRevert();
+        assertThat(revert.status()).as(revert.message()).isEqualTo(200);
+        assertThat(revert.change().outcome()).isEqualTo(Outcome.REVERTED);
+        assertThat(revert.change().serverLimit()).isEqualTo("KNOWN");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+        assertThat(serverReads).hasValue(1);
+        assertThat(serverReadUnderLock).isFalse();
+        assertThat(manualRevert().code()).isEqualTo("NOTHING_TO_REVERT");
+        assertThat(serverReads).as("nothing left to revert: no read").hasValue(1);
+    }
+
+    @Test
+    void aSlowLimitReadForAManualRevertNeverBlocksTheSamplerTick() throws Exception {
+        confirmDecrease();
+        serverLimit = known(20, clock.instant());
+        serverReadGate = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService http = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            java.util.concurrent.Future<ChangeResponse> pending = http.submit(this::manualRevert);
+            long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+            while (serverReads.get() < 1 && System.nanoTime() < deadline) {
+                Thread.sleep(5);
+            }
+            assertThat(serverReads).hasValue(1);
+            java.util.concurrent.ExecutorService sampler = java.util.concurrent.Executors.newSingleThreadExecutor();
+            try {
+                sampler.submit(() -> controller.tick(clock.instant())).get(5, java.util.concurrent.TimeUnit.SECONDS);
+            } finally {
+                sampler.shutdownNow();
+            }
+            assertThat(pending).isNotDone();
+            serverReadGate.countDown();
+            assertThat(pending.get(5, java.util.concurrent.TimeUnit.SECONDS).status()).isEqualTo(200);
+        } finally {
+            serverReadGate.countDown();
+            http.shutdownNow();
+        }
+    }
+
+    @Test
+    void manualRevertOfAConfirmedDecreaseWithoutABudgetIsRefusedLikeARaise() {
+        controller = new ChangeController(properties, clock, () -> knobs, this::recommendations, Optional.empty(),
+                events::add);
+        properties.getApply().setOnInconclusive(SpringTuneProperties.Apply.OnInconclusive.KEEP);
+        decreaseTo = 8L;
+        ticks(31);
+        assertThat(controller.handle(new ChangeRequest("apply", "ST-REC-HIKARI-003", KNOB, 10L, "idle"), OPS)
+                .status()).isEqualTo(200);
+        ticks(34);
+        ChangeResponse revert = manualRevert();
+        assertThat(revert.code()).as(revert.message()).isEqualTo("NO_BUDGET");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 8L);
+        assertThat(serverReads).hasValue(0);
+    }
+
+    @Test
+    void manualRevertThatLowersThePoolReadsNothing() {
+        properties.getBudget().setDatabaseMaxConnections(20);
+        controller = newController();
+        serverLimit = known(20, clock.instant());
+        ticks(31);
+        assertThat(apply().status()).isEqualTo(200); // 10 -> 13, one read
+        acquireMs = 5;
+        ticks(34);
+        assertThat(controller.state(KNOB)).isEqualTo(State.CONFIRMED);
+        serverLimit = ServerConnectionLimit.notRead("no answer");
+        ChangeResponse revert = manualRevert();
+        assertThat(revert.status()).as(revert.message()).isEqualTo(200);
+        assertThat(revert.change().serverLimit()).isEqualTo("SKIPPED_FOR_DECREASE");
+        assertThat(writer.values).containsEntry("maximumPoolSize", 10L);
+        assertThat(serverReads).hasValue(1);
+    }
 }

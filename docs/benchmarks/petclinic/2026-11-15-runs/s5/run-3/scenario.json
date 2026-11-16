@@ -1,0 +1,12 @@
+{
+  "scenario": "S5",
+  "run": 3,
+  "rate_per_second": 1200,
+  "seed": 65003,
+  "load_seconds": 450,
+  "poll_seconds": 30,
+  "app_args": "--spring.datasource.hikari.maximum-pool-size=2 --management.metrics.distribution.slo.hikaricp.connections.usage=500ms,1h",
+  "springtune_version": "0.4.3-SNAPSHOT",
+  "lock_holder": null,
+  "slow_query": "one POST /owners/1/edit every 60 s (first at 30 s); a BEFORE UPDATE trigger on owners sleeps 3 s"
+}

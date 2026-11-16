@@ -10,7 +10,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,9 +32,12 @@ import org.springframework.boot.SpringBootVersion;
  * text are never read into it. Anything that does not match is dropped, not rewritten.
  *
  * <p><b>Pseudonyms.</b> Components are referred to as {@code <kind>#<n>} ({@code hikari#1}, {@code executor#2}),
- * numbered per kind in the order of their component id (sorted), within this process; a knob is
- * {@code <ref>.<setting>} ({@code hikari#1.maximumPoolSize}). The mapping is not part of the report: the same pool
- * keeps its number as long as the set of components does not change, which is normally the life of the process.
+ * numbered per kind in the snapshot's component order, which is the order the service discovered them in (sorted by
+ * component id at discovery, then fixed for the life of the process); a knob is {@code <ref>.<setting>}
+ * ({@code hikari#1.maximumPoolSize}). The mapping is not part of the report. A pool keeps its number when it starts
+ * later, although an unnamed pool's id changes then ({@code hikari:default} to {@code hikari:HikariPool-n}), and no
+ * other pool's number shifts. Two components that share an id (two unnamed pools before they start) each get a
+ * number, but nothing else in the report is attributed to either.
  *
  * @param format            always {@value #FORMAT}
  * @param springtuneVersion version of the starter, or {@code unknown}
@@ -142,24 +144,34 @@ public record TuningReport(
         String starter = version(springtuneVersion);
         String boot = version(springBootVersion);
 
-        List<TuningSnapshot.Component> sorted = new ArrayList<>(snapshot.components());
-        sorted.sort(Comparator.comparing(TuningSnapshot.Component::id));
+        // Numbered in the snapshot's order, which is the service's discovery order (fixed for the life of the process),
+        // not by the current id: an unnamed pool's id changes when it starts (hikari:default -> hikari:HikariPool-n),
+        // and sorting by it would move that pool and every pool after it to another number.
+        Map<String, Long> idCounts = new HashMap<>();
+        snapshot.components().forEach(c -> idCounts.merge(String.valueOf(c.id()), 1L, Long::sum));
         Map<String, String> refs = new HashMap<>();
         Map<String, Integer> ordinals = new HashMap<>();
         Map<String, String> knobRefs = new HashMap<>();
         List<Component> components = new ArrayList<>();
-        for (TuningSnapshot.Component component : sorted) {
+        for (TuningSnapshot.Component component : snapshot.components()) {
             String kind = kind(component.id());
-            if (kind == null || refs.containsKey(component.id())) {
+            if (kind == null) {
                 continue;
             }
             String ref = kind + "#" + ordinals.merge(kind, 1, Integer::sum);
-            refs.put(component.id(), ref);
+            // Two components with one id (two unnamed pools before they start): their evaluations, recommendations
+            // and audit entries cannot be told apart, so none is attributed to either.
+            boolean unique = idCounts.get(component.id()) == 1;
+            if (unique) {
+                refs.put(component.id(), ref);
+            }
             Map<String, Long> knobs = new LinkedHashMap<>();
             for (Knob knob : component.knobs()) {
                 if (in(SETTINGS, knob.name()) && component.id().equals(knob.component())) {
                     knobs.put(knob.name(), knob.currentValue());
-                    knobRefs.putIfAbsent(knob.id(), ref + "." + knob.name());
+                    if (unique) {
+                        knobRefs.putIfAbsent(knob.id(), ref + "." + knob.name());
+                    }
                 }
             }
             components.add(new Component(ref, kind, component.samples(), knobs));

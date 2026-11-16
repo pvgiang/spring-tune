@@ -21,10 +21,11 @@ the starter in staging and tell us what it recommended, including when it was wr
 </dependency>
 ```
 
-0.4.1 is tagged and released on GitHub; its Maven Central publication is pending. Until
-`https://repo1.maven.org/maven2/io/github/winkytek/springtune/springtune-spring-boot-starter/0.4.1/` answers, use
-`0.4.0`. The `evaluations` status list and `GET /actuator/tuning/report` described below arrive in **the release after
-0.4.1**; on 0.4.1 the feedback form accepts the plain `GET /actuator/tuning` output (see *How to report*).
+0.4.1 is on Maven Central today. The `evaluations` status list and `GET /actuator/tuning/report` described below
+need **0.4.2**: it is released on GitHub (its release carries a Maven repository zip), and its Maven Central
+publication is pending; use it from Central once
+`https://repo1.maven.org/maven2/io/github/winkytek/springtune/springtune-spring-boot-starter/0.4.2/` answers. On 0.4.1
+the feedback form accepts the plain `GET /actuator/tuning` output (see *How to report*).
 
 ```yaml
 management:
@@ -55,7 +56,7 @@ That is a result worth reporting too. Statuses are explained in [starter: evalua
 
 ## How to report
 
-1. `GET /actuator/tuning/report` (release after 0.4.1). It is built from an allowlist: rule ids, enums, numbers,
+1. `GET /actuator/tuning/report` (0.4.2 and later; on 0.4.1, see step 3). It is built from an allowlist: rule ids, enums, numbers,
    instants, setting names and pseudonyms such as `hikari#1`; pool and bean names, principals, reasons and exception
    texts are never copied ([what is kept and dropped](starter.md#shareable-report-get-actuatortuningreport-after-041)).
    Read it before you paste it.
