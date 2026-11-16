@@ -262,11 +262,16 @@ and the scenarios `S1 S2 S3 S3P S4 S5`.
 
 | Scenario | acquire / hold |
 |---|---|
-| S2 run 2 | 5–6 (hold rounded to "1 ms") |
+| S2 run 1 | 69–74 (hold rounded to "1 ms", as in all S2 and S5 rows) |
+| S2 run 2 | 5–6 |
+| S2 run 3 | 19–20 |
 | S3 | 5.2–5.5 |
 | S3′ | 3.3–3.4 |
+| S5 | 25–49 |
 
-So S2, where the pool really is the narrow point, gives the same ratio as the lock.
+So in S2 run 2, where the pool really is the narrow point, the ratio is the same as under the lock, while S2 runs 1
+and 3 are far above it. The ratio varies by more than a factor of 10 between seeds of one scenario and overlaps the
+lock in one of three S2 runs, so it cannot separate the two.
 
 ### Why each candidate came out as it did
 
